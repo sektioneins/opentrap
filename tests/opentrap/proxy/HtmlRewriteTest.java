@@ -3,11 +3,62 @@ package opentrap.proxy;
 import opentrap.testkit.Expect;
 import opentrap.testkit.Harness;
 
+import java.util.Random;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
+
 /**
  * The toolbar's response rewrites, pinned by example so that how they are
  * implemented can change without the output changing.
  */
 public final class HtmlRewriteTest {
+
+    private static final long DEADLINE_MS = 1000;
+
+    private static final String[] TOKENS = {
+        " ", "\t", "\n", "\r", "\f", "\u000b", "<script", "<SCRIPT>", "</script>", "</Script>",
+        "<object", "</object>", "</OBJECT>", "<embed", "<Embed ", ">", "disabled", "DISABLED",
+        "maxlength", "MaxLength", "onsubmit", "onclick", "on", "type", "hidden", "=", "\"", "'",
+        "1", "42", "x", "\u00e9", "\u00ff", "\u00b5"
+    };
+
+    /** Runs a rewrite on a daemon thread so a runaway one fails the case instead of hanging the run. */
+    private static String within(String what, Supplier<String> rewrite) {
+        String[] result = new String[1];
+        Throwable[] failure = new Throwable[1];
+        CountDownLatch done = new CountDownLatch(1);
+        Thread t = new Thread(() -> {
+            try {
+                result[0] = rewrite.get();
+            } catch (Throwable e) {
+                failure[0] = e;
+            } finally {
+                done.countDown();
+            }
+        }, "rewrite-" + what);
+        t.setDaemon(true);
+        t.start();
+        try {
+            if (!done.await(DEADLINE_MS, TimeUnit.MILLISECONDS)) {
+                throw new AssertionError(what + " did not finish within " + DEADLINE_MS + " ms");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError(what + " was interrupted");
+        }
+        if (failure[0] != null) throw new AssertionError(what + " failed: " + failure[0]);
+        return result[0];
+    }
+
+    private static String quoted(String s) {
+        StringBuilder b = new StringBuilder("\"");
+        for (char c : s.toCharArray()) {
+            if (c >= 0x20 && c < 0x7f && c != '"' && c != '\\') b.append(c);
+            else b.append(String.format("\\u%04x", (int) c));
+        }
+        return b.append('"').toString();
+    }
 
     public void run() {
         Harness.suite("proxy response modification");
@@ -59,6 +110,59 @@ public final class HtmlRewriteTest {
             Expect.equal(HtmlRewrite.removeAllJavaScript(
                     "<SCRIPT src=y>\n</SCRIPT><b onclick=\"x()\" ONMOUSEOVER = \"y()\">t</b>"),
                     "<b>t</b>", "script and handlers");
+        });
+
+        Harness.test("a megabyte of whitespace is rewritten in linear time", () -> {
+            String run = "<input" + " \t\n".repeat(350_000) + ">";
+            Expect.equal(within("removeLengthLimits", () -> HtmlRewrite.removeLengthLimits(run)), run,
+                    "removeLengthLimits leaves it unchanged");
+            Expect.equal(within("enableDisabledFields", () -> HtmlRewrite.enableDisabledFields(run)), run,
+                    "enableDisabledFields leaves it unchanged");
+            Expect.equal(within("removeJsValidation", () -> HtmlRewrite.removeJsValidation(run)), run,
+                    "removeJsValidation leaves it unchanged");
+            Expect.equal(within("removeAllJavaScript", () -> HtmlRewrite.removeAllJavaScript(run)), run,
+                    "removeAllJavaScript leaves it unchanged");
+        });
+
+        Harness.test("a megabyte of unclosed tags is rewritten in linear time", () -> {
+            String scripts = "<script ".repeat(130_000);
+            Expect.equal(within("removeAllJavaScript", () -> HtmlRewrite.removeAllJavaScript(scripts)), scripts,
+                    "unclosed script tags");
+            String objects = "<object ".repeat(130_000);
+            Expect.equal(within("removeObjectTags objects", () -> HtmlRewrite.removeObjectTags(objects)), objects,
+                    "unclosed object tags");
+            String embeds = "<embed ".repeat(150_000);
+            Expect.equal(within("removeObjectTags embeds", () -> HtmlRewrite.removeObjectTags(embeds)), embeds,
+                    "unclosed embed tags");
+        });
+
+        Harness.test("the linear rewrites give the same output as the original patterns", () -> {
+            Random rnd = new Random(25);
+            for (int i = 0; i < 3000; i++) {
+                int n = rnd.nextInt(41);
+                StringBuilder b = new StringBuilder();
+                for (int k = 0; k < n; k++) b.append(TOKENS[rnd.nextInt(TOKENS.length)]);
+                String in = b.toString();
+                String q = quoted(in);
+                Expect.equal(HtmlRewrite.unhideHiddenFields(in),
+                        in.replaceAll("(?i)type\\s*=\\s*([\"']?)hidden\\1", "type=$1text$1"),
+                        "unhideHiddenFields on " + q);
+                Expect.equal(HtmlRewrite.enableDisabledFields(in),
+                        in.replaceAll("(?i)\\s+disabled(\\s*=\\s*[\"']?[^\"'>\\s]*[\"']?)?", ""),
+                        "enableDisabledFields on " + q);
+                Expect.equal(HtmlRewrite.removeLengthLimits(in),
+                        in.replaceAll("(?i)\\s+maxlength\\s*=\\s*[\"']?\\d+[\"']?", ""),
+                        "removeLengthLimits on " + q);
+                Expect.equal(HtmlRewrite.removeJsValidation(in),
+                        in.replaceAll("(?i)\\s+onsubmit\\s*=\\s*\"[^\"]*\"", ""),
+                        "removeJsValidation on " + q);
+                Expect.equal(HtmlRewrite.removeObjectTags(in),
+                        in.replaceAll("(?is)<object.*?</object>", "").replaceAll("(?i)<embed[^>]*>", ""),
+                        "removeObjectTags on " + q);
+                String js = in.replaceAll("(?is)<script.*?</script>", "")
+                        .replaceAll("(?i)\\s+on[a-z]+\\s*=\\s*\"[^\"]*\"", "");
+                Expect.equal(HtmlRewrite.removeAllJavaScript(in), js, "removeAllJavaScript on " + q);
+            }
         });
     }
 }
