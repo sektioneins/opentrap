@@ -5,9 +5,11 @@ import java.util.Set;
 /**
  * The settings that decide what a project keeps and what the proxy records.
  *
- * <p>They are ordinary {@link Settings} keys, so they travel in the project
- * file like every other setting; this class only names them and their
- * defaults in one place.
+ * <p>Only the keys in {@link #KEYS} travel with the project: they live in
+ * memory and in the project file and never reach the preferences store. The
+ * memory caps {@link #AUDIT_MEMORY_MB} and {@link #WS_MEMORY_MB} are user keys
+ * because they size this machine's memory; this class only names them and
+ * their defaults in one place.
  *
  * <p>The defaults follow the shape of a scan: the crawl's pages and everything
  * done by hand are kept in full, the audit's own probe traffic is kept as
@@ -58,6 +60,7 @@ public final class ProjectOptions {
         "http.redirect.javascript", "http.redirect.anyLocation",
         "http.100.understand", "http.100.remove", "http.keepAlive", "http.http2", "http.unpackGzip");
 
+    /** True when the key is one of {@link #KEYS}, the settings a project file may carry. */
     public static boolean isProjectKey(String key) { return key != null && KEYS.contains(key); }
 
     public static final int DEFAULT_AUDIT_MEMORY_MB = 100;

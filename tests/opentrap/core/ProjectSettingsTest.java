@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.prefs.Preferences;
 
 /**
@@ -127,6 +128,17 @@ public final class ProjectSettingsTest {
             for (String k : ProjectOptions.KEYS)
                 for (String f : forbidden)
                     Expect.isFalse(k.startsWith(f), k + " starts with " + f);
+            Expect.equal(ProjectOptions.KEYS, Set.of(
+                "project.keepAuditBodies", "project.bodyCapKb",
+                "proxy.logOutOfScope", "proxy.outOfScopeChoice",
+                "scope.advanced", "scope.outOfScope.mode", "scope.dropOutOfScope",
+                "tasks.autostart",
+                "timeout.connect", "timeout.read", "timeout.openEnded", "timeout.dns", "timeout.dnsFailed",
+                "dns.mode",
+                "http.redirect.3xx", "http.redirect.refreshHeader", "http.redirect.metaRefresh",
+                "http.redirect.javascript", "http.redirect.anyLocation",
+                "http.100.understand", "http.100.remove", "http.keepAlive", "http.http2", "http.unpackGzip"),
+                "the project keys are exactly the reviewed list");
         });
     }
 }
