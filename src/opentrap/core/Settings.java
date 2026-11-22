@@ -103,11 +103,6 @@ public class Settings implements Serializable {
             Debug.log("project settings: skipped " + skipped.size() + " key(s) that are not project settings: " + String.join(", ", skipped));
     }
 
-    public void restore(Map<String, String> m) {
-        if (m == null) return;
-        for (Map.Entry<String, String> e : m.entrySet()) set(e.getKey(), e.getValue());
-    }
-
     /** Be told the key whenever a value is set, on the thread that set it. */
     public void addListener(Consumer<String> l) { listeners().add(l); }
 

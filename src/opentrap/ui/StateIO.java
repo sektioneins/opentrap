@@ -247,7 +247,7 @@ public final class StateIO {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         ObjectOutputStream oos = new ObjectOutputStream(baos);
         oos.writeObject(ctx.scope());
-        oos.writeObject(ctx.settings().snapshot());
+        oos.writeObject(ctx.settings().projectSnapshot());
         oos.writeObject(ctx.sessions().snapshot());
         oos.writeObject(ctx.organizer().snapshot());
         List<opentrap.core.Issue> issues = new ArrayList<>();
@@ -371,7 +371,7 @@ public final class StateIO {
     static void applySessionState(SuiteContext ctx, byte[] block) throws Exception {
         ObjectInputStream ois = opentrap.core.ProjectSerial.recordReader(block);
         Scope scope = (Scope) ois.readObject();
-        java.util.Map<String, String> settings = (java.util.Map<String, String>) ois.readObject();
+        java.util.Map<?, ?> settings = (java.util.Map<?, ?>) ois.readObject();
         opentrap.session.SessionManager.State session = (opentrap.session.SessionManager.State) ois.readObject();
         java.util.List<opentrap.organizer.OrganizerItem> organizer =
                 (java.util.List<opentrap.organizer.OrganizerItem>) ois.readObject();
@@ -386,7 +386,7 @@ public final class StateIO {
             ctx.scope().exclude().clear();
             ctx.scope().exclude().addAll(scope.exclude());
         }
-        ctx.settings().restore(settings);
+        ctx.settings().restoreProject(settings);
         if (session != null) ctx.sessions().restore(session);
         if (organizer != null) ctx.organizer().restore(organizer);
         if (issues != null) ctx.restoreIssues(issues);
@@ -416,7 +416,7 @@ public final class StateIO {
             }
             List<LogEntry> entries = (List<LogEntry>) ois.readObject();
             Scope scope = (Scope) ois.readObject();
-            java.util.Map<String, String> settings = (java.util.Map<String, String>) ois.readObject();
+            java.util.Map<?, ?> settings = (java.util.Map<?, ?>) ois.readObject();
             opentrap.session.SessionManager.State session = null;
             if (version >= 2) {
                 session = (opentrap.session.SessionManager.State) ois.readObject();
@@ -445,7 +445,7 @@ public final class StateIO {
                 ctx.scope().exclude().clear();
                 ctx.scope().exclude().addAll(scope.exclude());
             }
-            ctx.settings().restore(settings);
+            ctx.settings().restoreProject(settings);
             if (session != null) ctx.sessions().restore(session);
             if (organizer != null) ctx.organizer().restore(organizer);
             if (savedIssues != null) ctx.restoreIssues(savedIssues);

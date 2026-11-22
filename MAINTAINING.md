@@ -169,7 +169,9 @@ both leave a marker and the full length on the entry, which the message editor
 shows as a note. The live session is never changed by a save. In memory,
 `MessageStore` caps audit traffic at `project.auditMemoryMb` (default 100 MB) and
 drops the oldest probes past it; nothing from any other tool is ever dropped.
-Settings, including these, travel in the file; `ProjectOptions` names the keys.
+Only the project keys in `ProjectOptions.KEYS` travel in the file, and they never reach the
+preferences store; every other setting is the user's and stays out of the file, and a key
+a file carries that is not in `KEYS` is skipped on open.
 Every object stream read from a project goes through `core.ProjectSerial`, an
 allowlist filter, so a new class in a saved state must be added to its list.
 
