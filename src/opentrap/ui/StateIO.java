@@ -369,7 +369,7 @@ public final class StateIO {
     /** Apply a session-state snapshot (everything but the history) to the context. */
     @SuppressWarnings("unchecked")
     static void applySessionState(SuiteContext ctx, byte[] block) throws Exception {
-        ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(block));
+        ObjectInputStream ois = opentrap.core.ProjectSerial.recordReader(block);
         Scope scope = (Scope) ois.readObject();
         java.util.Map<String, String> settings = (java.util.Map<String, String>) ois.readObject();
         opentrap.session.SessionManager.State session = (opentrap.session.SessionManager.State) ois.readObject();
@@ -409,7 +409,7 @@ public final class StateIO {
         try (ZipInputStream zis = new ZipInputStream(new BufferedInputStream(new FileInputStream(file)))) {
             ZipEntry e = zis.getNextEntry();
             if (e == null) throw new IOException("Input file is not in correct format");
-            ObjectInputStream ois = new ObjectInputStream(zis);
+            ObjectInputStream ois = opentrap.core.ProjectSerial.legacyReader(zis);
             int version = ois.readInt();
             if (version > 6) {
                 ctx.alert("suite", "This file was saved by a later version - restore may fail");

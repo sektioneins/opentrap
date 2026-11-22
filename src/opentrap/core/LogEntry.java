@@ -1,6 +1,5 @@
 package opentrap.core;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -162,7 +161,7 @@ public class LogEntry implements Serializable {
 
     /** Rebuild an entry from an index record and reconnect it to {@code store}. */
     public static LogEntry fromIndex(byte[] b, ProjectStore store) throws IOException, ClassNotFoundException {
-        try (ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(b))) {
+        try (ObjectInputStream ois = ProjectSerial.recordReader(b)) {
             LogEntry e = (LogEntry) ois.readObject();
             e.rebind(store);
             return e;

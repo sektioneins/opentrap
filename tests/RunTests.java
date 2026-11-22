@@ -59,6 +59,7 @@ public final class RunTests {
         new opentrap.ui.ProjectTasksTest().run();
         new opentrap.ui.ProjectSlimTest().run();
         new opentrap.ui.ProjectFileTest().run();
+        new opentrap.ui.ProjectFilterTest().run();
         new opentrap.ui.QuitRequestTest().run();
 
         System.exit(Harness.report());

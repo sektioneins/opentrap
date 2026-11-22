@@ -170,6 +170,8 @@ shows as a note. The live session is never changed by a save. In memory,
 `MessageStore` caps audit traffic at `project.auditMemoryMb` (default 100 MB) and
 drops the oldest probes past it; nothing from any other tool is ever dropped.
 Settings, including these, travel in the file; `ProjectOptions` names the keys.
+Every object stream read from a project goes through `core.ProjectSerial`, an
+allowlist filter, so a new class in a saved state must be added to its list.
 
 **Tiling and wlroots-family compositors need a toolkit hint.** Java's X11
 toolkit assumes a reparenting window manager; under sway, i3, Hyprland, river,

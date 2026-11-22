@@ -30,6 +30,9 @@ public interface ToolModule {
     /**
      * A serialisable snapshot of this tool's working state, saved with the
      * project. Return null if the tool has nothing worth persisting.
+     * Only the classes {@code ProjectSerial} allows can be restored: strings,
+     * boxed primitives, primitive arrays, {@code java.util} collections of
+     * these, and the suite's own model types.
      */
     default java.io.Serializable saveState() { return null; }
 

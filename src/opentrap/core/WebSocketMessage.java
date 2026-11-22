@@ -1,6 +1,5 @@
 package opentrap.core;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -131,7 +130,7 @@ public final class WebSocketMessage implements Serializable {
 
     /** Rebuild a frame from an index record and reconnect it to {@code store}. */
     public static WebSocketMessage fromIndex(byte[] b, ProjectStore store) throws IOException, ClassNotFoundException {
-        try (ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(b))) {
+        try (ObjectInputStream ois = ProjectSerial.recordReader(b)) {
             WebSocketMessage m = (WebSocketMessage) ois.readObject();
             m.payloadStore = store;
             return m;
