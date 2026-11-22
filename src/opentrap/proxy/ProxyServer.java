@@ -609,20 +609,12 @@ public class ProxyServer {
                 && !removeJsValidation && !removeAllJavaScript && !removeObjectTags) return;
         if (!"HTML".equals(response.mimeType())) return;
         String b = response.bodyText();
-        if (unhideHiddenFields)
-            b = b.replaceAll("(?i)type\\s*=\\s*([\"']?)hidden\\1", "type=$1text$1");
-        if (enableDisabledFields)
-            b = b.replaceAll("(?i)\\s+disabled(\\s*=\\s*[\"']?[^\"'>\\s]*[\"']?)?", "");
-        if (removeLengthLimits)
-            b = b.replaceAll("(?i)\\s+maxlength\\s*=\\s*[\"']?\\d+[\"']?", "");
-        if (removeJsValidation)
-            b = b.replaceAll("(?i)\\s+onsubmit\\s*=\\s*\"[^\"]*\"", "");
-        if (removeObjectTags)
-            b = b.replaceAll("(?is)<object.*?</object>", "").replaceAll("(?i)<embed[^>]*>", "");
-        if (removeAllJavaScript) {
-            b = b.replaceAll("(?is)<script.*?</script>", "");
-            b = b.replaceAll("(?i)\\s+on[a-z]+\\s*=\\s*\"[^\"]*\"", "");
-        }
+        if (unhideHiddenFields) b = HtmlRewrite.unhideHiddenFields(b);
+        if (enableDisabledFields) b = HtmlRewrite.enableDisabledFields(b);
+        if (removeLengthLimits) b = HtmlRewrite.removeLengthLimits(b);
+        if (removeJsValidation) b = HtmlRewrite.removeJsValidation(b);
+        if (removeObjectTags) b = HtmlRewrite.removeObjectTags(b);
+        if (removeAllJavaScript) b = HtmlRewrite.removeAllJavaScript(b);
         response.setBody(Bytes.bytes(b));
         response.setHeader("Content-Length", String.valueOf(response.body().length));
     }

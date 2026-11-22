@@ -39,6 +39,7 @@ public final class RunTests {
         new opentrap.proxy.WebSocketFrameTest().run();
         new opentrap.proxy.WsMatchReplaceTest().run();
         new opentrap.proxy.HistoryFilterTest().run();
+        new opentrap.proxy.HtmlRewriteTest().run();
         new opentrap.engine.ScanConfigStoreTest().run();
         new opentrap.engine.EngineShutdownTest().run();
         new opentrap.ui.SendToComparerTest().run();
