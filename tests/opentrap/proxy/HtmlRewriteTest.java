@@ -20,6 +20,8 @@ public final class HtmlRewriteTest {
         " ", "\t", "\n", "\r", "\f", "\u000b", "<script", "<SCRIPT>", "</script>", "</Script>",
         "<object", "</object>", "</OBJECT>", "<embed", "<Embed ", ">", "disabled", "DISABLED",
         "maxlength", "MaxLength", "onsubmit", "onclick", "on", "type", "hidden", "=", "\"", "'",
+        " maxlength=\"", " onsubmit=\"", " onclick=\"", " disabled=", "type=", "type=\"hidden\"", " type = 'hidden'",
+        " maxlength=\"7\"", " maxlength=42",
         "1", "42", "x", "\u00e9", "\u00ff", "\u00b5"
     };
 
@@ -114,25 +116,25 @@ public final class HtmlRewriteTest {
 
         Harness.test("a megabyte of whitespace is rewritten in linear time", () -> {
             String run = "<input" + " \t\n".repeat(350_000) + ">";
-            Expect.equal(within("removeLengthLimits", () -> HtmlRewrite.removeLengthLimits(run)), run,
+            Expect.isTrue(within("removeLengthLimits", () -> HtmlRewrite.removeLengthLimits(run)).equals(run),
                     "removeLengthLimits leaves it unchanged");
-            Expect.equal(within("enableDisabledFields", () -> HtmlRewrite.enableDisabledFields(run)), run,
+            Expect.isTrue(within("enableDisabledFields", () -> HtmlRewrite.enableDisabledFields(run)).equals(run),
                     "enableDisabledFields leaves it unchanged");
-            Expect.equal(within("removeJsValidation", () -> HtmlRewrite.removeJsValidation(run)), run,
+            Expect.isTrue(within("removeJsValidation", () -> HtmlRewrite.removeJsValidation(run)).equals(run),
                     "removeJsValidation leaves it unchanged");
-            Expect.equal(within("removeAllJavaScript", () -> HtmlRewrite.removeAllJavaScript(run)), run,
+            Expect.isTrue(within("removeAllJavaScript", () -> HtmlRewrite.removeAllJavaScript(run)).equals(run),
                     "removeAllJavaScript leaves it unchanged");
         });
 
         Harness.test("a megabyte of unclosed tags is rewritten in linear time", () -> {
             String scripts = "<script ".repeat(130_000);
-            Expect.equal(within("removeAllJavaScript", () -> HtmlRewrite.removeAllJavaScript(scripts)), scripts,
+            Expect.isTrue(within("removeAllJavaScript", () -> HtmlRewrite.removeAllJavaScript(scripts)).equals(scripts),
                     "unclosed script tags");
             String objects = "<object ".repeat(130_000);
-            Expect.equal(within("removeObjectTags objects", () -> HtmlRewrite.removeObjectTags(objects)), objects,
+            Expect.isTrue(within("removeObjectTags objects", () -> HtmlRewrite.removeObjectTags(objects)).equals(objects),
                     "unclosed object tags");
             String embeds = "<embed ".repeat(150_000);
-            Expect.equal(within("removeObjectTags embeds", () -> HtmlRewrite.removeObjectTags(embeds)), embeds,
+            Expect.isTrue(within("removeObjectTags embeds", () -> HtmlRewrite.removeObjectTags(embeds)).equals(embeds),
                     "unclosed embed tags");
         });
 

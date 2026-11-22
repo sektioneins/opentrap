@@ -12,8 +12,11 @@ import java.util.regex.Pattern;
  *
  * <p>A pattern that starts with {@code \s+} would be tried at every character
  * of a long whitespace run and scan to the end of the run each time, which is
- * quadratic. {@code (?<!\s)} lets a match start only at the first character of
- * a run, so each run is scanned once. The match is the same as before: a regex
+ * quadratic. Here the pattern takes one whitespace character, then requires
+ * that the character before it is not whitespace ({@code (?<!\s\s)}), then
+ * takes the rest of the run, so a match can start only at the first character
+ * of a run and each run is scanned once. A non-whitespace character still
+ * fails at once, as it did before. The match is the same as before: a regex
  * match starts at the leftmost position, so it always took the whole run. The
  * quantifiers that follow are possessive, which is safe because each is
  * followed by something it cannot match, so none of them ever gave anything
@@ -23,13 +26,16 @@ import java.util.regex.Pattern;
 final class HtmlRewrite {
 
     private static final Pattern DISABLED =
-            Pattern.compile("(?i)(?<!\\s)\\s++disabled(\\s*+=\\s*+[\"']?[^\"'>\\s]*+[\"']?)?");
+            Pattern.compile("(?i)\\s(?<!\\s\\s)\\s*+disabled(\\s*+=\\s*+[\"']?[^\"'>\\s]*+[\"']?)?");
     private static final Pattern MAXLENGTH =
-            Pattern.compile("(?i)(?<!\\s)\\s++maxlength\\s*+=\\s*+[\"']?\\d++[\"']?");
+            Pattern.compile("(?i)\\s(?<!\\s\\s)\\s*+maxlength\\s*+=\\s*+[\"']?\\d++[\"']?");
     private static final Pattern ONSUBMIT =
-            Pattern.compile("(?i)(?<!\\s)\\s++onsubmit\\s*+=\\s*+\"[^\"]*+\"");
+            Pattern.compile("(?i)\\s(?<!\\s\\s)\\s*+onsubmit\\s*+=\\s*+\"[^\"]*+\"");
     private static final Pattern ON_HANDLER =
-            Pattern.compile("(?i)(?<!\\s)\\s++on[a-z]++\\s*+=\\s*+\"[^\"]*+\"");
+            Pattern.compile("(?i)\\s(?<!\\s\\s)\\s*+on[a-z]++\\s*+=\\s*+\"[^\"]*+\"");
+
+    private static final Pattern HIDDEN =
+            Pattern.compile("(?i)type\\s*=\\s*([\"']?)hidden\\1");
 
     private static final Pattern OBJECT_OPEN = Pattern.compile("(?i)<object");
     private static final Pattern OBJECT_CLOSE = Pattern.compile("(?i)</object>");
@@ -41,7 +47,7 @@ final class HtmlRewrite {
     private HtmlRewrite() {}
 
     static String unhideHiddenFields(String html) {
-        return html.replaceAll("(?i)type\\s*=\\s*([\"']?)hidden\\1", "type=$1text$1");
+        return HIDDEN.matcher(html).replaceAll("type=$1text$1");
     }
 
     static String enableDisabledFields(String html) {
@@ -73,12 +79,13 @@ final class HtmlRewrite {
      */
     private static String removeSpans(String s, Pattern open, Pattern close) {
         Matcher o = open.matcher(s), c = close.matcher(s);
-        StringBuilder out = new StringBuilder(s.length());
+        StringBuilder out = null;
         int copied = 0;
         while (o.find(copied) && c.find(o.end())) {
+            if (out == null) out = new StringBuilder(s.length());
             out.append(s, copied, o.start());
             copied = c.end();
         }
-        return copied == 0 ? s : out.append(s, copied, s.length()).toString();
+        return out == null ? s : out.append(s, copied, s.length()).toString();
     }
 }
