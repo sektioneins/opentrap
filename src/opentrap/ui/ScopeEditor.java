@@ -26,6 +26,7 @@ public class ScopeEditor extends JPanel {
     private final JPanel body = new JPanel(cards);
     private final JCheckBox advanced;
     private final RulePanel simpleInclude, simpleExclude, advancedInclude, advancedExclude;
+    private final java.util.function.Consumer<String> modeListener;
 
     public ScopeEditor(SuiteContext ctx, Scope scope) {
         super();
@@ -56,6 +57,33 @@ public class ScopeEditor extends JPanel {
         showMode();
 
         ctx.addScopeListener(() -> SwingUtilities.invokeLater(this::refresh));
+        modeListener = key -> {
+            if (ProjectOptions.SCOPE_ADVANCED.equals(key)) SwingUtilities.invokeLater(this::followSetting);
+        };
+    }
+
+    /** Whether the regex rule tables are showing rather than the URL prefixes. */
+    boolean advancedShown() { return advanced.isSelected(); }
+
+    /** Show the mode the setting holds, which a restored project may have changed. */
+    private void followSetting() {
+        advanced.setSelected(ctx.settings().getBool(ProjectOptions.SCOPE_ADVANCED, false));
+        showMode();
+    }
+
+    /** On screen: follow the setting. The editor is built before a project is
+     *  restored, so pick up what was restored meanwhile, then hear later changes.
+     *  Registered only while shown, because the Settings page builds a fresh
+     *  editor on every open and Settings lives for the whole session. */
+    @Override public void addNotify() {
+        super.addNotify();
+        ctx.settings().addListener(modeListener);
+        followSetting();
+    }
+
+    @Override public void removeNotify() {
+        ctx.settings().removeListener(modeListener);
+        super.removeNotify();
     }
 
     private static JPanel tables(RulePanel include, RulePanel exclude) {

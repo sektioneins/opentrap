@@ -35,17 +35,13 @@ public class ProxyTool implements ToolModule {
             return;
         }
         server.unpackGzip = ctx.settings().getBool("http.unpackGzip", true);
-        // Out-of-scope logging is a project setting, so the banner, the settings
-        // pane and a restored project all drive the one flag on the server.
-        // The flag is a preference as well, so it can arrive from an earlier
-        // session; with no scope defined it has nothing to apply to, and would
-        // otherwise read as "record nothing", so it is cleared.
-        if (ctx.scope().isEmpty() && !ProjectOptions.logOutOfScope(ctx.settings())) {
-            ctx.settings().setBool(ProjectOptions.LOG_OUT_OF_SCOPE, true);
-        }
+        // Both flags below are project settings, so the banner, the settings
+        // pane and a restored project all drive the one flag on the server. A
+        // project is restored after init, which is why the listener matters.
         server.logOutOfScope = ProjectOptions.logOutOfScope(ctx.settings());
         ctx.settings().addListener(key -> {
             if (ProjectOptions.LOG_OUT_OF_SCOPE.equals(key)) server.logOutOfScope = ProjectOptions.logOutOfScope(ctx.settings());
+            else if ("http.unpackGzip".equals(key)) server.unpackGzip = ctx.settings().getBool("http.unpackGzip", true);
         });
         lastIncludeCount = ctx.scope().include().size();
         ctx.addScopeListener(this::scopeEdited);
@@ -661,14 +657,16 @@ public class ProxyTool implements ToolModule {
             page.section("response modification", unhide, enable, limits, jsval, alljs, objs, stripSec, stripNote);
 
             JCheckBox http10 = Ui.check("talk HTTP/1.0 to the server", server.http10);
-            JCheckBox unpack = Ui.check("unpack gzip / deflate", server.unpackGzip);
+            JCheckBox unpack = Ui.check("unpack gzip / deflate", ctx.settings().getBool("http.unpackGzip", true));
             JCheckBox logoos = Ui.check("log out-of-scope traffic", server.logOutOfScope);
             http10.addActionListener(e -> server.http10 = http10.isSelected());
-            unpack.addActionListener(e -> server.unpackGzip = unpack.isSelected());
+            unpack.addActionListener(e -> ctx.settings().setBool("http.unpackGzip", unpack.isSelected()));
             logoos.addActionListener(e -> ctx.settings().setBool(ProjectOptions.LOG_OUT_OF_SCOPE, logoos.isSelected()));
             ctx.settings().addListener(key -> {
                 if (ProjectOptions.LOG_OUT_OF_SCOPE.equals(key))
                     SwingUtilities.invokeLater(() -> logoos.setSelected(ProjectOptions.logOutOfScope(ctx.settings())));
+                else if ("http.unpackGzip".equals(key))
+                    SwingUtilities.invokeLater(() -> unpack.setSelected(ctx.settings().getBool("http.unpackGzip", true)));
             });
             JTextArea logoosNote = Ui.note(
                     "Off, the proxy still passes everything through but records only in-scope traffic. "
