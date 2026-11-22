@@ -1,10 +1,11 @@
 # OpenTRAP module contract
 
 Source root `src` in the repository root. Compile check, from the repository
-root: `javac -d build -cp "lib/*:build" $(find src -name '*.java')`
+root: `javac --release 27 -d build -cp "lib/*:build" $(find src -name '*.java')`
 
-Java 17 or newer (built and tested on Java 25), Swing. No external deps except
-BouncyCastle (already used by the proxy only).
+Java 27 (`JAVA_RELEASE` in `tools/versions`), Swing. No external deps except
+the two vendored in `lib/`: BouncyCastle, used only by the proxy's certificate
+authority, and a Brotli decoder, used by the HTTP client and the decoder tool.
 
 ## Implement this
 
