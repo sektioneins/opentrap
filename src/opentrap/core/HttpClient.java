@@ -55,7 +55,7 @@ public class HttpClient {
     private static SSLSocketFactory permissiveFactory;
 
     /** Testing tools must reach hosts with broken certificates, so trust all. */
-    private static synchronized SSLSocketFactory sslFactory() throws Exception {
+    static synchronized SSLSocketFactory sslFactory() throws Exception {
         if (permissiveFactory == null) {
             SSLContext ctx = SSLContext.getInstance("TLS");
             ctx.init(null, new TrustManager[]{ new X509ExtendedTrustManager() {
