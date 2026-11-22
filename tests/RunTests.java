@@ -9,9 +9,16 @@ import opentrap.testkit.Harness;
 public final class RunTests {
 
     public static void main(String[] args) {
+        // Preferences reads this once, when the class initialises, so it must come first.
+        System.setProperty("java.util.prefs.PreferencesFactory", "opentrap.testkit.MemoryPreferencesFactory");
+        if (!(java.util.prefs.Preferences.userRoot() instanceof opentrap.testkit.MemoryPreferences)) {
+            System.err.println("refusing to run: the tests would use the real preferences store");
+            System.exit(2);
+        }
         System.out.println("OpenTRAP tests");
         System.out.println();
 
+        new opentrap.testkit.MemoryPreferencesTest().run();
         new opentrap.core.ParameterParsingTest().run();
         new opentrap.core.HttpModeTest().run();
         new opentrap.core.TlsGroupsTest().run();
