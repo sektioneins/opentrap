@@ -225,7 +225,7 @@ public final class ApisPanel extends JPanel {
                 /** Called when the suite is shutting down. */
                 default void shutdown() {}
 
-                /** A serialisable snapshot of this tool's working state, saved with the project. Only the classes ProjectSerial allows can be restored: strings, boxed primitives, primitive arrays, java.util collections of these, and the suite's own model types. */
+                /** A serialisable snapshot of this tool's working state, saved with the project. Only the classes ProjectSerial allows can be restored: strings, boxed primitives, Date, primitive arrays, ArrayList, LinkedList, HashMap, LinkedHashMap, TreeMap, HashSet, LinkedHashSet, TreeSet, CopyOnWriteArrayList, List.of/Set.of/Map.of, and the suite's own model types. Any other class (Collections.emptyList, Arrays.asList, Vector, BigInteger, UUID, ...) fails the whole project open. */
                 default java.io.Serializable saveState() { return null; }
 
                 /** Restore a snapshot previously produced by saveState(). */

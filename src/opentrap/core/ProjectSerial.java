@@ -13,8 +13,9 @@ import java.io.ObjectInputStream;
  * saved state carries are allowed. Nesting depth is bounded, and so is the size
  * of an array: by the record length in a v7 record, and in a v6 stream by the
  * record cap for a {@code byte[]} and by {@link #LEGACY_MAX_REFERENCES} elements
- * for every other array. Within those bounds a stream can still use a lot of
- * memory; the limits only stop a few crafted bytes from asking for gigabytes.
+ * for every other array. Memory is not bounded: a v7 record is small, but a v6
+ * stream can still ask for up to 512 MiB per {@code byte[]} and for many such
+ * arrays, so a crafted old-format file can exhaust the heap.
  *
  * <p>Rule for maintainers: a class that a project's saved state carries must be
  * added to {@link #ALLOWED} and to the first case of {@code ProjectSerialTest}.
@@ -90,7 +91,7 @@ public final class ProjectSerial {
             // How List.of travels (Issue.tags).
             "java.util.CollSer",
             "java.util.ImmutableCollections$*",
-            // ScanTask.Snapshot.log.
+            // Scope.include and Scope.exclude, so every project carries it.
             "java.util.concurrent.CopyOnWriteArrayList",
             // Everything else is refused.
             "!*");
@@ -103,8 +104,8 @@ public final class ProjectSerial {
      */
     public static ObjectInputStream recordReader(byte[] record) throws IOException {
         ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(record));
-        ois.setObjectInputFilter(ObjectInputFilter.Config.createFilter(
-                "maxdepth=" + MAX_DEPTH + ";maxarray=" + record.length + ";" + ALLOWED));
+        ois.setObjectInputFilter(logRefusals(ObjectInputFilter.Config.createFilter(
+                "maxdepth=" + MAX_DEPTH + ";maxarray=" + record.length + ";" + ALLOWED)));
         return ois;
     }
 
@@ -113,14 +114,31 @@ public final class ProjectSerial {
         ObjectInputFilter pattern = ObjectInputFilter.Config.createFilter(
                 "maxdepth=" + MAX_DEPTH + ";maxarray=" + ProjectStore.MAX_RECORD + ";" + ALLOWED);
         ObjectInputStream ois = new ObjectInputStream(in);
-        ois.setObjectInputFilter(info -> {
+        ois.setObjectInputFilter(logRefusals(info -> {
             Class<?> c = info.serialClass();
             if (c != null && c.isArray() && c.getComponentType() != byte.class
                     && info.arrayLength() > LEGACY_MAX_REFERENCES) {
                 return ObjectInputFilter.Status.REJECTED;
             }
             return pattern.checkInput(info);
-        });
+        }));
         return ois;
+    }
+
+    /**
+     * The exception a refusal throws says only "filter status: REJECTED", so the
+     * debug log names what was refused: the class (or none, for a pure limit
+     * check), the depth and the array length.
+     */
+    private static ObjectInputFilter logRefusals(ObjectInputFilter inner) {
+        return info -> {
+            ObjectInputFilter.Status st = inner.checkInput(info);
+            if (st == ObjectInputFilter.Status.REJECTED) {
+                Class<?> c = info.serialClass();
+                Debug.log("project file: refused " + (c == null ? "no class" : c.getName())
+                        + " at depth " + info.depth() + ", array length " + info.arrayLength());
+            }
+            return st;
+        };
     }
 }

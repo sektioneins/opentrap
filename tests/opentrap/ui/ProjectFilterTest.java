@@ -151,5 +151,49 @@ public final class ProjectFilterTest {
             } catch (Exception e) { throw new RuntimeException(e); }
             finally { closeStores(back); if (f != null) f.delete(); }
         });
+
+        Harness.test("the real tools' saved state reads back through the filter", () -> {
+            SuiteContext ctx = new SuiteContext();
+            try {
+                HttpMessage req = new HttpMessage(Bytes.bytes("GET /a HTTP/1.1\r\nHost: example.com\r\n\r\n"));
+                HttpMessage resp = new HttpMessage(Bytes.bytes("HTTP/1.1 200 OK\r\n\r\nbody"));
+                var repeater = new opentrap.repeater.RepeaterTool();
+                repeater.init(ctx);
+                repeater.tabs();
+                ctx.registerTool(repeater);
+                var comparer = new opentrap.comparer.ComparerTool();
+                comparer.init(ctx);
+                var add = comparer.getClass().getDeclaredMethod("add", byte[].class);
+                add.setAccessible(true);
+                add.invoke(comparer, (Object) req.raw());
+                add.invoke(comparer, (Object) resp.raw());
+                ctx.registerTool(comparer);
+                var decoder = new opentrap.decoder.DecoderTool();
+                decoder.init(ctx);
+                decoder.restoreState("aGVsbG8=");
+                ctx.registerTool(decoder);
+                var intruder = new opentrap.intruder.IntruderTool(ctx);
+                intruder.init(ctx);
+                intruder.restoreState("GET /\u00a7x\u00a7 HTTP/1.1\r\n\r\n");
+                ctx.registerTool(intruder);
+                var target = new opentrap.target.TargetTool();
+                target.init(ctx);
+                ctx.registerTool(target);
+                var proxy = new opentrap.proxy.ProxyTool();
+                proxy.init(ctx);
+                proxy.tabs();
+                ctx.registerTool(proxy);
+
+                int states = 0;
+                for (ToolModule t : ctx.tools()) if (t.saveState() != null) states++;
+                Expect.isTrue(states >= 4, "the tools carry state: " + states);
+                byte[] snap = StateIO.sessionStateBytes(ctx, StateIO.SaveOptions.fromSettings(ctx));
+                try (java.io.ObjectInputStream in = ProjectSerial.recordReader(snap)) {
+                    for (int i = 0; i < 7; i++) in.readObject();
+                }
+                StateIO.applySessionState(new SuiteContext(), snap);
+            } catch (Exception e) { throw new RuntimeException(e); }
+            finally { closeStores(ctx); }
+        });
     }
 }
