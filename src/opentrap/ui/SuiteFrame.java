@@ -102,6 +102,7 @@ public class SuiteFrame extends JFrame {
         addWindowListener(new WindowAdapter() {
             @Override public void windowClosing(WindowEvent e) { confirmExit(); }
         });
+        installQuitHandler();
 
         // A session bound to a project file is written back every 30 seconds
         // when something changed (in the background, atomically), so a crash
@@ -654,7 +655,46 @@ public class SuiteFrame extends JFrame {
         repaint();
     }
 
+    /** Close the window and every tool, then end the process, once the user confirms. */
     private void confirmExit() {
+        if (prepareExit()) System.exit(0);
+    }
+
+    /**
+     * Route the platform's quit request (Cmd-Q, Dock > Quit, log-out on macOS)
+     * through {@link #prepareExit}, as closing the window does. Without a
+     * handler Java's default calls System.exit on the AppKit thread: no
+     * confirmation, no final project save, and the application frozen until
+     * every shutdown hook has finished. The handler runs on the event thread.
+     */
+    private void installQuitHandler() {
+        if (!Desktop.isDesktopSupported()) return;
+        Desktop desktop = Desktop.getDesktop();
+        if (!desktop.isSupported(Desktop.Action.APP_QUIT_HANDLER)) return;
+        desktop.setQuitHandler((e, response) -> answerQuit(this::prepareExit, response));
+    }
+
+    /**
+     * Answer a quit request: go ahead when {@code exitConfirmed} says so, cancel
+     * otherwise. It always answers, even when preparing to exit fails, because
+     * macOS waits on an unanswered request and ignores every later Cmd-Q.
+     */
+    static void answerQuit(java.util.function.BooleanSupplier exitConfirmed,
+                           java.awt.desktop.QuitResponse response) {
+        boolean quit = false;
+        try {
+            quit = exitConfirmed.getAsBoolean();
+        } finally {
+            if (quit) response.performQuit();
+            else response.cancelQuit();
+        }
+    }
+
+    /**
+     * Ask whether to exit and, if so, save the project, shut every tool down and
+     * close the window. Returns whether the application should now end.
+     */
+    private boolean prepareExit() {
         int r = ctx.settings().getBool("suite.noConfirmClose", false) ? JOptionPane.YES_OPTION
                 : JOptionPane.showConfirmDialog(this,
                 "This will close all opentrap windows - are you sure you want to exit?",
@@ -672,7 +712,7 @@ public class SuiteFrame extends JFrame {
                             "Could not save the project to " + project.getName() + ":\n" + e.getMessage()
                             + "\n\nExit anyway and lose the unsaved work?",
                             "Save project", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-                    if (again != JOptionPane.YES_OPTION) { setStatus(" "); return; }
+                    if (again != JOptionPane.YES_OPTION) { setStatus(" "); return false; }
                 }
             }
             for (ToolModule m : modules) {
@@ -685,7 +725,8 @@ public class SuiteFrame extends JFrame {
                 }
             }
             dispose();
-            System.exit(0);
+            return true;
         }
+        return false;
     }
 }
