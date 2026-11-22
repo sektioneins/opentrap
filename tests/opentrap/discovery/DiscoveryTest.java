@@ -48,9 +48,7 @@ public final class DiscoveryTest {
             ServerSocket server;
             try { server = new ServerSocket(0, 50, InetAddress.getLoopbackAddress()); }
             catch (Exception e) { throw new RuntimeException(e); }
-            Thread t = new Thread(() -> serve(server), "disco-fake");
-            t.setDaemon(true);
-            t.start();
+            Thread.ofVirtual().name("disco-fake").start(() -> serve(server));
 
             ContentDiscovery disco = new ContentDiscovery(null); // null ctx: no store side effects
             ConcurrentHashMap<String, Integer> hits = new ConcurrentHashMap<>();
@@ -79,7 +77,7 @@ public final class DiscoveryTest {
         while (!server.isClosed()) {
             try {
                 Socket s = server.accept();
-                new Thread(() -> handle(s)).start();
+                Thread.ofVirtual().start(() -> handle(s));
             } catch (Exception e) { return; }
         }
     }

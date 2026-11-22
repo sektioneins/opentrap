@@ -27,23 +27,39 @@ public final class CertificateModeTest {
         });
     }
 
-    /** A throwaway CA in its own directory, removed afterwards. */
-    private static void withCa(CaBody body) throws Exception {
-        Path dir = Files.createTempDirectory("opentrap-ca-test");
-        try {
-            body.run(new CertificateAuthority(dir));
-        } finally {
-            try (var walk = Files.walk(dir)) {
-                walk.sorted(java.util.Comparator.reverseOrder()).forEach(p -> {
-                    try { Files.deleteIfExists(p); } catch (Exception ignored) {}
-                });
-            } catch (Exception ignored) {}
+    // One throwaway CA for the whole suite. Generating its RSA key is most of
+    // what a case costs, and no case here tests generation: each asks for a
+    // different mode, and the context cache keeps the modes apart (the first
+    // case pins that). CertificateAuthorityIsolationTest covers fresh keys.
+    private Path caDir;
+    private CertificateAuthority ca;
+
+    private void withCa(CaBody body) throws Exception {
+        if (ca == null) {
+            caDir = Files.createTempDirectory("opentrap-ca-test");
+            ca = new CertificateAuthority(caDir);
         }
+        body.run(ca);
+    }
+
+    private void removeCa() {
+        if (caDir == null) return;
+        try (var walk = Files.walk(caDir)) {
+            walk.sorted(java.util.Comparator.reverseOrder()).forEach(p -> {
+                try { Files.deleteIfExists(p); } catch (Exception ignored) {}
+            });
+        } catch (Exception ignored) {}
+        caDir = null;
+        ca = null;
     }
 
     private interface CaBody { void run(CertificateAuthority ca) throws Exception; }
 
     public void run() {
+        try { cases(); } finally { removeCa(); }
+    }
+
+    private void cases() {
         Harness.suite("certificate modes");
 
         check("the cache is keyed by what will be presented, not the host alone", () -> {

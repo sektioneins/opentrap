@@ -35,7 +35,7 @@ public final class UpstreamProxyTest {
             try { fakeProxy = new ServerSocket(0, 1, java.net.InetAddress.getLoopbackAddress()); }
             catch (Exception e) { throw new RuntimeException(e); }
 
-            Thread server = new Thread(() -> {
+            Thread.ofVirtual().name("fake-proxy").start(() -> {
                 try (Socket s = fakeProxy.accept()) {
                     InputStream in = s.getInputStream();
                     OutputStream out = s.getOutputStream();
@@ -46,9 +46,7 @@ public final class UpstreamProxyTest {
                     out.write("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nhi".getBytes(StandardCharsets.ISO_8859_1));
                     out.flush();
                 } catch (Exception ignored) {}
-            }, "fake-proxy");
-            server.setDaemon(true);
-            server.start();
+            });
 
             UpstreamProxy rule = new UpstreamProxy();
             rule.type = UpstreamProxy.Type.HTTP;

@@ -97,6 +97,7 @@ public final class ZapEngine {
     private volatile boolean stopping;
     private volatile Thread starter;   // the thread inside start(), or null
     private volatile boolean ready;    // the running engine has answered its API
+    private volatile boolean awaitingAnswer;   // start() launched the engine and polls its API
 
     /**
      * How far into the engine's message history the suite has read, shared by
@@ -269,14 +270,22 @@ public final class ZapEngine {
         }
 
         long deadline = System.currentTimeMillis() + 120_000;
-        while (System.currentTimeMillis() < deadline) {
-            checkNotStopping();
-            if (!proc.isAlive()) throw new IOException("Scan engine exited during start-up");
-            if (responds()) { ready = true; return; }
-            Thread.sleep(1500);
+        awaitingAnswer = true;
+        try {
+            while (System.currentTimeMillis() < deadline) {
+                checkNotStopping();
+                if (!proc.isAlive()) throw new IOException("Scan engine exited during start-up");
+                if (responds()) { ready = true; return; }
+                Thread.sleep(1500);
+            }
+        } finally {
+            awaitingAnswer = false;
         }
         throw new IOException("Scan engine did not become ready in time");
     }
+
+    /** Whether start() has launched the engine and is waiting for it to answer (for tests). */
+    boolean awaitingAnswer() { return awaitingAnswer; }
 
     private void checkNotStopping() throws IOException {
         if (stopping) throw new IOException("Scan engine start abandoned: the application is shutting down");

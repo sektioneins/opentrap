@@ -186,6 +186,8 @@ public class MessageStore {
      */
     private static final class Offloader {
         static final byte ADD = 0, UPDATE = 1, REMOVE = 2;
+        /** Queued by close() only, to wake a parked poll; carries no entry. */
+        private static final byte WAKE = 3;
         private static final long PENDING_CAP = 64L * 1024 * 1024;
         private static final long SYNC_INTERVAL_MS = 2000;
 
@@ -223,6 +225,7 @@ public class MessageStore {
                 Task t = null;
                 try { t = queue.poll(1, TimeUnit.SECONDS); }
                 catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+                if (t != null && t.kind() == WAKE) continue;
                 if (t != null) {
                     try { apply(t); }
                     catch (Exception ex) { Debug.log("could not persist entry " + t.entry().number() + ": " + ex); }
@@ -257,6 +260,11 @@ public class MessageStore {
         void close() {
             running = false;
             synchronized (gate) { gate.notifyAll(); }
+            // The writer may be parked in poll() for up to a second. Wake it, or
+            // every close (each project open, switch and quit) waits that out.
+            // An interrupt would wake it too, but it also closes the store's
+            // FileChannel under a write still in progress.
+            queue.add(new Task(WAKE, null, 0));
             // Wait generously for the queue to drain so a clean shutdown flushes
             // everything recorded; the queue is bounded, so this terminates well
             // within the bound even on a slow disk.

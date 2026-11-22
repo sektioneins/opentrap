@@ -44,9 +44,14 @@ public final class IssueBurstTest {
             final int[] ran = {0};
             Coalescer c = new Coalescer(250, () -> ran[0]++);
             c.request();
-            drainEventThread();
-            try { Thread.sleep(120); } catch (InterruptedException ignored) { }
-            drainEventThread();
+            // Served promptly means before the 250 ms interval would have
+            // fired; stop looking as soon as it has run.
+            long until = System.nanoTime() + 200_000_000L;
+            do {
+                drainEventThread();
+                if (ran[0] >= 1) break;
+                try { Thread.sleep(5); } catch (InterruptedException ignored) { }
+            } while (System.nanoTime() < until);
             Expect.isTrue(ran[0] >= 1, "a single request was not served promptly");
         });
 

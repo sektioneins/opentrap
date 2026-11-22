@@ -98,8 +98,13 @@ public final class MessageStoreDiskTest {
                 store.useDiskStore(tempDir("mstore-audit-"));
                 LogEntry a = entry(ProjectOptions.AUDIT_TOOL, "/probe", "text/html", "x".repeat(2000));
                 store.add(a);
-                // Give the writer thread ample time; an audit entry must still not move.
-                Thread.sleep(300);
+                // The writer handles entries in the order they were added, so
+                // once a later ordinary entry has moved to disk, the audit entry
+                // would have moved too if it were ever going to.
+                LogEntry later = entry("proxy", "/after", "text/html", "y".repeat(2000));
+                store.add(later);
+                awaitOffload(later);
+                Expect.isTrue(later.offloaded(), "the ordinary entry after it is offloaded");
                 Expect.isFalse(a.offloaded(), "an audit probe is not written to disk");
                 Expect.notNull(a.request(), "its request stays resident");
                 Expect.notNull(a.response(), "its response stays resident");

@@ -202,6 +202,9 @@ public final class WebSocketStore {
 
         private final WebSocketStore owner;
         private final ProjectStore store;
+        /** Queued by close() only, to wake a parked poll; never written. */
+        private static final WebSocketMessage WAKE = new WebSocketMessage(0, "",
+                WebSocketMessage.Direction.S2C, WebSocketMessage.Op.TEXT, new byte[0], false);
         private final BlockingQueue<WebSocketMessage> queue = new LinkedBlockingQueue<>();
         private final Object gate = new Object();
         private long pendingBytes;
@@ -234,6 +237,7 @@ public final class WebSocketStore {
                 WebSocketMessage m = null;
                 try { m = queue.poll(1, TimeUnit.SECONDS); }
                 catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+                if (m == WAKE) continue;
                 if (m != null) {
                     try { apply(m); }
                     catch (Exception ex) { Debug.log("could not persist a websocket frame: " + ex); }
@@ -257,6 +261,9 @@ public final class WebSocketStore {
         void close() {
             running = false;
             synchronized (gate) { gate.notifyAll(); }
+            // Wake a writer parked in poll(), as MessageStore's offloader does,
+            // so a close does not wait out the poll's one-second timeout.
+            queue.add(WAKE);
             // Wait generously for the queue to drain so a clean shutdown
             // flushes every frame relayed; the queue is bounded, so this
             // terminates well within the bound even on a slow disk.

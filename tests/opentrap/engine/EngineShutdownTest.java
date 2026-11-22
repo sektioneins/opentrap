@@ -40,9 +40,13 @@ public final class EngineShutdownTest {
                 }, "test-engine-start");
                 starter.setDaemon(true);
                 starter.start();
-                // Let start() launch the process and enter its readiness wait.
-                Thread.sleep(3000);
-                Expect.isTrue(starter.isAlive(), "start() is still waiting for the engine"
+                // Wait until start() has launched the process and entered its
+                // readiness wait, rather than sleeping for a guessed while.
+                long until = System.nanoTime() + 20_000_000_000L;
+                while (!engine.awaitingAnswer() && starter.isAlive() && System.nanoTime() < until) {
+                    Thread.sleep(10);
+                }
+                Expect.isTrue(engine.awaitingAnswer(), "start() is waiting for the engine to answer"
                         + (startFailure[0] == null ? "" : " (it failed: " + startFailure[0] + ")"));
 
                 Thread stopper = new Thread(engine::shutdown, "test-engine-shutdown");

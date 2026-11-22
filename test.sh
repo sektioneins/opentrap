@@ -33,4 +33,7 @@ javac --release "$JAVA_RELEASE" -nowarn -d build-tests -cp "lib/*:build" "${TEST
 
 echo "Running tests..."
 echo
-java -cp "lib/*:build:build-tests" RunTests
+# Tests create their scratch files with Files.createTemp*. Java on macOS takes
+# its temp directory from the system, not from $TMPDIR, so a sandboxed run would
+# write somewhere it may not. Follow $TMPDIR when it is set.
+java -Djava.io.tmpdir="${TMPDIR:-/tmp}" -cp "lib/*:build:build-tests" RunTests
