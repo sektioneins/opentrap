@@ -1,5 +1,7 @@
 package opentrap.core;
 
+import java.util.Set;
+
 /**
  * The settings that decide what a project keeps and what the proxy records.
  *
@@ -35,6 +37,28 @@ public final class ProjectOptions {
     public static final String OUT_OF_SCOPE_CHOICE = "proxy.outOfScopeChoice";
     /** Whether the scope tab shows the regex rule editor rather than URL prefixes. */
     public static final String SCOPE_ADVANCED = "scope.advanced";
+
+    /**
+     * The keys that travel with a project: they live in memory and in the
+     * project file and never in the preferences store. Each one only changes
+     * what the project records or how patient a request is. None routes
+     * traffic, names a server, holds a credential or a path, or changes how a
+     * process is launched, because a project file can come from someone else
+     * and opening it sets every key listed here. Adding a key is a reviewed
+     * change.
+     */
+    public static final Set<String> KEYS = Set.of(
+        KEEP_AUDIT_BODIES, BODY_CAP_KB,
+        LOG_OUT_OF_SCOPE, OUT_OF_SCOPE_CHOICE,
+        SCOPE_ADVANCED, "scope.outOfScope.mode", "scope.dropOutOfScope",
+        "tasks.autostart",
+        "timeout.connect", "timeout.read", "timeout.openEnded", "timeout.dns", "timeout.dnsFailed",
+        "dns.mode",
+        "http.redirect.3xx", "http.redirect.refreshHeader", "http.redirect.metaRefresh",
+        "http.redirect.javascript", "http.redirect.anyLocation",
+        "http.100.understand", "http.100.remove", "http.keepAlive", "http.http2", "http.unpackGzip");
+
+    public static boolean isProjectKey(String key) { return key != null && KEYS.contains(key); }
 
     public static final int DEFAULT_AUDIT_MEMORY_MB = 100;
     public static final int DEFAULT_WS_MEMORY_MB = 32;

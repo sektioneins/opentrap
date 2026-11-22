@@ -1,6 +1,7 @@
 package opentrap.core;
 
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -8,7 +9,11 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 import java.util.prefs.Preferences;
 
-/** String-keyed settings with typed accessors, persisted to java.util.prefs. */
+/**
+ * String-keyed settings with typed accessors. A project key (see
+ * {@link ProjectOptions#KEYS}) lives in memory and travels with the project;
+ * every other key is a user key and is persisted to java.util.prefs.
+ */
 public class Settings implements Serializable {
     private static final long serialVersionUID = 1L;
     private static final String NODE = "opentrap.v1";
@@ -26,7 +31,7 @@ public class Settings implements Serializable {
     public synchronized String get(String key, String def) {
         String v = values.get(key);
         if (v != null) return v;
-        if (prefs != null) {
+        if (prefs != null && !ProjectOptions.isProjectKey(key)) {
             try {
                 String p = prefs.get(key, null);
                 if (p != null) { values.put(key, p); return p; }
@@ -38,7 +43,7 @@ public class Settings implements Serializable {
     public void set(String key, String value) {
         synchronized (this) {
             values.put(key, value);
-            if (prefs != null) {
+            if (prefs != null && !ProjectOptions.isProjectKey(key)) {
                 try { prefs.put(key, value); } catch (Exception _) {}
             }
         }
@@ -49,7 +54,7 @@ public class Settings implements Serializable {
     public void remove(String key) {
         synchronized (this) {
             values.remove(key);
-            if (prefs != null) {
+            if (prefs != null && !ProjectOptions.isProjectKey(key)) {
                 try { prefs.remove(key); } catch (Exception _) {}
             }
         }
@@ -72,6 +77,31 @@ public class Settings implements Serializable {
     public void setInt(String k, int v) { set(k, String.valueOf(v)); }
 
     public synchronized Map<String, String> snapshot() { return new LinkedHashMap<>(values); }
+
+    /** The project's own settings: the project keys currently set, in the order they were set. */
+    public synchronized Map<String, String> projectSnapshot() {
+        Map<String, String> out = new LinkedHashMap<>();
+        for (Map.Entry<String, String> e : values.entrySet())
+            if (ProjectOptions.isProjectKey(e.getKey())) out.put(e.getKey(), e.getValue());
+        return out;
+    }
+
+    /**
+     * Apply the project keys of a map read from a project file. Anything else
+     * is skipped, including entries that are not strings, so a file cannot
+     * write a user key such as an upstream proxy or a token. Only key names
+     * are logged, never values.
+     */
+    public void restoreProject(Map<?, ?> m) {
+        if (m == null) return;
+        List<String> skipped = new ArrayList<>();
+        for (Map.Entry<?, ?> e : m.entrySet()) {
+            if (e.getKey() instanceof String k && e.getValue() instanceof String v && ProjectOptions.isProjectKey(k)) set(k, v);
+            else skipped.add(e.getKey() instanceof String k ? k : String.valueOf(e.getKey() == null ? null : e.getKey().getClass().getName()));
+        }
+        if (!skipped.isEmpty())
+            Debug.log("project settings: skipped " + skipped.size() + " key(s) that are not project settings: " + String.join(", ", skipped));
+    }
 
     public void restore(Map<String, String> m) {
         if (m == null) return;
