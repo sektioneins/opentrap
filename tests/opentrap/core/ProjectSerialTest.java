@@ -187,6 +187,14 @@ public final class ProjectSerialTest {
             } catch (Exception e) { throw new RuntimeException(e); }
         });
 
+        Harness.test("an old-format stream refuses a wide primitive array larger than any history", () -> {
+            try {
+                byte[] s = serialize(new long[] {0});
+                ByteBuffer.wrap(s).putInt(s.length - 12, ProjectSerial.LEGACY_MAX_REFERENCES + 1);   // the length, before the 8 data bytes
+                Expect.isTrue(refused(() -> ProjectSerial.legacyReader(new ByteArrayInputStream(s)).readObject()), "huge long array is refused");
+            } catch (Exception e) { throw new RuntimeException(e); }
+        });
+
         Harness.test("every class the filter names exists", () -> {
             for (String entry : ProjectSerial.ALLOWED.split(";")) {
                 if (entry.endsWith("*") || entry.startsWith("!")) continue;
