@@ -35,6 +35,7 @@ public final class RunTests {
         new opentrap.organizer.OrganizerTest().run();
         new opentrap.engine.EngineMappingTest().run();
         new opentrap.proxy.ProxyDefaultsTest().run();
+        new opentrap.proxy.ConnectionRunnerTest().run();
         new opentrap.proxy.WebSocketFrameTest().run();
         new opentrap.proxy.WsMatchReplaceTest().run();
         new opentrap.proxy.HistoryFilterTest().run();

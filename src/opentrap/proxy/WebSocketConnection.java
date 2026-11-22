@@ -60,7 +60,7 @@ public final class WebSocketConnection {
     public void run(InputStream clientIn, InputStream serverIn) {
         LIVE.add(this);
         liveChanged();
-        Thread s2c = new Thread(() -> {
+        Thread s2c = Thread.ofVirtual().name("ws-s2c-" + id).start(() -> {
             try { pump(serverIn, Direction.S2C); }
             catch (RuntimeException e) {
                 // Normally the IOException path in pump() ends a relay; a
@@ -68,9 +68,7 @@ public final class WebSocketConnection {
                 // silently dead direction.
                 Debug.error("websocket s2c relay failed for " + service, e);
             }
-        }, "ws-s2c-" + id);
-        s2c.setDaemon(true);
-        s2c.start();
+        });
         try {
             pump(clientIn, Direction.C2S); // this thread handles client-to-server
         } finally {

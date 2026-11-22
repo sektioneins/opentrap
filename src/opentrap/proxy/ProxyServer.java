@@ -14,8 +14,8 @@ import java.util.concurrent.*;
 /**
  * The interception proxy.
  *
- * One accept loop per listener, one thread per connection. That is what the
- * original did and it stays comprehensible; the thread pool is bounded so a
+ * One accept loop per listener, one virtual thread per connection. That is what the
+ * original did and it stays comprehensible; the number of connections is bounded so a
  * flood of connections cannot exhaust memory.
  */
 public class ProxyServer {
@@ -28,10 +28,13 @@ public class ProxyServer {
     private final SuiteContext ctx;
     private final CertificateAuthority ca;
     private final InterceptQueue intercept = new InterceptQueue();
-    private final ExecutorService pool = new ThreadPoolExecutor(
-            4, 400, 60, TimeUnit.SECONDS, new SynchronousQueue<>(),
-            r -> { Thread t = new Thread(r, "proxy-conn"); t.setDaemon(true); return t; },
-            new ThreadPoolExecutor.CallerRunsPolicy());
+    /** Upper bound on connections handled at once. */
+    static final int MAX_CONNECTIONS = 1000;
+    // One virtual thread per connection; the limit keeps memory bounded. When
+    // it is reached the accept loop waits for a slot rather than running a
+    // connection itself, which would stop the listener accepting for as long
+    // as that connection lasts (up to the read timeout).
+    private final ConnectionRunner connections = new ConnectionRunner(MAX_CONNECTIONS, "proxy-conn-");
 
     private final List<ProxyListener> listeners = new ArrayList<>();
     private final Map<Integer, ServerSocket> sockets = new ConcurrentHashMap<>();
@@ -253,18 +256,24 @@ public class ProxyServer {
 
     private void acceptLoop(ProxyListener cfg, ServerSocket ss) {
         while (!ss.isClosed()) {
+            Socket client = null;
             try {
-                Socket client = ss.accept();
-                pool.execute(() -> {
-                    try { new Connection(cfg, client).run(); }
+                client = ss.accept();
+                Socket accepted = client;
+                connections.run(() -> {
+                    try { new Connection(cfg, accepted).run(); }
                     // Per-connection isolation: one broken exchange must not
                     // affect the listener. Anything reaching here is a bug or
                     // resource exhaustion, so it is logged, never swallowed.
                     catch (Throwable t) {
                         Debug.error("proxy connection handling failed for "
-                                + client.getRemoteSocketAddress(), t);
+                                + accepted.getRemoteSocketAddress(), t);
                     }
                 });
+            } catch (InterruptedException _) {
+                try { client.close(); } catch (IOException _) { }
+                Thread.currentThread().interrupt();
+                return;
             } catch (IOException e) {
                 if (ss.isClosed()) return;
             } catch (OutOfMemoryError e) {
