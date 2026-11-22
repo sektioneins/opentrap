@@ -36,9 +36,11 @@ public final class ZapEngine {
     /**
      * The lifeline watchdog. Run as {@code /bin/sh -c WATCHDOG name <zap cmd...>}
      * with its stdin wired to a pipe held by OpenTRAP. It starts ZAP in its own
-     * session, then blocks reading stdin; when OpenTRAP dies (for any reason) the
-     * pipe closes, the read returns EOF, and it kills ZAP and all its descendants
-     * (the headless browsers) plus ZAP's process group as a backstop.
+     * session ({@code setsid}) or, where that is missing (macOS), its own process
+     * group ({@code set -m}), then blocks reading stdin; when OpenTRAP dies (for
+     * any reason) the pipe closes, the read returns EOF, and it kills ZAP and all
+     * its descendants (the headless browsers) plus ZAP's process group as a
+     * backstop.
      */
     private static final String WATCHDOG = """
             port=; key=; prev=
@@ -47,7 +49,14 @@ public final class ZapEngine {
               case $a in api.key=*) key=${a#api.key=};; esac
               prev=$a
             done
-            setsid "$@" &
+            # ZAP must lead its own process group for the group kill below.
+            # macOS has no setsid; there, job control (set -m) gives the
+            # background job a group of its own.
+            if command -v setsid >/dev/null 2>&1; then
+              setsid "$@" &
+            else
+              set -m; "$@" & set +m
+            fi
             zap=$!
             cat >/dev/null 2>&1
             # OpenTRAP is gone. Shut ZAP down the same clean way the app itself does
