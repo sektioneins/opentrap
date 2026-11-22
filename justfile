@@ -125,7 +125,20 @@ release: _classes
     ts="$(date -u +%Y%m%d-%H%M%S)"
     echo "Release build $ts (UTC)"
     if ls engine/zap-*.jar >/dev/null 2>&1; then
-        echo "Embedding scan engine..."
+        # Ship only the engine 'just engine' installs for tools/versions:
+        # nothing added, removed or updated since (such as by 'just addon'),
+        # and no stray files.
+        [ -f engine/.pinned ] || { echo "engine/ was not installed by 'just engine', so it cannot be checked against tools/versions. Run 'just engine'." >&2; exit 1; }
+        state="$(mktemp "${TMPDIR:-/tmp}/opentrap-engine.XXXXXX")"
+        trap 'rm -f "$state"' EXIT
+        {{ just }} _engine-state > "$state"
+        if ! cmp -s engine/.pinned "$state"; then
+            echo "engine/ is not what 'just engine' installs for tools/versions (- recorded, + now):" >&2
+            diff engine/.pinned "$state" | grep '^[<>]' | sed 's/^</-/; s/^>/+/' | head -20 >&2 || true
+            echo "Run 'just engine' to reinstall the pinned engine, or update the pins first." >&2
+            exit 1
+        fi
+        echo "Embedding scan engine (matches tools/versions)..."
         mkdir -p build/opentrap/engine
         (cd engine && zip -qr -1 ../build/opentrap/engine/engine.zip .)
         zv="$(ls engine/zap-*.jar | head -1 | sed -E 's#.*/zap-([0-9.]+)\.jar#\1#')"
@@ -136,7 +149,7 @@ release: _classes
         echo "         will fall back to a system ZAP at runtime if one is installed."
     fi
     manifest="$(mktemp "${TMPDIR:-/tmp}/opentrap-manifest.XXXXXX")"
-    trap 'rm -f "$manifest"' EXIT
+    trap 'rm -f "$manifest" ${state:+"$state"}' EXIT
     printf 'Implementation-Version: %s\n' "$ts" > "$manifest"
     out="dist/opentrap_${ts}.jar"
     "$JAVA_HOME/bin/jar" --create --file "$out" --manifest "$manifest" --main-class opentrap.ui.Main -C build .
@@ -389,6 +402,9 @@ engine:
 
     jar="$(ls "$dest"/zap-*.jar 2>/dev/null | head -1 || true)"
     [ -n "$jar" ] || { echo "No zap jar after unpack" >&2; exit 1; }
+    # Record the pins and every installed file's hash, so 'just release' can
+    # tell whether engine/ still holds exactly this.
+    {{ just }} _engine-state > "$dest/.pinned"
     echo "ZAP engine ready: $jar"
     echo "Add-ons: $(ls "$dest"/plugin/*.zap 2>/dev/null | wc -l | tr -d ' ')"
 
@@ -480,7 +496,7 @@ addon id version quality="auto" sha256="":
     needs="$(unzip -p "$dir/$name" ZapAddOn.xml | sed -n 's:.*<not-before-version>\(.*\)</not-before-version>.*:\1:p' | head -1)"
     have="$(ls engine/zap-*.jar 2>/dev/null | head -1 | sed -E 's:.*/zap-(.*)\.jar:\1:')"
     [ -z "$needs" ] || echo "Needs ZAP ${needs} or newer; the engine is ${have:-unknown}."
-    echo "Restart OpenTRAP to load it."
+    echo "Restart OpenTRAP to load it. 'just release' embeds only the pinned engine, so it refuses this one."
 
 # Check ZAP add-ons against the latest for the engine's ZAP release; 'update' installs them, extra ids add more
 addons action="check" *ids:
@@ -571,6 +587,7 @@ addons action="check" *ids:
     done
     echo "Installed ${#todo[@]} add-on(s), each checked against its published sha256. Restart OpenTRAP to load them."
     echo "Note: 'just engine' resets engine/ to the pinned versions; run 'just addons update' again after it."
+    echo "'just release' embeds only the pinned engine; move the pins in tools/versions to ship these."
 
 # Report which pins in tools/versions have a newer upstream release (changes nothing)
 check-updates:
@@ -583,9 +600,9 @@ check-updates:
         elif [ "$1" != "$2" ]; then echo "UPDATE AVAILABLE"
         else echo "up to date"; fi
     }
-    maven() {  # <group> <artifact>
-        curl -fsS --max-time 20 "https://search.maven.org/solrsearch/select?q=g:$1+AND+a:$2&rows=1&wt=json" 2>/dev/null \
-            | grep -oE '"latestVersion":"[^"]*"' | head -1 | cut -d'"' -f4
+    maven() {  # <group as a path> <artifact>; Central's own metadata, not its lagging search index
+        curl -fsS --max-time 20 "https://repo1.maven.org/maven2/$1/$2/maven-metadata.xml" 2>/dev/null \
+            | sed -n 's:.*<release>\(.*\)</release>.*:\1:p' | head -1
     }
     echo "OpenTRAP bundled tool versions:"
     echo
@@ -594,14 +611,44 @@ check-updates:
     row zap-engine "$ZAP_VERSION" "${zap:-?}" "$(flag "$ZAP_VERSION" "$zap")"
     chrome="$(curl -fsS --max-time 20 https://commondatastorage.googleapis.com/chromium-browser-snapshots/Linux_x64/LAST_CHANGE 2>/dev/null)"
     row chromium "$CHROMIUM_REVISION" "${chrome:-?}" "$(flag "$CHROMIUM_REVISION" "$chrome")"
-    bc="$(maven org.bouncycastle bcprov-jdk18on)"
+    bc="$(maven org/bouncycastle bcprov-jdk18on)"
     row bouncycastle "$BOUNCYCASTLE_VERSION" "${bc:-?}" "$(flag "$BOUNCYCASTLE_VERSION" "$bc")"
-    br="$(maven org.brotli dec)"
+    br="$(maven org/brotli dec)"
     row brotli-dec "$BROTLI_DEC_VERSION" "${br:-?}" "$(flag "$BROTLI_DEC_VERSION" "$br")"
+    # The newest Temurin of the pinned major, as Adoptium names it (jdk-27.0.1.1+4).
+    major="${JDK_VERSION%%.*}"
+    jdk="$(curl -fsS --max-time 20 "https://api.adoptium.net/v3/assets/latest/$major/hotspot?os=linux&architecture=x64&image_type=jdk" 2>/dev/null \
+        | grep -oE '"release_name": *"[^"]*"' | head -1 | cut -d'"' -f4 | sed 's/^jdk-//')"
+    row "temurin-$major" "$JDK_VERSION" "${jdk:-?}" "$(flag "$JDK_VERSION" "$jdk")"
+    gh_latest() {  # <owner/repo>
+        curl -fsS --max-time 20 "https://api.github.com/repos/$1/releases/latest" 2>/dev/null \
+            | grep -oE '"tag_name": *"[^"]*"' | head -1 | cut -d'"' -f4
+    }
+    # appimagetool's "latest" release is the rolling "continuous" tag; take
+    # the highest numbered one instead.
+    ait="$(curl -fsS --max-time 20 "https://api.github.com/repos/AppImage/appimagetool/releases?per_page=30" 2>/dev/null \
+        | grep -oE '"tag_name": *"[0-9][0-9.]*"' | cut -d'"' -f4 | sort -V | tail -1)"
+    row appimagetool "$APPIMAGETOOL_VERSION" "${ait:-?}" "$(flag "$APPIMAGETOOL_VERSION" "$ait")"
+    jst="$(gh_latest casey/just)"
+    row just "$JUST_VERSION" "${jst:-?}" "$(flag "$JUST_VERSION" "$jst")"
+    # The pinned ZAP add-ons against ZAP's list for the pinned ZAP release.
+    minor="$(cut -d. -f1-2 <<<"$ZAP_VERSION")"
+    feed="$(mktemp "${TMPDIR:-/tmp}/opentrap-zapversions.XXXXXX")"
+    trap 'rm -f "$feed"' EXIT
+    if curl -fsS --max-time 30 -o "$feed" "https://raw.githubusercontent.com/zaproxy/zap-admin/master/ZapVersions-$minor.xml" 2>/dev/null; then
+        for pin in commonlib:ZAP_ADDON_COMMONLIB selenium:ZAP_ADDON_SELENIUM spiderAjax:ZAP_ADDON_SPIDERAJAX \
+                   ascanrulesBeta:ZAP_ADDON_ASCANRULES_BETA pscanrulesBeta:ZAP_ADDON_PSCANRULES_BETA; do
+            id="${pin%%:*}" var="${pin#*:}"
+            v="$(xmllint --xpath "string(/ZAP/addon_$id/version)" "$feed" 2>/dev/null)"
+            row "$id" "${!var}" "${v:-?}" "$(flag "${!var}" "$v")"
+        done
+    else
+        echo "  (the ZAP $minor add-on list could not be downloaded)"
+    fi
     echo
     echo "To update: edit tools/versions (a version and its sha256 together), then"
-    echo "run the matching recipe (just engine, just browser) or replace the jar in lib/."
-    echo "ZAP add-ons beyond the pins: just addons."
+    echo "run the matching recipe (just engine, just browser, just jdk) or replace the"
+    echo "jar in lib/. Add-ons outside the pins: just addons."
 
 # Install the launcher icon and a menu entry for this checkout; 'system' installs for all users (needs root)
 [linux]
@@ -656,7 +703,7 @@ install-desktop scope="user":
     echo "OpenTRAP should now appear in your application menu with its own icon."
 
 # Compile src/ into an empty build/, with the icons and the unpacked vendored jars
-_classes: _check-jdk
+_classes: _check-jdk _check-libs
     #!/usr/bin/env bash
     set -euo pipefail
     # Start from an empty build/ so nothing left by an earlier build or by the
@@ -672,6 +719,34 @@ _classes: _check-jdk
     echo "Unpacking the vendored jars..."
     (cd build && for j in ../lib/*.jar; do "$JAVA_HOME/bin/jar" xf "$j"; done)
     rm -f build/META-INF/*.SF build/META-INF/*.DSA build/META-INF/*.RSA
+
+# Fail unless lib/ holds exactly the jars pinned in tools/versions, byte for byte
+_check-libs:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    want=(
+        "bcprov-jdk18on-$BOUNCYCASTLE_VERSION.jar $BOUNCYCASTLE_PROV_SHA256"
+        "bcpkix-jdk18on-$BOUNCYCASTLE_VERSION.jar $BOUNCYCASTLE_PKIX_SHA256"
+        "bcutil-jdk18on-$BOUNCYCASTLE_VERSION.jar $BOUNCYCASTLE_UTIL_SHA256"
+        "dec-$BROTLI_DEC_VERSION.jar $BROTLI_DEC_SHA256"
+    )
+    names=""
+    for w in "${want[@]}"; do names+="${w%% *}"$'\n'; done
+    have="$(cd lib && ls -1 *.jar 2>/dev/null | LC_ALL=C sort || true)"
+    if [ "$have" != "$(printf '%s' "$names" | LC_ALL=C sort)" ]; then
+        echo "lib/ does not hold the jars pinned in tools/versions." >&2
+        echo "  pinned: $(printf '%s' "$names" | LC_ALL=C sort | tr '\n' ' ')" >&2
+        echo "  found:  $(printf '%s' "$have" | tr '\n' ' ')" >&2
+        exit 1
+    fi
+    for w in "${want[@]}"; do {{ just }} _verify "lib/${w%% *}" "${w#* }"; done
+
+# The engine pins from tools/versions and the hash of every file in engine/, one per line
+_engine-state:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    grep -E '^ZAP_[A-Z0-9_]+=' tools/versions | LC_ALL=C sort
+    cd engine && find . -type f ! -path ./.pinned -print0 | LC_ALL=C sort -z | xargs -0 {{ hasher }}
 
 _check-jdk:
     #!/usr/bin/env bash

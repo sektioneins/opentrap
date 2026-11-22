@@ -25,8 +25,20 @@ and the Brotli decoder are small jars vendored under `lib/` and unpacked into
 
 `tools/versions` holds the pinned version of every bundled tool and the
 sha256 of every artifact the fetch recipes download. The fetch recipes in
-the `justfile` install exactly those bytes and refuse a download whose hash does not match,
-so a build is reproducible rather than pulling whatever is latest that day.
+the `justfile` install exactly those bytes and refuse a download whose hash
+does not match, so a build is reproducible rather than pulling whatever is
+latest that day.
+
+Two checks keep a build to those pins:
+
+- Every build refuses a `lib/` that holds other jars than the pinned ones, or
+  other bytes (the sha256 pins are those of the jars on Maven Central).
+- `just engine` records the engine pins and the hash of every installed file
+  in `engine/.pinned`. `just release` refuses to embed an `engine/` that no
+  longer matches that record or whose pins have moved since, so an add-on
+  added or updated with `just addon` or `just addons update` never ships by
+  accident. Move its pin in `tools/versions` and re-run `just engine` to ship
+  it.
 
 ## Release-cycle workflow
 
@@ -34,9 +46,10 @@ so a build is reproducible rather than pulling whatever is latest that day.
 
        just check-updates
 
-   It prints, for the ZAP engine, Chromium, BouncyCastle and the Brotli
-   decoder, the pinned version, the latest upstream version, and whether an
-   update is available. The JDK pin is not checked. It changes nothing.
+   It prints, for the ZAP engine and its pinned add-ons, Chromium,
+   BouncyCastle, the Brotli decoder, the Temurin JDK, appimagetool and just,
+   the pinned version, the latest upstream version, and whether an update is
+   available. It changes nothing.
 
 2. For each tool you want to move, edit its version and its SHA256 together
    in `tools/versions`. For a release asset, the sha256 is published alongside
@@ -48,9 +61,9 @@ so a build is reproducible rather than pulling whatever is latest that day.
        just engine     # after changing ZAP_VERSION
        just browser    # after changing CHROMIUM_REVISION
 
-   For a jar under `lib/`, replace it with the new version. The recipes put
-   every `lib/*.jar` on the classpath, so a new file name needs no other
-   change.
+   For a jar under `lib/`, replace it with the new version from Maven
+   Central and update its version and sha256 pin. The three BouncyCastle
+   jars depend on each other and move together.
 
 4. Build and run the tests, then smoke-test a crawl and a scan:
 
