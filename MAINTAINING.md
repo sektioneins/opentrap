@@ -20,6 +20,13 @@ Pinned versions live in `tools/versions`, the single source of truth; the fetch
 scripts install those versions. Bump a line there as part of a release, then
 re-run the matching fetch script.
 
+Java is pinned twice there. `JAVA_RELEASE` (27) is the language and API level:
+every build compiles with `--release` set to it, so it is the oldest JDK that
+can build or run OpenTRAP. `JDK_VERSION` (Temurin 27.0.1.1+4) is the exact JDK
+the AppImage ships. Both are on 27, the current Java release; when Temurin 28
+is out, move both and the CI `java-version` together. `JAVA_RELEASE` must never
+be above the runtime's major.
+
 ## Build and run
 
 ```

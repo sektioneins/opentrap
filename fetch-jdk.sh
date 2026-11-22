@@ -19,11 +19,11 @@ cd "$DIR"
 . tools/versions
 
 # Temurin release assets follow a fixed naming scheme:
-#   tag      jdk-25.0.5+8   (the "+" is %2B in the URL)
-#   file     OpenJDK25U-jdk_x64_linux_hotspot_25_0_5_8.tar.gz
+#   tag      jdk-27.0.1.1+4   (the "+" is %2B in the URL)
+#   file     OpenJDK27U-jdk_x64_linux_hotspot_27.0.1.1_4.tar.gz
 MAJOR="${JDK_VERSION%%.*}"
 # Temurin keeps the dotted feature version and replaces only the build "+":
-# 25.0.5+8 -> 25.0.5_8 (not 25_0_5_8, which does not exist upstream).
+# 27.0.1.1+4 -> 27.0.1.1_4 (not 27_0_1_1_4, which does not exist upstream).
 FV="${JDK_VERSION//+/_}"
 URL="https://github.com/adoptium/temurin${MAJOR}-binaries/releases/download/jdk-${JDK_VERSION//+/%2B}/OpenJDK${MAJOR}U-jdk_x64_linux_hotspot_${FV}.tar.gz"
 
@@ -39,6 +39,13 @@ check() { # <file> <expected sha256>
 }
 
 if [ -x jdk/bin/javac ]; then
+    # The JDK's own release file names its exact version, e.g. 27.0.1.1+4.
+    have="$(sed -n 's/^JAVA_RUNTIME_VERSION="\(.*\)"$/\1/p' jdk/release 2>/dev/null || true)"
+    if [ "$have" != "$JDK_VERSION" ]; then
+        echo "jdk/ holds ${have:-an unknown version}, but tools/versions pins ${JDK_VERSION}." >&2
+        echo "Delete jdk/ and re-run to fetch the pinned JDK." >&2
+        exit 1
+    fi
     echo "jdk/ already present: $(jdk/bin/java -version 2>&1 | head -1)"
     echo "Delete jdk/ and re-run to refresh."
     exit 0

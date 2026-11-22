@@ -6,6 +6,8 @@
 set -euo pipefail
 DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$DIR"
+# shellcheck disable=SC1091
+. tools/versions   # JAVA_RELEASE
 
 # Prefer the pinned portable JDK (fetch-jdk.sh) when present, so the tests run
 # against the same toolchain the release and AppImage use. Falls back to a
@@ -22,12 +24,12 @@ echo "Compiling application..."
 # source or by the AppImage packaging cannot leak onto the test classpath.
 rm -rf build && mkdir -p build
 mapfile -t APP_SRCS < <(find src -name '*.java')
-javac -nowarn -d build -cp "lib/*:build" "${APP_SRCS[@]}"
+javac --release "$JAVA_RELEASE" -nowarn -d build -cp "lib/*:build" "${APP_SRCS[@]}"
 
 echo "Compiling tests..."
 rm -rf build-tests && mkdir -p build-tests
 mapfile -t TEST_SRCS < <(find tests -name '*.java')
-javac -nowarn -d build-tests -cp "lib/*:build" "${TEST_SRCS[@]}"
+javac --release "$JAVA_RELEASE" -nowarn -d build-tests -cp "lib/*:build" "${TEST_SRCS[@]}"
 
 echo "Running tests..."
 echo

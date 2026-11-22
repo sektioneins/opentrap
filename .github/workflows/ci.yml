@@ -23,10 +23,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The major in JAVA_RELEASE and JDK_VERSION (tools/versions).
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "25"
+          java-version: "27"
 
       - name: Build
         run: ./build.sh

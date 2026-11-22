@@ -51,7 +51,11 @@ naming, comment density and idioms. Do not reformat unrelated code.
 Tests live under `tests/` rather than `src/`, so they are never packed into the
 shipped jar. Any change with logic to it should come with test cases.
 
-Requirements: Java 17 or newer (built and tested on Java 25). BouncyCastle and a
+Requirements: Java 27. The build scripts compile with `--release 27`
+(`JAVA_RELEASE` in `tools/versions`); the AppImage ships Eclipse Temurin 27, and
+CI builds and tests on it. Few distributions package Java 27 yet: on Linux x64
+`./fetch-jdk.sh` installs the pinned Temurin into `jdk/`, which the build
+scripts prefer. BouncyCastle and a
 Brotli decoder are vendored under `lib/`; the ZAP scan engine and the Chromium
 browser are fetched on demand by `./fetch-zap.sh` and `./fetch-browser.sh`. See
 `DEPENDENCIES.md` for how

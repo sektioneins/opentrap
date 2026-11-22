@@ -15,6 +15,8 @@
 set -e
 DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$DIR"
+# shellcheck disable=SC1091
+. tools/versions   # JAVA_RELEASE
 
 # Prefer the pinned portable JDK (fetch-jdk.sh) so the release bytecode matches
 # the runtime the AppImage bundles. Falls back to the system JDK if jdk/ is absent.
@@ -33,7 +35,7 @@ rm -rf build
 mkdir -p build dist
 
 echo "Compiling..."
-javac -d build -cp "lib/*:build" $(find src -name '*.java')
+javac --release "$JAVA_RELEASE" -d build -cp "lib/*:build" $(find src -name '*.java')
 
 echo "Copying resources..."
 mkdir -p build/opentrap/ui/icons
