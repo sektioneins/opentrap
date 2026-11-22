@@ -102,7 +102,7 @@ public class ScopeEditor extends JPanel {
                 Object t = java.awt.Toolkit.getDefaultToolkit().getSystemClipboard()
                         .getData(java.awt.datatransfer.DataFlavor.stringFlavor);
                 if (t != null) prefix.setText(String.valueOf(t).trim());
-            } catch (Exception ignore) {}
+            } catch (Exception _) {}
         });
 
         JPanel form = new JPanel();
@@ -335,7 +335,7 @@ public class ScopeEditor extends JPanel {
                     port.setText(u.getPort() > 0 ? "^" + u.getPort() + "$" : "");
                     String path = u.getRawPath();
                     file.setText(path == null || path.isEmpty() ? "" : "^" + java.util.regex.Pattern.quote(path));
-                } catch (Exception ignore) {}
+                } catch (Exception _) {}
             } else {
                 protocol.setSelectedItem(r.protocol);
                 host.setText(Scope.display(r.host));

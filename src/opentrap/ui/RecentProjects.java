@@ -40,9 +40,9 @@ public final class RecentProjects {
                     // older entry recorded.
                     if (!file.isFile()) continue;
                     out.add(new Entry(file.getName(), file, Long.parseLong(f[2])));
-                } catch (NumberFormatException ignored) {}
+                } catch (NumberFormatException _) {}
             }
-        } catch (Exception ignored) {}
+        } catch (Exception _) {}
         return out;
     }
 
@@ -68,7 +68,7 @@ public final class RecentProjects {
                  .append(e.lastAccessed()).append('\n');
             }
             Files.writeString(p, b.toString(), StandardCharsets.UTF_8);
-        } catch (Exception ignored) {}
+        } catch (Exception _) {}
     }
 
     public static String baseName(File f) {

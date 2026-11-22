@@ -82,7 +82,7 @@ public final class CustomActionsPanel extends JPanel {
         if (Files.isDirectory(dir())) {
             try (var ds = Files.newDirectoryStream(dir(), "*.java")) {
                 for (Path p : ds) model.addElement(p.getFileName().toString().replaceAll("\\.java$", ""));
-            } catch (java.io.IOException ignore) { }
+            } catch (java.io.IOException _) { }
         }
         cards.show(this, model.isEmpty() ? "empty" : "list");
     }

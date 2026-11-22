@@ -26,7 +26,7 @@ public final class LocalAddresses {
                     if (!out.contains(s)) out.add(s);
                 }
             }
-        } catch (Exception ignored) {
+        } catch (Exception _) {
             // No interfaces readable: loopback is still bindable.
         }
         if (!out.contains("127.0.0.1")) out.add(0, "127.0.0.1");

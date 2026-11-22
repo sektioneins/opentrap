@@ -264,7 +264,7 @@ public class SequencerTool implements ToolModule {
                 if (!line.isEmpty()) manualTokens.add(line);
             }
             refreshManual();
-        } catch (Exception ignored) {
+        } catch (Exception _) {
         }
     }
 

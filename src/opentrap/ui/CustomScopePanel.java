@@ -153,7 +153,7 @@ public final class CustomScopePanel extends JPanel {
                     Object t = Toolkit.getDefaultToolkit().getSystemClipboard().getData(java.awt.datatransfer.DataFlavor.stringFlavor);
                     Scope.Rule r = t == null ? null : Scope.Rule.prefix(String.valueOf(t).trim(), include);
                     if (r != null) { rules.add(r); model.fireTableDataChanged(); }
-                } catch (Exception ignore) { }
+                } catch (Exception _) { }
             });
             load.addActionListener(e -> {
                 JFileChooser fc = new JFileChooser();

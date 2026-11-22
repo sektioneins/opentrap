@@ -50,7 +50,7 @@ public final class IssueBurstTest {
             do {
                 drainEventThread();
                 if (ran[0] >= 1) break;
-                try { Thread.sleep(5); } catch (InterruptedException ignored) { }
+                try { Thread.sleep(5); } catch (InterruptedException _) { }
             } while (System.nanoTime() < until);
             Expect.isTrue(ran[0] >= 1, "a single request was not served promptly");
         });
@@ -72,6 +72,6 @@ public final class IssueBurstTest {
     private static void drainEventThread() {
         try {
             for (int i = 0; i < 3; i++) javax.swing.SwingUtilities.invokeAndWait(() -> { });
-        } catch (Exception ignored) { }
+        } catch (Exception _) { }
     }
 }

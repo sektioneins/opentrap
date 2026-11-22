@@ -271,7 +271,7 @@ public final class ApplicationLoginPanel extends JPanel {
             try {
                 int s = a.getLineStartOffset(line), e = a.getLineEndOffset(line);
                 a.replaceRange(with == null ? "" : with + "\n", s, e);
-            } catch (Exception ignore) { }
+            } catch (Exception _) { }
         }
         private static void insertLine(JTextArea a, boolean above) {
             String v = JOptionPane.showInputDialog(a, "Step:", "");
@@ -280,7 +280,7 @@ public final class ApplicationLoginPanel extends JPanel {
                 int line = lineAtCaret(a);
                 int pos = above ? a.getLineStartOffset(line) : a.getLineEndOffset(line);
                 a.insert(v + "\n", pos);
-            } catch (Exception ignore) { }
+            } catch (Exception _) { }
         }
     }
 }

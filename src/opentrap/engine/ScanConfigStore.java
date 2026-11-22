@@ -40,7 +40,7 @@ public final class ScanConfigStore {
                  String n = p.getFileName().toString();
                  out.add(n.substring(0, n.length() - EXT.length()));
              });
-        } catch (IOException ignored) {}
+        } catch (IOException _) {}
         out.sort(String.CASE_INSENSITIVE_ORDER);
         return out;
     }

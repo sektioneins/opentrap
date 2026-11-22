@@ -483,7 +483,7 @@ public final class InterfacePages {
             boolean wantDark = dark.isSelected();
             if (wantDark == Theme.dark) return;
             s.set("ui.theme", wantDark ? "dark" : "light");
-            try { java.util.prefs.Preferences.userRoot().node("opentrap.v1").put("ui.theme", wantDark ? "dark" : "light"); } catch (Exception ignore) { }
+            try { java.util.prefs.Preferences.userRoot().node("opentrap.v1").put("ui.theme", wantDark ? "dark" : "light"); } catch (Exception _) { }
             if (opentrap.ui.UiScale.relaunchWith(opentrap.ui.UiScale.desired(), opentrap.ui.Main.launchArgs)) System.exit(0);
         };
         light.addItemListener(theme); dark.addItemListener(theme);
@@ -498,7 +498,7 @@ public final class InterfacePages {
         JComboBox<String> factor = SettingsPage.combo(s, "ui.scale.factor", new String[]{"1.0", "1.25", "1.5", "1.75", "2.0", "2.5", "3.0"},
                 String.valueOf(opentrap.ui.UiScale.desired()));
         factor.addActionListener(e -> {
-            try { opentrap.ui.UiScale.changeTo(Double.parseDouble(String.valueOf(factor.getSelectedItem())), opentrap.ui.Main.launchArgs); } catch (Exception ignore) { }
+            try { opentrap.ui.UiScale.changeTo(Double.parseDouble(String.valueOf(factor.getSelectedItem())), opentrap.ui.Main.launchArgs); } catch (Exception _) { }
         });
         p.block("Scaling", SettingsPage.Kind.USER,
                 "Scale the whole interface for high-density screens. Changing the scale factor restarts the app.",

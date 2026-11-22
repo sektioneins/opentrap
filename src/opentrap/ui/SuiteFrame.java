@@ -633,7 +633,7 @@ public class SuiteFrame extends JFrame {
 
     private double currentScale() {
         String s = System.getProperty("opentrap.scaled");
-        if (s != null) try { return Double.parseDouble(s); } catch (Exception ignored) {}
+        if (s != null) try { return Double.parseDouble(s); } catch (Exception _) {}
         return UiScale.desired();
     }
 

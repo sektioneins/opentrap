@@ -177,7 +177,7 @@ public final class MessageActions {
             if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
                 Desktop.getDesktop().browse(java.net.URI.create(url));
             }
-        } catch (Exception ignored) {}
+        } catch (Exception _) {}
     }
 
     /** Record a request (and its response) so it appears in the site map and history. */

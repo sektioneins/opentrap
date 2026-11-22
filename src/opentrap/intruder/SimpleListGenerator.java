@@ -141,7 +141,7 @@ class SimpleListGenerator extends AbstractGenerator {
             if (data == null) return;
             for (String line : data.split("\r\n|\r|\n")) model.addRow(new Object[]{line});
             changed();
-        } catch (Exception ignored) {}
+        } catch (Exception _) {}
     }
 
     private void changed() {

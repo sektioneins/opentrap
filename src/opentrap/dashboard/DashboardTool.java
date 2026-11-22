@@ -2299,7 +2299,7 @@ public class DashboardTool implements ToolModule {
             try {
                 java.net.URI u = java.net.URI.create(url);
                 if (u.getRawPath() != null && !u.getRawPath().isEmpty()) pathq = u.getRawPath();
-            } catch (Exception ignored) {}
+            } catch (Exception _) {}
             String seedUrl = svc.url() + (pathq.startsWith("/") ? pathq : "/" + pathq);
             if (!ctx.scope().isInScope(svc, pathq)) {
                 ctx.scope().includeHost(svc);
@@ -2337,7 +2337,7 @@ public class DashboardTool implements ToolModule {
                 ze.start();
                 // Threads are set once here, not per target.
                 try { ze.api().setSpiderThreads(threads); ze.api().setActiveThreadPerHost(threads); }
-                catch (Exception ignored) {}
+                catch (Exception _) {}
                 task.log("Engine ready. Crawling " + fseeds.size() + " target(s)");
                 ctx.taskChanged(task);
                 new opentrap.engine.ZapScanner(ctx, ze)

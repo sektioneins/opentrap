@@ -45,7 +45,7 @@ public final class UpstreamProxyTest {
                     readHead(in);                                  // the tunnelled GET
                     out.write("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nhi".getBytes(StandardCharsets.ISO_8859_1));
                     out.flush();
-                } catch (Exception ignored) {}
+                } catch (Exception _) {}
             });
 
             UpstreamProxy rule = new UpstreamProxy();
@@ -62,7 +62,7 @@ public final class UpstreamProxyTest {
                 Expect.isTrue(connectLine.get().startsWith("CONNECT target.test:80"), "proxy saw a CONNECT to the target");
             } finally {
                 HttpClient.setProxyProvider(null);
-                try { fakeProxy.close(); } catch (Exception ignored) {}
+                try { fakeProxy.close(); } catch (Exception _) {}
             }
         });
     }

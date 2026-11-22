@@ -98,7 +98,7 @@ final class BrowserWindowIcon {
             int idle = 0;
             try { Files.writeString(log, "session=" + System.getenv("XDG_SESSION_TYPE")
                     + " desktop=" + System.getenv("XDG_CURRENT_DESKTOP") + " display=" + System.getenv("DISPLAY") + "\n"); }
-            catch (Exception ignore) { }
+            catch (Exception _) { }
             while (browser.isAlive()) {
                 try {
                     Process p = new ProcessBuilder("python3", "-I", helper.toString(), icon.toString(), BrowserDesktopEntry.WM_CLASS)
@@ -108,7 +108,7 @@ final class BrowserWindowIcon {
                     // A short record of what the helper did, for support.
                     if (rc != 0 || !out.equals("0")) {
                         try { Files.writeString(log, "rc=" + rc + " " + out + "\n", StandardCharsets.UTF_8,
-                                java.nio.file.StandardOpenOption.APPEND); } catch (Exception ignore) { }
+                                java.nio.file.StandardOpenOption.APPEND); } catch (Exception _) { }
                     }
                     if (rc != 0 && ++idle > 3) return;   // no Python or no X library: give up quietly
                     Thread.sleep(out.equals("0") ? 1500 : 500);

@@ -128,7 +128,7 @@ public final class ApiDefinitionPanel extends JPanel {
         try {
             URI u = URI.create(url.getText().strip());
             if (u.getHost() != null) return u.getScheme() + "://" + u.getHost() + (u.getPort() > 0 ? ":" + u.getPort() : "");
-        } catch (Exception ignore) { }
+        } catch (Exception _) { }
         return "";
     }
 

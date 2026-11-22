@@ -127,7 +127,7 @@ public class ProxyServer {
         try {
             int p = Integer.parseInt(System.getProperty("opentrap.port", "").trim());
             if (p >= 1 && p <= 65535) return p;
-        } catch (Exception ignored) {}
+        } catch (Exception _) {}
         return ProxyListener.DEFAULT_PORT;
     }
 
@@ -171,7 +171,7 @@ public class ProxyServer {
         ServerSocket ss = sockets.remove(cfg.port);
         cfg.running = false;
         if (ss != null) {
-            try { ss.close(); } catch (IOException ignored) {}
+            try { ss.close(); } catch (IOException _) {}
             ctx.alert("proxy", "proxy service stopped on port " + cfg.port);
         }
         listenersChanged();
@@ -309,7 +309,7 @@ public class ProxyServer {
                 // level rather than reporting every malformed request.
                 Debug.log("proxy exchange failed: " + e);
             } finally {
-                try { client.close(); } catch (IOException ignored) {}
+                try { client.close(); } catch (IOException _) {}
             }
         }
 
@@ -321,7 +321,7 @@ public class ProxyServer {
             int c = target.lastIndexOf(':');
             if (c > 0) {
                 host = target.substring(0, c);
-                try { port = Integer.parseInt(target.substring(c + 1)); } catch (Exception ignored) {}
+                try { port = Integer.parseInt(target.substring(c + 1)); } catch (Exception _) {}
             }
             tunnelService = new HttpService(host, port, true);
             out.write(Bytes.bytes("HTTP/1.1 200 Connection established\r\n\r\n"));
@@ -358,7 +358,7 @@ public class ProxyServer {
                 HttpMessage m = new HttpMessage(head);
                 if (!handlePlain(m, tin, tout, true, tunnelService)) break;
             }
-            try { tls.close(); } catch (IOException ignored) {}
+            try { tls.close(); } catch (IOException _) {}
         }
 
         /** Returns true when the connection may be reused for another request. */
@@ -377,7 +377,7 @@ public class ProxyServer {
                         String p = (u.getRawPath() == null || u.getRawPath().isEmpty()) ? "/" : u.getRawPath();
                         if (u.getRawQuery() != null) p += "?" + u.getRawQuery();
                         request.setRequestTarget(p);
-                    } catch (Exception ignored) {}
+                    } catch (Exception _) {}
                 } else {
                     String hostHeader = request.header("Host");
                     if (hostHeader == null) { writeError(out, "no Host header in request"); return false; }
@@ -591,7 +591,7 @@ public class ProxyServer {
                         + "Content-Length: " + b.length + "\r\nConnection: close\r\n\r\n"));
                 out.write(b);
                 out.flush();
-            } catch (IOException ignored) {}
+            } catch (IOException _) {}
         }
     }
 
@@ -662,7 +662,7 @@ public class ProxyServer {
         int c = h.lastIndexOf(':');
         if (c > 0 && c > h.lastIndexOf(']')) {
             try { port = Integer.parseInt(h.substring(c + 1).trim()); h = h.substring(0, c); }
-            catch (Exception ignored) {}
+            catch (Exception _) {}
         }
         return new HttpService(h, port, secure);
     }
@@ -718,7 +718,7 @@ public class ProxyServer {
         } catch (Exception e) {
             ctx.alert("proxy", "WebSocket relay error: " + e.getMessage());
         } finally {
-            if (up != null) try { up.close(); } catch (Exception ignored) {}
+            if (up != null) try { up.close(); } catch (Exception _) {}
         }
     }
 

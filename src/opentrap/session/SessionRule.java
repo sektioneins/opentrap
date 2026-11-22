@@ -60,7 +60,7 @@ public final class SessionRule implements Serializable {
         if (trigger == Trigger.STATUS) {
             int sc = resp.statusCode();
             for (String s : triggerValue.split(",")) {
-                try { if (Integer.parseInt(s.trim()) == sc) return true; } catch (Exception ignored) {}
+                try { if (Integer.parseInt(s.trim()) == sc) return true; } catch (Exception _) {}
             }
             return false;
         }

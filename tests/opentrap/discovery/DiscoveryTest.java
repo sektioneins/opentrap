@@ -62,7 +62,7 @@ public final class DiscoveryTest {
                     });
             try { Expect.isTrue(done.await(10, TimeUnit.SECONDS), "run finished in time"); }
             catch (InterruptedException e) { throw new RuntimeException(e); }
-            try { server.close(); } catch (Exception ignored) {}
+            try { server.close(); } catch (Exception _) {}
 
             Expect.isTrue(hits.containsKey("/admin"), "/admin found");
             Expect.isTrue(hits.containsKey("/login"), "/login found");
@@ -102,6 +102,6 @@ public final class DiscoveryTest {
                     + "\r\nContent-Length: " + body.length() + "\r\nConnection: close\r\n\r\n" + body;
             out.write(resp.getBytes(StandardCharsets.ISO_8859_1));
             out.flush();
-        } catch (Exception ignored) {}
+        } catch (Exception _) {}
     }
 }

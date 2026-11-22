@@ -187,7 +187,7 @@ public class PositionsPanel extends JPanel {
             } else {
                 area.getDocument().insertString(a, "" + MARK + MARK, null);
             }
-        } catch (Exception ignored) {}
+        } catch (Exception _) {}
         counts();
     }
 
@@ -249,7 +249,7 @@ public class PositionsPanel extends JPanel {
         while (from >= 0) {
             int to = s.indexOf(MARK, from + 1);
             if (to < 0) break;
-            try { h.addHighlight(from, to + 1, MARKER_PAINT); } catch (javax.swing.text.BadLocationException ignored) {}
+            try { h.addHighlight(from, to + 1, MARKER_PAINT); } catch (javax.swing.text.BadLocationException _) {}
             from = s.indexOf(MARK, to + 1);
         }
         searchHits = 0;
@@ -259,7 +259,7 @@ public class PositionsPanel extends JPanel {
             String needle = q.toLowerCase();
             int i = hay.indexOf(needle);
             while (i >= 0) {
-                try { h.addHighlight(i, i + needle.length(), SEARCH_PAINT); } catch (javax.swing.text.BadLocationException ignored) {}
+                try { h.addHighlight(i, i + needle.length(), SEARCH_PAINT); } catch (javax.swing.text.BadLocationException _) {}
                 searchHits++;
                 i = hay.indexOf(needle, i + needle.length());
             }

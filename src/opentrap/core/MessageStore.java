@@ -71,7 +71,7 @@ public class MessageStore {
         this.bodyStore = store;
         this.offloader = new Offloader(store);
         if (oldOff != null) oldOff.close();
-        if (oldStore != null) { try { oldStore.close(); } catch (java.io.IOException ignore) {} }
+        if (oldStore != null) { try { oldStore.close(); } catch (java.io.IOException _) {} }
     }
 
     /** The disk store backing recorded bodies, or null when traffic is kept in memory. */
@@ -82,7 +82,7 @@ public class MessageStore {
         Offloader o = offloader;
         ProjectStore b = bodyStore;
         if (o != null) o.close();
-        if (b != null) { try { b.close(); } catch (java.io.IOException ignore) {} }
+        if (b != null) { try { b.close(); } catch (java.io.IOException _) {} }
     }
 
     public void add(LogEntry e) {
@@ -237,7 +237,7 @@ public class MessageStore {
                     lastSync = now;
                 }
             }
-            try { store.sync(); } catch (Exception ignore) {}
+            try { store.sync(); } catch (Exception _) {}
         }
 
         private void apply(Task t) throws java.io.IOException {

@@ -395,7 +395,7 @@ public final class ZapEngine {
             for (ProcessHandle h : tree) { try { h.destroy(); } catch (Exception e) { Debug.log("descendant destroy: " + e); } }
             try {
                 if (!proc.waitFor(8, java.util.concurrent.TimeUnit.SECONDS)) proc.destroyForcibly();
-            } catch (InterruptedException ignore) { proc.destroyForcibly(); }
+            } catch (InterruptedException _) { proc.destroyForcibly(); }
             for (ProcessHandle h : tree) {
                 try { if (h.isAlive()) h.destroyForcibly(); } catch (Exception e) { Debug.log("descendant force-destroy: " + e); }
             }

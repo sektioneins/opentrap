@@ -194,7 +194,7 @@ public final class Theme {
     public static void install() {
         configure(darkPreferred());
         MetalLookAndFeel.setCurrentTheme(new Palette());
-        try { UIManager.setLookAndFeel(new MetalLookAndFeel()); } catch (Exception ignored) {}
+        try { UIManager.setLookAndFeel(new MetalLookAndFeel()); } catch (Exception _) {}
 
         UIDefaults d = UIManager.getDefaults();
         ColorUIResource bg = new ColorUIResource(BG), surface = new ColorUIResource(SURFACE),

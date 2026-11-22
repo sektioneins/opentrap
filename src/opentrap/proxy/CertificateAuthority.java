@@ -142,7 +142,7 @@ public class CertificateAuthority {
             ks.store(out, PASSWORD);
         }
         try { Files.setPosixFilePermissions(storePath, PosixFilePermissions.fromString("rw-------")); }
-        catch (Exception ignored) {}
+        catch (Exception _) {}
     }
 
     /** A TLS context presenting a CA-signed certificate valid for this host. */

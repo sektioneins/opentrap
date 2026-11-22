@@ -127,7 +127,7 @@ public final class Cdp {
                 JsonValue params = root.get("params");
                 try {
                     l.accept(m.asString(), params != null ? params.raw() : "{}");
-                } catch (RuntimeException ignore) {
+                } catch (RuntimeException _) {
                     // listener must not break the dispatch loop
                 }
             }
@@ -175,12 +175,12 @@ public final class Cdp {
     public void close() {
         try {
             ws.sendClose(WebSocket.NORMAL_CLOSURE, "bye");
-        } catch (RuntimeException ignore) {
+        } catch (RuntimeException _) {
             // ignore
         }
         try {
             ws.abort();
-        } catch (RuntimeException ignore) {
+        } catch (RuntimeException _) {
             // ignore
         }
         failAll(new IllegalStateException("cdp closed"));
@@ -330,7 +330,7 @@ public final class Cdp {
             if (kind == Kind.STRING) {
                 try {
                     return (int) Double.parseDouble((String) value);
-                } catch (NumberFormatException ignore) {
+                } catch (NumberFormatException _) {
                     return 0;
                 }
             }

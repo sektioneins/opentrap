@@ -58,7 +58,7 @@ public final class AddScopeUrlDialog {
                 if (u.getHost() != null) host.setText("^" + java.util.regex.Pattern.quote(u.getHost()).replace("\\Q", "").replace("\\E", "").replace(".", "\\.") + "$");
                 if (u.getPort() > 0) port.setText("^" + u.getPort() + "$");
                 if (u.getRawPath() != null && !u.getRawPath().isEmpty()) file.setText("^" + u.getRawPath().replace(".", "\\.") + ".*");
-            } catch (Exception ignore) {
+            } catch (Exception _) {
                 // not a URL on the clipboard: leave the fields alone
             }
         });

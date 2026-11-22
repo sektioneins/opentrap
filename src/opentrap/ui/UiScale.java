@@ -26,12 +26,12 @@ public final class UiScale {
     public static double desired() {
         String flag = System.getProperty("opentrap.scale");
         if (flag != null) {
-            try { return clamp(Double.parseDouble(flag.trim())); } catch (Exception ignored) {}
+            try { return clamp(Double.parseDouble(flag.trim())); } catch (Exception _) {}
         }
         try {
             String saved = Preferences.userRoot().node(PREF_NODE).get(PREF_KEY, null);
             if (saved != null) return clamp(Double.parseDouble(saved));
-        } catch (Exception ignored) {}
+        } catch (Exception _) {}
         return detect();
     }
 
@@ -77,7 +77,7 @@ public final class UiScale {
 
     private static void save(double v) {
         try { Preferences.userRoot().node(PREF_NODE).put(PREF_KEY, String.valueOf(v)); }
-        catch (Exception ignored) {}
+        catch (Exception _) {}
     }
 
     /**

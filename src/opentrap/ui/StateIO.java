@@ -177,7 +177,7 @@ public final class StateIO {
                 writeAllTo(ctx, target, o);
                 target.sync();
             } finally {
-                try { target.close(); } catch (IOException ignore) {}
+                try { target.close(); } catch (IOException _) {}
             }
             try {
                 java.nio.file.Files.move(tmp.toPath(), file.toPath(),

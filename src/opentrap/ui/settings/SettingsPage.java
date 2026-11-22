@@ -125,7 +125,7 @@ public class SettingsPage extends OptionsPage {
     public static JTextField number(Settings s, String key, int def, int cols) {
         JTextField f = Ui.field(String.valueOf(s.getInt(key, def)), cols);
         f.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
-            private void go() { try { s.setInt(key, Integer.parseInt(f.getText().trim())); } catch (NumberFormatException ignore) { } }
+            private void go() { try { s.setInt(key, Integer.parseInt(f.getText().trim())); } catch (NumberFormatException _) { } }
             public void insertUpdate(javax.swing.event.DocumentEvent e) { go(); }
             public void removeUpdate(javax.swing.event.DocumentEvent e) { go(); }
             public void changedUpdate(javax.swing.event.DocumentEvent e) { go(); }

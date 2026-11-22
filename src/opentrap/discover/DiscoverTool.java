@@ -138,7 +138,7 @@ public class DiscoverTool implements ToolModule {
         p.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         p.addMouseListener(new java.awt.event.MouseAdapter() {
             @Override public void mouseClicked(java.awt.event.MouseEvent e) {
-                try { Desktop.getDesktop().browse(java.net.URI.create(url)); } catch (Exception ignore) { }
+                try { Desktop.getDesktop().browse(java.net.URI.create(url)); } catch (Exception _) { }
             }
         });
         return p;

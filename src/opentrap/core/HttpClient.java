@@ -133,7 +133,7 @@ public class HttpClient {
             SSLParameters p = s.getSSLParameters();
             p.setServerNames(java.util.List.of(new SNIHostName(svc.host())));
             s.setSSLParameters(p);
-        } catch (Exception ignored) {}
+        } catch (Exception _) {}
         s.startHandshake();
         return s;
     }
@@ -256,7 +256,7 @@ public class HttpClient {
         try {
             sock = connect(svc, opt.connectTimeoutMs, opt.readTimeoutMs, opt.upstream);
             try { r.remoteIp = ((InetSocketAddress) sock.getRemoteSocketAddress()).getAddress().getHostAddress(); }
-            catch (Exception ignored) {}
+            catch (Exception _) {}
 
             OutputStream out = sock.getOutputStream();
             out.write(request.raw());
@@ -279,7 +279,7 @@ public class HttpClient {
         } catch (Exception e) {
             r.error = String.valueOf(e.getMessage());
         } finally {
-            if (sock != null) try { sock.close(); } catch (IOException ignored) {}
+            if (sock != null) try { sock.close(); } catch (IOException _) {}
         }
         return r;
     }
@@ -363,7 +363,7 @@ public class HttpClient {
         try {
             int k;
             while ((k = in.read(buf)) > 0) body.write(buf, 0, k);
-        } catch (SocketTimeoutException ignored) {
+        } catch (SocketTimeoutException _) {
         }
         return Bytes.concat(headBytes, body.toByteArray());
     }

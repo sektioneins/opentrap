@@ -23,9 +23,9 @@ public class IntruderSettingsPanel extends OptionsPage {
 
         Runnable save = () -> {
             try { settings.setInt(THREADS_KEY, Math.max(1, Integer.parseInt(threads.getText().trim()))); }
-            catch (NumberFormatException ignored) {}
+            catch (NumberFormatException _) {}
             try { settings.setInt(THROTTLE_KEY, Math.max(0, Integer.parseInt(throttle.getText().trim()))); }
-            catch (NumberFormatException ignored) {}
+            catch (NumberFormatException _) {}
             settings.setBool(REDIRECTS_KEY, redirects.isSelected());
         };
         javax.swing.event.DocumentListener onEdit = new javax.swing.event.DocumentListener() {

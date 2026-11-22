@@ -104,7 +104,7 @@ public class HexView extends JPanel {
                 int b = Integer.parseInt(String.valueOf(v).trim(), 16);
                 data[idx] = (byte) b;
                 fireTableRowsUpdated(row, row);
-            } catch (Exception ignored) {}
+            } catch (Exception _) {}
         }
     }
 }

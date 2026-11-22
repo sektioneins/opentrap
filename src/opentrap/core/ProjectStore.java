@@ -233,7 +233,7 @@ public final class ProjectStore implements Closeable {
 
     @Override public void close() throws IOException {
         synchronized (lock) {
-            try { ch.force(true); } catch (IOException ignore) {}
+            try { ch.force(true); } catch (IOException _) {}
             ch.close();
         }
     }

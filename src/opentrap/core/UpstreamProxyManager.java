@@ -46,7 +46,7 @@ public final class UpstreamProxyManager implements HttpClient.ProxyProvider {
                 p.pass = dec(f[5]);
                 p.hostPattern = f[6];
                 rules.add(p);
-            } catch (Exception ignored) {}
+            } catch (Exception _) {}
         }
     }
 

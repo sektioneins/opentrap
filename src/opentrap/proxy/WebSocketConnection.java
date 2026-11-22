@@ -119,7 +119,7 @@ public final class WebSocketConnection {
                 synchronized (target) { target.write(out); target.flush(); }
                 if (op == Op.CLOSE) break;
             }
-        } catch (IOException ignored) {
+        } catch (IOException _) {
         } finally {
             open = false;
         }

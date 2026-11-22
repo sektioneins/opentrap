@@ -65,7 +65,7 @@ public final class LineGutter extends JComponent {
                 if (y > clip.y + clip.height) break;
                 String s = String.valueOf(i + 1);
                 g2.drawString(s, getWidth() - 8 - fm.stringWidth(s), y + fm.getAscent());
-            } catch (javax.swing.text.BadLocationException ignore) { }
+            } catch (javax.swing.text.BadLocationException _) { }
         }
         g2.dispose();
     }

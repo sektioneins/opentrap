@@ -278,7 +278,7 @@ public final class Unbuilt {
                 Desktop.getDesktop().browse(java.net.URI.create(PROJECT_URL));
                 return;
             }
-        } catch (Exception ignore) {
+        } catch (Exception _) {
             // fall through to the clipboard fallback
         }
         Toolkit.getDefaultToolkit().getSystemClipboard()

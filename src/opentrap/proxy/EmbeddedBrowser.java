@@ -56,7 +56,7 @@ public final class EmbeddedBrowser {
                 dirs.add(jar);                                 // running from build/
                 if (jar.getParentFile() != null) dirs.add(jar.getParentFile());
             }
-        } catch (Exception ignored) {}
+        } catch (Exception _) {}
         dirs.add(new File(System.getProperty("user.home"), "opentrap"));
         dirs.add(new File(System.getProperty("user.dir")));
         return dirs;
@@ -87,7 +87,7 @@ public final class EmbeddedBrowser {
                 String out = new String(p.getInputStream().readAllBytes()).trim();
                 if (!out.isEmpty() && new File(out).canExecute()) return out;
             }
-        } catch (Exception ignored) {}
+        } catch (Exception _) {}
         return null;
     }
 
@@ -110,7 +110,7 @@ public final class EmbeddedBrowser {
                     String out = new String(p.getInputStream().readAllBytes()).trim();
                     if (!out.isEmpty() && new File(out).canExecute()) return out;
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception _) {}
         }
         return null;
     }

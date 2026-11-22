@@ -25,11 +25,11 @@ public final class Convert {
             char c = s.charAt(i);
             if (c == '%' && i + 5 < s.length() && (s.charAt(i + 1) == 'u' || s.charAt(i + 1) == 'U')) {
                 try { b.append((char) Integer.parseInt(s.substring(i + 2, i + 6), 16)); i += 5; continue; }
-                catch (Exception ignore) {}
+                catch (Exception _) {}
             }
             if (c == '%' && i + 2 < s.length()) {
                 try { b.append((char) Integer.parseInt(s.substring(i + 1, i + 3), 16)); i += 2; continue; }
-                catch (Exception ignore) {}
+                catch (Exception _) {}
             }
             b.append(c);
         }

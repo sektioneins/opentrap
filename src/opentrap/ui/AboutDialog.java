@@ -86,11 +86,11 @@ public final class AboutDialog {
                 Desktop.getDesktop().browse(java.net.URI.create(url));
                 return;
             }
-        } catch (Exception ignored) {}
+        } catch (Exception _) {}
         // Desktop.browse is frequently a no-op on Linux (especially Wayland), so
         // fall back to the system URL opener.
         for (String[] cmd : new String[][]{{"xdg-open", url}, {"gio", "open", url}, {"x-www-browser", url}}) {
-            try { new ProcessBuilder(cmd).start(); return; } catch (Exception ignored) {}
+            try { new ProcessBuilder(cmd).start(); return; } catch (Exception _) {}
         }
     }
 }

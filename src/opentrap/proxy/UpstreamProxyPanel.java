@@ -81,7 +81,7 @@ public class UpstreamProxyPanel extends JPanel {
         if (ok != JOptionPane.OK_OPTION) return false;
         p.type = (UpstreamProxy.Type) type.getSelectedItem();
         p.host = host.getText().trim();
-        try { p.port = Integer.parseInt(port.getText().trim()); } catch (Exception ignored) {}
+        try { p.port = Integer.parseInt(port.getText().trim()); } catch (Exception _) {}
         p.user = user.getText().trim();
         p.pass = new String(pass.getPassword());
         p.hostPattern = pattern.getText().trim();

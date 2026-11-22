@@ -159,7 +159,7 @@ public final class InstalledPanel extends JPanel {
         try (java.util.jar.JarFile jf = new java.util.jar.JarFile(jar)) {
             java.util.Enumeration<java.util.jar.JarEntry> en = jf.entries();
             while (en.hasMoreElements()) if (en.nextElement().getName().endsWith(".class")) classes++;
-        } catch (Exception ignored) { }
+        } catch (Exception _) { }
         int score = (int) Math.min(60, kb / 40) + Math.min(40, classes / 10);
         return Math.max(1, Math.min(100, score));
     }

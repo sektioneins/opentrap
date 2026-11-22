@@ -46,9 +46,9 @@ public final class CertificateModeTest {
         if (caDir == null) return;
         try (var walk = Files.walk(caDir)) {
             walk.sorted(java.util.Comparator.reverseOrder()).forEach(p -> {
-                try { Files.deleteIfExists(p); } catch (Exception ignored) {}
+                try { Files.deleteIfExists(p); } catch (Exception _) {}
             });
-        } catch (Exception ignored) {}
+        } catch (Exception _) {}
         caDir = null;
         ca = null;
     }

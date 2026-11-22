@@ -29,9 +29,9 @@ public class Main {
                         String v = at.getValue("Implementation-Version");
                         if (v != null && !v.isBlank()) return v;
                     }
-                } catch (Exception ignore) {}
+                } catch (Exception _) {}
             }
-        } catch (Exception ignore) {}
+        } catch (Exception _) {}
         return "dev";
     }
 

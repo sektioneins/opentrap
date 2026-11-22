@@ -53,7 +53,7 @@ class RuntimeFileGenerator extends AbstractGenerator {
         try (BufferedReader r = new BufferedReader(new FileReader(pathField.getText()))) {
             String line;
             while ((line = r.readLine()) != null && out.size() < CAP) out.add(line);
-        } catch (Exception ignored) {}
+        } catch (Exception _) {}
         return out;
     }
 

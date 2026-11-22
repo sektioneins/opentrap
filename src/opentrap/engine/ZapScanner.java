@@ -55,7 +55,7 @@ public final class ZapScanner {
      * scope must not run unbounded.
      */
     private String applyScope(java.util.List<Seed> seeds, ScanTask task) throws Exception {
-        try { api.removeContext(SCOPE_CONTEXT); } catch (Exception ignore) { /* none yet */ }
+        try { api.removeContext(SCOPE_CONTEXT); } catch (Exception _) { /* none yet */ }
         String id = api.newContext(SCOPE_CONTEXT);
         if (id == null || id.isBlank()) throw new Exception("the engine did not create the scope context");
         int inc = 0, exc = 0;
@@ -105,7 +105,7 @@ public final class ZapScanner {
             api.setSpiderMaxDepth(cfg.crawlDepth());
             api.setSpiderMaxDuration(cfg.crawlDurationMin());
             api.setSpiderProcessForms(cfg.submitForms());
-        } catch (Exception ignore) { /* use the engine defaults */ }
+        } catch (Exception _) { /* use the engine defaults */ }
 
         // Everything the engine does in this job stays inside the suite scope.
         final String contextId = applyScope(seeds, crawlTask);
@@ -178,7 +178,7 @@ public final class ZapScanner {
             for (JsonValue s : api.activeScanners())
                 if ("true".equals(ZapApi.str(s, "enabled"))) rules++;
             auditTask.setAuditItemsTotal(rules);
-        } catch (Exception ignore) { /* leave at 0 if ZAP cannot report it */ }
+        } catch (Exception _) { /* leave at 0 if ZAP cannot report it */ }
         ctx.addTask(auditTask);
         try {
             // Apply the tier's audit settings once before starting.
@@ -189,7 +189,7 @@ public final class ZapScanner {
                 api.setInjectableRpc(cfg.rpcMask());
                 api.setActiveDelayMs(cfg.delayMs());
                 api.setActiveMaxScanDuration(cfg.scanDurationMin());
-            } catch (Exception ignore) { /* use the engine defaults */ }
+            } catch (Exception _) { /* use the engine defaults */ }
             auditTask.log("Auditing with the ZAP active rules (" + cfg.name()
                     + ": strength " + cfg.attackStrength() + ", threshold " + cfg.alertThreshold() + ")...");
             ctx.taskChanged(auditTask);
@@ -301,7 +301,7 @@ public final class ZapScanner {
                 api.setAjaxMaxDuration(cfg.ajaxMaxDurationMin());
                 api.setAjaxMaxCrawlDepth(cfg.ajaxMaxDepth());
                 api.setAjaxMaxCrawlStates(cfg.ajaxMaxStates());
-            } catch (Exception ignore) { /* use the engine defaults */ }
+            } catch (Exception _) { /* use the engine defaults */ }
             crawlTask.log("Starting AJAX crawl (headless Chromium, executes JavaScript)...");
             ctx.taskChanged(crawlTask);
             // Bound to the scope context like the traditional crawl.
@@ -329,7 +329,7 @@ public final class ZapScanner {
                 ctx.taskChanged(crawlTask);
                 if (System.currentTimeMillis() > deadline) {
                     crawlTask.log("AJAX crawl time budget reached; stopping");
-                    try { api.ajaxSpiderStop(); } catch (Exception ignore) { }
+                    try { api.ajaxSpiderStop(); } catch (Exception _) { }
                     break;
                 }
                 Thread.sleep(1500);
@@ -344,7 +344,7 @@ public final class ZapScanner {
         } finally {
             // Always stop the AJAX spider so ZAP releases its headless browsers,
             // even if the crawl was interrupted or threw.
-            try { api.ajaxSpiderStop(); } catch (Exception ignore) { }
+            try { api.ajaxSpiderStop(); } catch (Exception _) { }
         }
         ctx.taskChanged(crawlTask);
     }
@@ -353,7 +353,7 @@ public final class ZapScanner {
      *  scan loop: the engine may have already finished the scan being stopped. */
     private interface ZapCall { void run() throws Exception; }
     private static void stopQuietly(ZapCall c) {
-        try { c.run(); } catch (Exception ignore) { }
+        try { c.run(); } catch (Exception _) { }
     }
 
     /** Unique discovered locations under baseurl, or the last value on error. */
@@ -468,7 +468,7 @@ public final class ZapScanner {
         if (messages != null) {
             String mid = ZapApi.str(a, "messageId");
             if (mid != null && !mid.isEmpty()) {
-                try { attachMessage(b, mid, evidence, messages); } catch (Exception ignore) { }
+                try { attachMessage(b, mid, evidence, messages); } catch (Exception _) { }
             }
         }
         return b.build();
@@ -622,7 +622,7 @@ public final class ZapScanner {
                 String pq = (u.getRawPath() == null || u.getRawPath().isEmpty() ? "/" : u.getRawPath())
                         + (u.getRawQuery() != null ? "?" + u.getRawQuery() : "");
                 start = parts[0] + " " + pq + " " + parts[2];
-            } catch (Exception ignore) { /* leave as-is */ }
+            } catch (Exception _) { /* leave as-is */ }
         }
         return start + (cr ? "\r" : "") + "\n" + rest;
     }

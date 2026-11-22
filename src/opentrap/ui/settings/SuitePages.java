@@ -40,7 +40,7 @@ public final class SuitePages {
         SettingsPage p = new SettingsPage();
         JButton check = Ui.primaryButton("Check for updates", "open the project's releases page");
         check.addActionListener(e -> {
-            try { Desktop.getDesktop().browse(java.net.URI.create(opentrap.ui.Unbuilt.PROJECT_URL + "/releases")); } catch (Exception ignore) { }
+            try { Desktop.getDesktop().browse(java.net.URI.create(opentrap.ui.Unbuilt.PROJECT_URL + "/releases")); } catch (Exception _) { }
         });
         p.block("Updates [installer version only]", SettingsPage.Kind.USER,
                 "Whether OpenTRAP checks for a newer release when it starts, and from which channel.",

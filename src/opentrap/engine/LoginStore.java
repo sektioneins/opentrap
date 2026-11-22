@@ -58,7 +58,7 @@ public final class LoginStore {
         if (!Files.isDirectory(dir())) return out;
         try (var ds = Files.newDirectoryStream(dir(), "*.txt")) {
             for (Path f : ds) out.add(f.getFileName().toString().replaceAll("\\.txt$", ""));
-        } catch (IOException ignore) { }
+        } catch (IOException _) { }
         java.util.Collections.sort(out);
         return out;
     }

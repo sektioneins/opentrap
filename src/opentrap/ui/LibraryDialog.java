@@ -32,7 +32,7 @@ public final class LibraryDialog {
         if (!Files.isDirectory(d)) return out;
         try (var ds = Files.newDirectoryStream(d, "*.txt")) {
             for (Path p : ds) out.add(p.getFileName().toString().replaceAll("\\.txt$", ""));
-        } catch (IOException ignore) { }
+        } catch (IOException _) { }
         java.util.Collections.sort(out);
         return out;
     }
@@ -84,7 +84,7 @@ public final class LibraryDialog {
             for (String n : names(kind)) {
                 if (!q.isEmpty() && !n.toLowerCase().contains(q)) continue;
                 String used = "";
-                try { used = FMT.format(Instant.ofEpochMilli(Files.getLastModifiedTime(dir(kind).resolve(n + ".txt")).toMillis())); } catch (IOException ignore) { }
+                try { used = FMT.format(Instant.ofEpochMilli(Files.getLastModifiedTime(dir(kind).resolve(n + ".txt")).toMillis())); } catch (IOException _) { }
                 model.addRow(new Object[]{n, kindLabel(kind), used, ""});
             }
         };

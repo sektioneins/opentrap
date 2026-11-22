@@ -41,7 +41,7 @@ public final class LivePassiveScanner {
         if (p == null) return null;
         try {
             if (!ctx.scope().isEmpty() && !ctx.scope().isInScope(svc, "/")) return null;
-        } catch (Exception ignored) {}
+        } catch (Exception _) {}
         return p;
     }
 

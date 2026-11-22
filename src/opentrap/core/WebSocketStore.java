@@ -72,7 +72,7 @@ public final class WebSocketStore {
         this.payloadStore = store;
         this.offloader = new Offloader(this, store);
         if (oldOff != null) oldOff.close();
-        if (oldStore != null) { try { oldStore.close(); } catch (java.io.IOException ignore) {} }
+        if (oldStore != null) { try { oldStore.close(); } catch (java.io.IOException _) {} }
     }
 
     /** The disk store backing frame payloads, or null when frames are kept in memory. */
@@ -83,7 +83,7 @@ public final class WebSocketStore {
         Offloader o = offloader;
         ProjectStore b = payloadStore;
         if (o != null) o.close();
-        if (b != null) { try { b.close(); } catch (java.io.IOException ignore) {} }
+        if (b != null) { try { b.close(); } catch (java.io.IOException _) {} }
     }
 
     public void add(WebSocketMessage m) {
@@ -249,7 +249,7 @@ public final class WebSocketStore {
                     lastSync = now;
                 }
             }
-            try { store.sync(); } catch (Exception ignore) {}
+            try { store.sync(); } catch (Exception _) {}
         }
 
         private void apply(WebSocketMessage m) throws java.io.IOException {

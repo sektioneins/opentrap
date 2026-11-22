@@ -265,7 +265,7 @@ public class NewScanWizard extends JDialog {
                     }
                 }
             }
-        } catch (Exception ignored) {}
+        } catch (Exception _) {}
         urls.setText(sb.toString());
 
         JScrollPane sp = Ui.scroll(urls);

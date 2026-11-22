@@ -67,7 +67,7 @@ final class BrowserDesktopEntry {
                 changed = true;
             }
             if (changed) refreshCaches(home);
-        } catch (Exception ignore) { /* a cosmetic step; never block the launch */ }
+        } catch (Exception _) { /* a cosmetic step; never block the launch */ }
     }
 
     /** Ask the desktop to pick the new entry and icons up, where the tools exist. */
@@ -87,7 +87,7 @@ final class BrowserDesktopEntry {
                     .redirectOutput(ProcessBuilder.Redirect.DISCARD)
                     .redirectError(ProcessBuilder.Redirect.DISCARD)
                     .start();
-        } catch (Exception ignore) { /* tool not installed */ }
+        } catch (Exception _) { /* tool not installed */ }
     }
 
     /**

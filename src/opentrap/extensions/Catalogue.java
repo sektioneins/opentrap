@@ -114,7 +114,7 @@ public final class Catalogue {
         if (Files.isRegularFile(f)) {
             try {
                 for (Entry x : parse(Files.readString(f))) byId.put(x.id(), x);
-            } catch (IOException ignore) {
+            } catch (IOException _) {
                 // unreadable user file: keep the built-in list
             }
         }

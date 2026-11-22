@@ -86,7 +86,7 @@ public final class CrawlGraph extends JPanel {
                         cur = cur.kids.computeIfAbsent(seg, Node::new);
                     }
                     count++;
-                } catch (Exception ignore) { }
+                } catch (Exception _) { }
             }
             repaint();
         }

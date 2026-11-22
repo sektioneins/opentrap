@@ -345,7 +345,7 @@ public class HttpMessage implements Serializable {
         try {
             int[] p = {0};
             jsonValue(s, p, base, "", out, 0);
-        } catch (Exception | StackOverflowError ignored) {
+        } catch (Exception | StackOverflowError _) {
             // Advisory parsing: a body that is not JSON yields no parameters.
         }
     }
@@ -471,7 +471,7 @@ public class HttpMessage implements Serializable {
                     i = te;
                 }
             }
-        } catch (Exception ignored) {}
+        } catch (Exception _) {}
     }
 
     private static int xmlWs(String s) {

@@ -222,7 +222,7 @@ public final class StorePanel extends JPanel {
             if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
                 Desktop.getDesktop().browse(java.net.URI.create(x.page()));
             }
-        } catch (Exception ignore) {
+        } catch (Exception _) {
             // fall through to the message
         }
         installed.add(x.id());
@@ -300,7 +300,7 @@ public final class StorePanel extends JPanel {
         l.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         l.addMouseListener(new java.awt.event.MouseAdapter() {
             @Override public void mouseClicked(java.awt.event.MouseEvent e) {
-                try { Desktop.getDesktop().browse(java.net.URI.create(url)); } catch (Exception ignore) { }
+                try { Desktop.getDesktop().browse(java.net.URI.create(url)); } catch (Exception _) { }
             }
         });
         return l;

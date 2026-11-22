@@ -147,7 +147,7 @@ public final class Interactsh {
                 String json = aesDecrypt(aesKey, blob);
                 Interaction in = parseInteraction(json);
                 if (in != null) out.add(in);
-            } catch (Exception ignore) {
+            } catch (Exception _) {
                 // one bad record must not drop the rest
             }
         }

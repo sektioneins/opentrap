@@ -31,7 +31,7 @@ public final class Http2Client {
         try {
             System.setProperty("jdk.httpclient.allowRestrictedHeaders",
                     "host,content-length,connection,upgrade,transfer-encoding");
-        } catch (Exception ignored) {}
+        } catch (Exception _) {}
     }
 
     private static volatile java.net.http.HttpClient shared;
@@ -91,7 +91,7 @@ public final class Http2Client {
                 if (nl.isEmpty() || nl.charAt(0) == ':' || nl.equals("content-length")
                         || nl.equals("transfer-encoding") || nl.equals("connection")
                         || nl.equals("upgrade") || nl.equals("keep-alive") || nl.equals("host")) continue;
-                try { b.header(n, v); } catch (Exception ignored) {}
+                try { b.header(n, v); } catch (Exception _) {}
             }
 
             HttpResponse<byte[]> resp = client(opt).send(b.build(), HttpResponse.BodyHandlers.ofByteArray());
@@ -107,7 +107,7 @@ public final class Http2Client {
             HttpMessage out = new HttpMessage(Bytes.concat(Bytes.bytes(sb.toString()), resp.body()));
             if (opt.unpackGzip) HttpClient.unpack(out);
             r.response = out;
-            try { r.remoteIp = InetAddress.getByName(svc.host()).getHostAddress(); } catch (Exception ignored) {}
+            try { r.remoteIp = InetAddress.getByName(svc.host()).getHostAddress(); } catch (Exception _) {}
         } catch (Exception e) {
             r.error = e.getMessage() == null ? e.toString() : e.getMessage();
         }

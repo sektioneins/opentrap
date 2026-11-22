@@ -43,7 +43,7 @@ public final class QuitRequestTest {
             Answer a = new Answer();
             try {
                 SuiteFrame.answerQuit(() -> { throw new IllegalStateException("boom"); }, a);
-            } catch (RuntimeException ignore) {
+            } catch (RuntimeException _) {
                 // Whether the failure propagates is secondary; the answer is not.
             }
             Expect.equal(a.performed, 0, "performQuit calls");

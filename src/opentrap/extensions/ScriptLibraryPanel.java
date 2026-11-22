@@ -118,7 +118,7 @@ public final class ScriptLibraryPanel extends JPanel {
             JPopupMenu m = new JPopupMenu();
             JMenuItem open = new JMenuItem("Open scripts folder");
             open.setFont(Ui.PLAIN);
-            open.addActionListener(e -> { try { Desktop.getDesktop().open(root().toFile()); } catch (Exception ignore) { } });
+            open.addActionListener(e -> { try { Desktop.getDesktop().open(root().toFile()); } catch (Exception _) { } });
             m.add(open);
             return m;
         });
@@ -320,7 +320,7 @@ public final class ScriptLibraryPanel extends JPanel {
         if (s == null) return;
         if (JOptionPane.showConfirmDialog(this, "Delete \"" + s.name() + "\"?", "Delete script",
                 JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE) != JOptionPane.OK_OPTION) return;
-        try { Files.deleteIfExists(s.file()); } catch (IOException ignore) { }
+        try { Files.deleteIfExists(s.file()); } catch (IOException _) { }
         reload("");
     }
 
@@ -375,7 +375,7 @@ public final class ScriptLibraryPanel extends JPanel {
                     if (!q.isEmpty() && !name.toLowerCase().contains(q)) continue;
                     scripts.add(new Script(name, f, p, Files.getLastModifiedTime(p).toMillis()));
                 }
-            } catch (IOException ignore) { }
+            } catch (IOException _) { }
         }
         scripts.sort((a, b) -> Long.compare(b.modified(), a.modified()));
         for (Script s : scripts) {

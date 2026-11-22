@@ -77,7 +77,7 @@ public final class KeyedTable extends JPanel {
                     try {
                         Object t = Toolkit.getDefaultToolkit().getSystemClipboard().getData(java.awt.datatransfer.DataFlavor.stringFlavor);
                         if (t != null) { String[] r = blank(); r[enabledColumn ? 1 : 0] = String.valueOf(t).trim(); rows.add(r); save(); model.fireTableDataChanged(); }
-                    } catch (Exception ignore) { }
+                    } catch (Exception _) { }
                 });
                 case "Load ..." -> btn.addActionListener(e -> {
                     JFileChooser fc = new JFileChooser();

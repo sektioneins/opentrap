@@ -59,12 +59,12 @@ public final class CookieJar implements Serializable {
             else if (al.equals("secure")) c.secure = true;
             else if (al.startsWith("max-age=")) {
                 try { c.expires = System.currentTimeMillis() + Long.parseLong(a.substring(8).trim()) * 1000L; }
-                catch (Exception ignored) {}
+                catch (Exception _) {}
             } else if (al.startsWith("expires=")) {
                 try {
                     c.expires = java.time.ZonedDateTime.parse(a.substring(8).trim(),
                             java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME).toInstant().toEpochMilli();
-                } catch (Exception ignored) {}
+                } catch (Exception _) {}
             }
         }
         return c.name.isEmpty() ? null : c;

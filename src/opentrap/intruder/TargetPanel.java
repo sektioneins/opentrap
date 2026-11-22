@@ -45,7 +45,7 @@ public class TargetPanel extends JPanel {
         int port = secure ? 443 : 80;
         int colon = rest.lastIndexOf(':');
         if (colon > 0) {
-            try { port = Integer.parseInt(rest.substring(colon + 1)); } catch (NumberFormatException ignored) {}
+            try { port = Integer.parseInt(rest.substring(colon + 1)); } catch (NumberFormatException _) {}
             rest = rest.substring(0, colon);
         }
         return new HttpService(rest, port, secure);

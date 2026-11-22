@@ -450,7 +450,7 @@ public class MessageEditor extends JPanel {
         try {
             int from = notesArea.getLineOfOffset(notesArea.getSelectionStart()), to = notesArea.getLineOfOffset(notesArea.getSelectionEnd());
             for (int l = to; l >= from; l--) notesArea.insert(prefix, notesArea.getLineStartOffset(l));
-        } catch (Exception ignore) { }
+        } catch (Exception _) { }
     }
 
     private void hideFlyout() {
@@ -572,7 +572,7 @@ public class MessageEditor extends JPanel {
         searchField.setText(term == null ? "" : term);
         if (term == null || term.isEmpty()) return;
         int pos = activeText().getText().toLowerCase(Locale.ROOT).indexOf(term.toLowerCase(Locale.ROOT));
-        if (pos >= 0) try { activeText().setCaretPosition(pos); } catch (RuntimeException ignored) {}
+        if (pos >= 0) try { activeText().setCaretPosition(pos); } catch (RuntimeException _) {}
     }
 
     public void setChangeListener(Runnable r) { this.changeListener = r; }
@@ -829,7 +829,7 @@ public class MessageEditor extends JPanel {
             try {
                 h.addHighlight(i, i + want.length(),
                         new DefaultHighlighter.DefaultHighlightPainter(Theme.HIGHLIGHT));
-            } catch (BadLocationException ignored) {}
+            } catch (BadLocationException _) {}
             count++;
             i = text.indexOf(want, i + 1);
         }

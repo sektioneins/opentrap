@@ -20,7 +20,7 @@ public class Settings implements Serializable {
     private transient List<Consumer<String>> listeners = new CopyOnWriteArrayList<>();
 
     public Settings() {
-        try { prefs = Preferences.userRoot().node(NODE); } catch (Exception ignored) {}
+        try { prefs = Preferences.userRoot().node(NODE); } catch (Exception _) {}
     }
 
     public synchronized String get(String key, String def) {
@@ -30,7 +30,7 @@ public class Settings implements Serializable {
             try {
                 String p = prefs.get(key, null);
                 if (p != null) { values.put(key, p); return p; }
-            } catch (Exception ignored) {}
+            } catch (Exception _) {}
         }
         return def;
     }
@@ -39,7 +39,7 @@ public class Settings implements Serializable {
         synchronized (this) {
             values.put(key, value);
             if (prefs != null) {
-                try { prefs.put(key, value); } catch (Exception ignored) {}
+                try { prefs.put(key, value); } catch (Exception _) {}
             }
         }
         for (Consumer<String> l : listeners()) l.accept(key);
@@ -50,7 +50,7 @@ public class Settings implements Serializable {
         synchronized (this) {
             values.remove(key);
             if (prefs != null) {
-                try { prefs.remove(key); } catch (Exception ignored) {}
+                try { prefs.remove(key); } catch (Exception _) {}
             }
         }
         for (Consumer<String> l : listeners()) l.accept(key);
@@ -59,7 +59,7 @@ public class Settings implements Serializable {
     /** Every key currently set, including those only in the preferences store. */
     public synchronized java.util.Set<String> keys() {
         java.util.Set<String> out = new java.util.LinkedHashSet<>(values.keySet());
-        if (prefs != null) { try { out.addAll(java.util.Arrays.asList(prefs.keys())); } catch (Exception ignored) {} }
+        if (prefs != null) { try { out.addAll(java.util.Arrays.asList(prefs.keys())); } catch (Exception _) {} }
         return out;
     }
 

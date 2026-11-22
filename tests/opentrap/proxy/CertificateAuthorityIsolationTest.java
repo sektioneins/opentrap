@@ -40,9 +40,9 @@ public final class CertificateAuthorityIsolationTest {
     private static void delete(Path dir) {
         try (var walk = Files.walk(dir)) {
             walk.sorted(java.util.Comparator.reverseOrder()).forEach(p -> {
-                try { Files.deleteIfExists(p); } catch (Exception ignored) {}
+                try { Files.deleteIfExists(p); } catch (Exception _) {}
             });
-        } catch (Exception ignored) {}
+        } catch (Exception _) {}
     }
 
     public void run() {

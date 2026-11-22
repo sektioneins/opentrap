@@ -99,7 +99,7 @@ public class OptionsPanel extends OptionsPage {
                     .getData(java.awt.datatransfer.DataFlavor.stringFlavor);
             if (data == null) return;
             for (String line : data.split("\r\n|\r|\n")) if (!line.isEmpty()) grepModel.addRow(new Object[]{line});
-        } catch (Exception ignored) {}
+        } catch (Exception _) {}
     }
 
     // ---------------- accessors ----------------
