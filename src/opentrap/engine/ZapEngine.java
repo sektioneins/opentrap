@@ -79,6 +79,16 @@ public final class ZapEngine {
     private Path home;              // the engine's scratch directory, ours to clean up
     private boolean hookInstalled;  // one shutdown hook per engine, not per start
 
+    // start() holds this object's monitor for as long as the engine takes to
+    // answer, up to two minutes. shutdown() runs from a JVM shutdown hook, and
+    // on macOS Cmd-Q calls System.exit on the AppKit thread, so a shutdown that
+    // waited for that monitor froze the whole application on quit. shutdown()
+    // therefore raises this flag and interrupts the starting thread first, and
+    // start() gives up as soon as it sees it.
+    private volatile boolean stopping;
+    private volatile Thread starter;   // the thread inside start(), or null
+    private volatile boolean ready;    // the running engine has answered its API
+
     /**
      * How far into the engine's message history the suite has read, shared by
      * every scan driven on this engine, so a second scan carries on from where
@@ -87,6 +97,9 @@ public final class ZapEngine {
     private final java.util.concurrent.atomic.AtomicInteger imported = new java.util.concurrent.atomic.AtomicInteger();
 
     private ZapEngine(String jar, boolean bundled) { this.jar = jar; this.bundled = bundled; }
+
+    /** An engine for a given jar on disk, for tests. */
+    static ZapEngine forJar(String jar) { return new ZapEngine(jar, false); }
 
     /** The shared read position into this engine's message history. */
     public java.util.concurrent.atomic.AtomicInteger importedMessages() { return imported; }
@@ -168,11 +181,23 @@ public final class ZapEngine {
 
     /** Start the daemon if not already running, and block until its API answers. */
     public synchronized void start() throws Exception {
+        starter = Thread.currentThread();
+        try {
+            startEngine();
+        } finally {
+            starter = null;
+        }
+    }
+
+    private void startEngine() throws Exception {
+        checkNotStopping();
         if (api != null && responds()) return;
+        ready = false;
 
         // First run of a release jar: unpack the embedded engine to ~/.opentrap/engine.
         if (jar == null && bundled) jar = ensureExtracted();
         if (jar == null) throw new IOException("No scan engine available");
+        checkNotStopping();
 
         int port = freePort();
         imported.set(0);   // a fresh engine process starts with an empty history
@@ -236,11 +261,16 @@ public final class ZapEngine {
 
         long deadline = System.currentTimeMillis() + 120_000;
         while (System.currentTimeMillis() < deadline) {
+            checkNotStopping();
             if (!proc.isAlive()) throw new IOException("Scan engine exited during start-up");
-            if (responds()) return;
+            if (responds()) { ready = true; return; }
             Thread.sleep(1500);
         }
         throw new IOException("Scan engine did not become ready in time");
+    }
+
+    private void checkNotStopping() throws IOException {
+        if (stopping) throw new IOException("Scan engine start abandoned: the application is shutting down");
     }
 
     private boolean responds() {
@@ -253,6 +283,7 @@ public final class ZapEngine {
         e.base = base;
         e.apiKey = apiKey;
         e.api = new ZapApi(base, apiKey);
+        e.ready = true;
         return e;
     }
 
@@ -304,13 +335,24 @@ public final class ZapEngine {
         } catch (IOException e) { return null; }
     }
 
-    public synchronized void shutdown() {
+    public void shutdown() {
+        // Make a start() in progress give up and release the monitor, rather
+        // than waiting up to two minutes for the engine to answer.
+        stopping = true;
+        Thread s = starter;
+        if (s != null) s.interrupt();
+        synchronized (this) { stopEngine(); }
+    }
+
+    private void stopEngine() {
         // Ask ZAP to stop the AJAX spider first, then shut down cleanly, so it
         // releases the headless browsers it drives. Every step is best-effort:
         // the watchdog and the forced kill below are the real guarantees, and a
-        // failed polite step is traced, not propagated.
+        // failed polite step is traced, not propagated. An engine that never
+        // answered is not asked: each call could wait out its full timeout, and
+        // the kill below stops it anyway.
         try {
-            if (api != null) {
+            if (api != null && ready) {
                 try { api.ajaxSpiderStop(); } catch (Exception e) { Debug.log("ajax spider stop: " + e); }
                 api.shutdown();
             }
