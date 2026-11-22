@@ -61,10 +61,18 @@ public class Settings implements Serializable {
         for (Consumer<String> l : listeners()) l.accept(key);
     }
 
-    /** Every key currently set, including those only in the preferences store. */
+    /**
+     * Every key currently set, including user keys only in the preferences
+     * store. A project key an older build left there is not listed, because
+     * {@code get} never reads it.
+     */
     public synchronized java.util.Set<String> keys() {
         java.util.Set<String> out = new java.util.LinkedHashSet<>(values.keySet());
-        if (prefs != null) { try { out.addAll(java.util.Arrays.asList(prefs.keys())); } catch (Exception _) {} }
+        if (prefs != null) {
+            try {
+                for (String k : prefs.keys()) if (!ProjectOptions.isProjectKey(k)) out.add(k);
+            } catch (Exception _) {}
+        }
         return out;
     }
 

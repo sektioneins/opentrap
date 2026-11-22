@@ -99,6 +99,10 @@ public final class ProjectSettingsFileTest {
         c.wsStore().closeStore();
     }
 
+    private static void drop(File... files) {
+        for (File f : files) if (f != null) f.delete();
+    }
+
     /** A context holding one user upstream rule with a password, a Collaborator token and a project key. */
     private static SuiteContext withUserSecrets() {
         SuiteContext ctx = new SuiteContext();
@@ -135,54 +139,58 @@ public final class ProjectSettingsFileTest {
 
         Harness.test("opening a project whose snapshot carries user settings applies only its project settings", () -> {
             MemoryPreferencesFactory.reset();
+            File f = null;
+            SuiteContext ctx = new SuiteContext();
             try {
-                SuiteContext ctx = new SuiteContext();
-                StateIO.restore(ctx, v7Snapshot(hostile()));
+                f = v7Snapshot(hostile());
+                StateIO.restore(ctx, f);
                 expectOnlyProjectSettings(ctx);
-                closeStores(ctx);
             } catch (Exception e) { throw new RuntimeException(e); }
+            finally { closeStores(ctx); drop(f); }
         });
 
         Harness.test("opening an old-format project whose settings carry user settings applies only its project settings", () -> {
             MemoryPreferencesFactory.reset();
+            File f = null;
+            SuiteContext ctx = new SuiteContext();
             try {
-                SuiteContext ctx = new SuiteContext();
-                StateIO.restore(ctx, v6(hostile()));
+                f = v6(hostile());
+                StateIO.restore(ctx, f);
                 expectOnlyProjectSettings(ctx);
-                closeStores(ctx);
             } catch (Exception e) { throw new RuntimeException(e); }
+            finally { closeStores(ctx); drop(f); }
         });
 
         Harness.test("a new project file holds none of the user's settings", () -> {
             MemoryPreferencesFactory.reset();
+            File f = null;
+            SuiteContext ctx = withUserSecrets();
+            SuiteContext back = new SuiteContext();
             try {
-                SuiteContext ctx = withUserSecrets();
-                File f = tmp();
+                f = tmp();
                 StateIO.bindNew(ctx, f, StateIO.SaveOptions.fromSettings(ctx));
                 closeStores(ctx);
                 expectNoSecrets(f);
-
-                SuiteContext back = new SuiteContext();
                 StateIO.restore(back, f);
                 Expect.equal(back.settings().get("scope.advanced", "<sentinel>"), "true", "project key after reopening");
-                closeStores(back);
             } catch (Exception e) { throw new RuntimeException(e); }
+            finally { closeStores(ctx); closeStores(back); drop(f); }
         });
 
         Harness.test("a saved copy holds none of the user's settings", () -> {
             MemoryPreferencesFactory.reset();
+            File f = null;
+            SuiteContext ctx = withUserSecrets();
+            SuiteContext back = new SuiteContext();
             try {
-                SuiteContext ctx = withUserSecrets();
-                File f = tmp();
+                f = tmp();
                 StateIO.save(ctx, f, null);
                 closeStores(ctx);
                 expectNoSecrets(f);
-
-                SuiteContext back = new SuiteContext();
                 StateIO.restore(back, f);
                 Expect.equal(back.settings().get("scope.advanced", "<sentinel>"), "true", "project key after reopening");
-                closeStores(back);
             } catch (Exception e) { throw new RuntimeException(e); }
+            finally { closeStores(ctx); closeStores(back); drop(f); }
         });
     }
 }

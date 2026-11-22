@@ -9,7 +9,8 @@ import java.awt.*;
 /**
  * Settings > Project: what the project file keeps, how much audit traffic the
  * session holds in memory, and whether the proxy records out-of-scope traffic.
- * Every control writes a project setting, so the choices travel with the file.
+ * The file, scope and logging controls write project settings, so those choices
+ * travel with the file; the two memory caps are the user's own and stay with them.
  */
 public final class ProjectSettingsPanel extends JPanel {
 

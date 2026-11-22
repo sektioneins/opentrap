@@ -57,6 +57,15 @@ public final class ProjectSettingsTest {
             Expect.equal(new Settings().get("proxy.logOutOfScope", "true"), "true", "value");
         });
 
+        Harness.test("a project key an older build left in the preferences store is not listed by keys", () -> {
+            MemoryPreferencesFactory.reset();
+            node().put("proxy.logOutOfScope", "false");
+            node().put("ui.zebra", "false");
+            Set<String> keys = new Settings().keys();
+            Expect.isFalse(keys.contains("proxy.logOutOfScope"), "project key listed");
+            Expect.isTrue(keys.contains("ui.zebra"), "user key listed");
+        });
+
         Harness.test("a project snapshot holds the project's keys and none of the user's", () -> {
             MemoryPreferencesFactory.reset();
             node().put("upstream.proxies", RULE);
