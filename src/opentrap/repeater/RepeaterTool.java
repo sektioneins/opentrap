@@ -269,7 +269,7 @@ public class RepeaterTool implements ToolModule {
             nextMenu.addActionListener(e -> historyMenu(nextMenu, 1));
             JButton gear = opentrap.ui.Glyphs.button(opentrap.ui.Glyphs.gear(), "Repeater settings for this tab", null);
             gear.addActionListener(e -> tabSettingsMenu().show(gear, 0, gear.getHeight()));
-            modeCombo.setToolTipText("HTTP/1 is raw and byte-exact; HTTP/2 and auto use the JDK transport");
+            modeCombo.setToolTipText("HTTP/1 is raw and byte-exact; HTTP/2, HTTP/3 and auto use the JDK transport. HTTP/3 falls back to HTTP/2 or HTTP/1.1 when the server has no QUIC.");
 
             JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 6));
             left.add(go);
@@ -381,6 +381,7 @@ public class RepeaterTool implements ToolModule {
             HttpMessage req = new HttpMessage(reqEditor.bytes());
             if ((tabUpdateCl != null ? tabUpdateCl : updateContentLength) && req.body().length > 0) req.updateContentLength();
 
+            HttpMode mode = (HttpMode) modeCombo.getSelectedItem(); // Swing state: read on the EDT
             status.setText("waiting");
             go.setEnabled(false);
             cancel.setEnabled(true);
@@ -393,7 +394,7 @@ public class RepeaterTool implements ToolModule {
                     opt.unpackGzip = true;
                     opt.session = ctx.sessions();
                     opt.sessionTool = "repeater";
-                    opt.mode = (HttpMode) modeCombo.getSelectedItem();
+                    opt.mode = mode;
                     long t0 = System.currentTimeMillis();
                     HttpClient.Result r = new HttpClient().send(svc, req, opt);
                     long ms = System.currentTimeMillis() - t0;
@@ -405,11 +406,13 @@ public class RepeaterTool implements ToolModule {
                             return;
                         }
                         respEditor.setMessage(svc, r.response, req);
-                        versionChip.setText(r.response.startLine().startsWith("HTTP/2") ? "HTTP/2" : "HTTP/1");
+                        versionChip.setText(HttpMode.answeredOver(r.response.startLine()));
                         versionChip.setVisible(true);
                         int redirs = r.redirectsFollowed;
+                        String note = HttpMode.fallbackNote(mode, r.response.startLine());
                         String statusText = "done" + (redirs > 0 ? " (followed " + redirs + " redirect"
-                                + (redirs == 1 ? "" : "s") + ")" : "") + "  " + ms + " ms";
+                                + (redirs == 1 ? "" : "s") + ")" : "")
+                                + (note.isEmpty() ? "" : "  " + note) + "  " + ms + " ms";
                         status.setText(statusText);
                         lengthLabel.setText("length: " + r.response.length());
                         pushHistory(new Snapshot(svc, req.raw().clone(), r.response, statusText, r.response.length()));

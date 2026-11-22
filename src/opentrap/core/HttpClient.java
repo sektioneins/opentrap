@@ -110,7 +110,13 @@ public class HttpClient {
                 return connectVia(svc, ct, rt, null); // fail-safe: go direct
             }
         }
-        return connectVia(svc, ct, rt, proxyProvider == null ? null : proxyProvider.proxyFor(svc));
+        return connectVia(svc, ct, rt, upstreamFor(svc));
+    }
+
+    /** The upstream proxy a rule assigns to this target, or null for a direct connection. */
+    static UpstreamProxy upstreamFor(HttpService svc) {
+        ProxyProvider p = proxyProvider;
+        return p == null ? null : p.proxyFor(svc);
     }
 
     private static Socket connectVia(HttpService svc, int connectTimeoutMs, int readTimeoutMs, UpstreamProxy up) throws Exception {

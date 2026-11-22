@@ -5,6 +5,7 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 import java.net.InetAddress;
 import java.net.URI;
+import java.net.http.HttpOption;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.security.cert.X509Certificate;
@@ -14,7 +15,9 @@ import java.util.Locale;
 /**
  * The HTTP/2 send path. Rather than hand-roll HPACK and framing, this delegates
  * to the JDK's own HTTP client, which negotiates HTTP/2 over ALPN and falls back
- * to HTTP/1.1 under {@link HttpMode#AUTO}. Our raw {@link HttpMessage} is
+ * to HTTP/1.1 under {@link HttpMode#AUTO}. {@link HttpMode#HTTP_3} tries QUIC at
+ * the URI's host and port first and falls back to HTTP/2 or HTTP/1.1; the status
+ * line names the version that answered. Our raw {@link HttpMessage} is
  * translated into a JDK request and the response translated back, so the rest of
  * the suite sees the same model it always has.
  *
@@ -58,24 +61,50 @@ public final class Http2Client {
         return shared;
     }
 
+    /** The HTTP version a mode asks the JDK for. */
+    static java.net.http.HttpClient.Version requestVersion(HttpMode m) {
+        return switch (m) {
+            case HTTP_1 -> java.net.http.HttpClient.Version.HTTP_1_1;
+            case HTTP_3 -> java.net.http.HttpClient.Version.HTTP_3;
+            default -> java.net.http.HttpClient.Version.HTTP_2;
+        };
+    }
+
+    /** The version as written in the response status line. */
+    static String versionLabel(java.net.http.HttpClient.Version v) {
+        return switch (v) {
+            case HTTP_3 -> "HTTP/3";
+            case HTTP_2 -> "HTTP/2";
+            default -> "HTTP/1.1";
+        };
+    }
+
     public static HttpClient.Result send(HttpService svc, HttpMessage req, HttpClient.Options opt) {
         HttpClient.Result r = new HttpClient.Result();
         long t0 = System.currentTimeMillis();
         try {
+            // QUIC cannot be tunnelled through an HTTP or SOCKS upstream, and going
+            // direct would bypass the rule, so refuse before any socket is opened.
+            if (opt.mode == HttpMode.HTTP_3 && HttpClient.upstreamFor(svc) != null) {
+                r.error = "HTTP/3 cannot go through the upstream proxy set for " + svc.host()
+                        + "; choose HTTP/1 or HTTP/2, or remove the rule";
+                r.millis = System.currentTimeMillis() - t0;
+                return r;
+            }
             String scheme = svc.secure() ? "https" : "http";
             String authority = svc.defaultPort() ? svc.host() : svc.host() + ":" + svc.port();
             String pq = req.path() + (req.query().isEmpty() ? "" : "?" + req.query());
             if (pq.isEmpty()) pq = "/";
             URI uri = URI.create(scheme + "://" + authority + pq);
 
-            java.net.http.HttpClient.Version ver = opt.mode == HttpMode.HTTP_1
-                    ? java.net.http.HttpClient.Version.HTTP_1_1
-                    : java.net.http.HttpClient.Version.HTTP_2;
+            java.net.http.HttpClient.Version ver = requestVersion(opt.mode);
 
             byte[] body = req.body();
             HttpRequest.Builder b = HttpRequest.newBuilder(uri)
                     .version(ver)
                     .timeout(Duration.ofMillis(Math.max(1000, opt.readTimeoutMs)));
+            if (opt.mode == HttpMode.HTTP_3)
+                b.setOption(HttpOption.H3_DISCOVERY, HttpOption.Http3DiscoveryMode.ANY);
             String method = req.method().isEmpty() ? "GET" : req.method();
             b.method(method, body.length > 0
                     ? HttpRequest.BodyPublishers.ofByteArray(body)
@@ -97,8 +126,7 @@ public final class Http2Client {
             HttpResponse<byte[]> resp = client(opt).send(b.build(), HttpResponse.BodyHandlers.ofByteArray());
 
             StringBuilder sb = new StringBuilder();
-            String verStr = resp.version() == java.net.http.HttpClient.Version.HTTP_2 ? "HTTP/2" : "HTTP/1.1";
-            sb.append(verStr).append(' ').append(resp.statusCode()).append("\r\n");
+            sb.append(versionLabel(resp.version())).append(' ').append(resp.statusCode()).append("\r\n");
             resp.headers().map().forEach((k, vs) -> {
                 if (k == null || k.isEmpty() || k.charAt(0) == ':') return;
                 for (String v : vs) sb.append(k).append(": ").append(v).append("\r\n");
