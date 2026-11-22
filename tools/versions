@@ -1,12 +1,12 @@
 # Pinned versions of the tools OpenTRAP bundles or vendors, and the sha256 of
-# every artifact the fetch scripts download. This is the single source of
-# truth: the fetch scripts install exactly these bytes, and tools/
-# check-updates.sh compares versions against upstream. Bump a version and its
-# hash together as part of a release, then re-run the matching fetch script.
+# every artifact the fetch recipes download. This is the single source of
+# truth: the fetch recipes in the justfile install exactly these bytes, and
+# `just check-updates` compares versions with upstream. Bump a version and its
+# hash together as part of a release, then re-run the matching fetch recipe.
 
 CHROMIUM_REVISION=1725220
 # Google's snapshot storage publishes no sha256, so these are the hashes of the
-# pinned revision's archives, recorded when they were fetched. fetch-browser.sh
+# pinned revision's archives, recorded when they were fetched. `just browser`
 # refuses an archive that does not match.
 CHROMIUM_CHROME_SHA256=b33932ab6f6cfbc6b8c666cb6812ebd3090f3a39776d9444e3164ae7e0e07c17
 CHROMIUM_DRIVER_SHA256=7cd2d78d706d76fb62de981d0d8d7590bc039fdbac46847520cf4d41427aaec3
@@ -39,7 +39,7 @@ ZAP_ADDON_COMMONLIB_SHA256=6450205e07248c20e9c8de185268cf1cd571f3cec7f7c0e5d1017
 ZAP_ADDON_ASCANRULES_BETA_SHA256=81e84d592b1f7ad803470bcc8d8b659d4f7e21370546a482b606207e57a7db69
 ZAP_ADDON_PSCANRULES_BETA_SHA256=a979f7cd5d8be10e0338b417e006ec1e2f6ec79101010d570ddb5199892e921b
 
-# Java language and API level the code is written against. Every build script
+# Java language and API level the code is written against. Every build recipe
 # compiles with --release $JAVA_RELEASE, so any JDK from this version up builds
 # OpenTRAP, and the code cannot use a newer API by accident. The runtime the
 # AppImage ships (JDK_VERSION below) may be newer than this, never older.
@@ -56,3 +56,9 @@ JDK_SHA256=005e57ee860978acfeeff1be2b30f770664fe2b941e9b803c61c76992086d107
 # the packaging script executes it.
 APPIMAGETOOL_VERSION=1.9.1
 APPIMAGETOOL_SHA256=ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0
+
+# just runs every build, test, fetch and packaging recipe (justfile). CI
+# installs this release of the x86_64 Linux build and checks its sha256;
+# locally any just from this version up works.
+JUST_VERSION=1.59.0
+JUST_LINUX_X64_SHA256=409044617b6f06517c1035e55ca38c8c856ff8b650e41bc2aa1ef82d5903a23e

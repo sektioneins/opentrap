@@ -1,11 +1,11 @@
 # Compile and run the test suite on every push and pull request.
 #
 # The suite is plain javac plus a hand-rolled harness (no Maven or Gradle), so
-# the job is exactly the two scripts every contributor runs locally. The
-# compiled-in jars under lib/ are vendored in the repository and the tests
-# need neither the scan engine nor the browser, so nothing is fetched. The
-# JDK comes from the runner: the portable jdk/ matters for the AppImage's
-# glibc compatibility, not for compiling and testing.
+# the job runs exactly the two justfile recipes every contributor runs
+# locally. The compiled-in jars under lib/ are vendored in the repository and
+# the tests need neither the scan engine nor the browser, so nothing else is
+# fetched. The JDK comes from the runner: the portable jdk/ matters for the
+# AppImage's glibc compatibility, not for compiling and testing.
 
 name: CI
 
@@ -29,11 +29,23 @@ jobs:
           distribution: temurin
           java-version: "27"
 
+      # The release pinned in tools/versions, checked against its sha256
+      # before it runs.
+      - name: Install just
+        run: |
+          . tools/versions
+          url="https://github.com/casey/just/releases/download/${JUST_VERSION}/just-${JUST_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+          curl -fsSL --proto '=https' --proto-redir '=https' -o "$RUNNER_TEMP/just.tar.gz" "$url"
+          echo "${JUST_LINUX_X64_SHA256}  $RUNNER_TEMP/just.tar.gz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/just"
+          tar -xzf "$RUNNER_TEMP/just.tar.gz" -C "$RUNNER_TEMP/just" just
+          echo "$RUNNER_TEMP/just" >> "$GITHUB_PATH"
+
       - name: Build
-        run: ./build.sh
+        run: just build
 
       # A handful of suites build Swing components, which need a display even
       # headless, so the runner's bundled Xvfb stands one in. Without it those
       # cases throw HeadlessException and the job is red though the code is fine.
       - name: Test
-        run: xvfb-run -a ./test.sh
+        run: xvfb-run -a just test

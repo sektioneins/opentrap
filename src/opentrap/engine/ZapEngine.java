@@ -153,14 +153,14 @@ public final class ZapEngine {
             return "OWASP ZAP " + v;
         }
         if (bundled != null) return "OWASP ZAP " + bundled;
-        return "OWASP ZAP (none found: run fetch-zap.sh or use a release build)";
+        return "OWASP ZAP (none found: run 'just engine' or use a release build)";
     }
 
     private static List<String> candidateDirs() {
         List<String> l = new ArrayList<>();
         l.add(extractDir().toString());       // a previously-extracted bundled engine
         String cwd = System.getProperty("user.dir", ".");
-        l.add(cwd + "/engine");               // a dev build's fetched engine (fetch-zap.sh)
+        l.add(cwd + "/engine");               // a dev build's fetched engine (just engine)
         l.add("/usr/share/zaproxy");          // a system install, as a fallback
         return l;
     }

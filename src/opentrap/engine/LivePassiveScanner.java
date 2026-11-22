@@ -65,7 +65,7 @@ public final class LivePassiveScanner {
         Thread t = new Thread(() -> {
             ZapEngine ze = ZapEngine.shared();
             if (ze == null || !ze.available()) {
-                ctx.alert("scanner", "Live passive scanning needs the scan engine (run ./fetch-zap.sh)");
+                ctx.alert("scanner", "Live passive scanning needs the scan engine (run 'just engine')");
                 enabled = false;
                 return;
             }

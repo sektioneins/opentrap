@@ -63,7 +63,7 @@ public class IssueDefinitionsPanel extends JPanel {
         ZapEngine ze = ZapEngine.shared();
         if (ze == null || !ze.available()) {
             detail.setText("<html><body style='font-family:sans-serif'><i>Scan engine (ZAP) not installed. "
-                    + "Run ./fetch-zap.sh to add it.</i></body></html>");
+                    + "Run 'just engine' to add it.</i></body></html>");
             return;
         }
         new Thread(() -> {

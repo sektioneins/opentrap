@@ -1,58 +1,66 @@
-# Build and run OpenTRAP on macOS with Eclipse Temurin 27 (Homebrew cask
-# `temurin`). Stands in for build.sh, test.sh and run.sh, which target Linux
-# and the pinned portable JDK in jdk/.
+# Build, test, package and fetch the dependencies of OpenTRAP, on Linux and
+# macOS. This is the only entry point; there are no build scripts besides it.
 #
 #   just build        compile and pack dist/opentrap.jar
 #   just test         build, then compile and run the test suite
 #   just run          launch the app (builds first if the jar is missing)
-#   just run 1.5      launch at a fixed interface scale
-#   just clean        remove build/, build-tests/ and dist/
+#   just run 1.5      launch at a fixed interface scale; later arguments go to the app
+#   just release      build the self-contained release jar dist/opentrap_<timestamp>.jar
+#   just appimage     Linux x64: pack the release jar into dist/opentrap-x86_64.appimage
+#   just publish 20261019-085441 notes.md   Linux: publish a tested AppImage to GitHub
+#   just clean        remove build/, build-tests/, dist/ and AppDir/
+#
+#   just jdk          Linux x64: fetch the pinned portable JDK into jdk/
 #   just engine       fetch the pinned OWASP ZAP scan engine into engine/
+#   just browser      Linux x64: fetch the pinned Chromium and chromedriver into browser/
 #   just addon spiderAjax 23.33.0    add a ZAP add-on to engine/plugin/
 #   just addon pscanrulesBeta 50 beta <sha256>   fixed quality, verified hash
 #   just addons                      compare installed add-ons with the latest
 #   just addons update               update every installed add-on to the latest
 #   just addons update retire        also install add-ons by id (with dependencies)
+#   just check-updates               compare the pins in tools/versions with upstream
+#   just install-desktop             Linux: menu entry and icon for this checkout
+#   just install-desktop system      the same for all users (needs root)
 #
-# "Latest" means the newest version ZAP publishes for the engine's own ZAP
-# release (ZapVersions-<major.minor>.xml), so updates stay compatible with it.
+# "Latest" add-ons are the newest versions ZAP publishes for the engine's own
+# ZAP release (ZapVersions-<major.minor>.xml), so updates stay compatible.
 #
 # The app runs a dev build's engine from engine/ unless ~/.opentrap/engine
 # (left by a release jar) holds one; that one wins.
 #
-# Set OPENTRAP_JDK to use another JDK home.
+# The JDK is OPENTRAP_JDK when set. Otherwise it is the pinned jdk/ on Linux
+# when present, then JAVA_HOME, then the javac on PATH; on macOS it is the
+# Temurin that java_home reports for the pinned major version.
+#
+# Every pin in tools/versions is in each recipe's environment. Recipes run
+# under the first bash on PATH and take their arguments as positional
+# parameters, so an argument is never pasted into the script text.
 
 set shell := ["bash", "-euo", "pipefail", "-c"]
+set dotenv-path := "tools/versions"
+set positional-arguments
 
-jdk := env("OPENTRAP_JDK", `/usr/libexec/java_home -v 27 2>/dev/null || echo /Library/Java/JavaVirtualMachines/temurin-27.jdk/Contents/Home`)
-java := jdk / "bin/java"
-javac := jdk / "bin/javac"
-jar := jdk / "bin/jar"
-# Language level from tools/versions; the JDK above (27) only needs to be at least that.
-java_release := `sed -n 's/^JAVA_RELEASE=//p' tools/versions`
+jdk_major := replace_regex(env("JDK_VERSION"), '[.+].*', '')
+jdk := env("OPENTRAP_JDK", if os() == "macos" {
+    shell('/usr/libexec/java_home -v "$1" 2>/dev/null || echo "/Library/Java/JavaVirtualMachines/temurin-$1.jdk/Contents/Home"', jdk_major)
+} else if path_exists(justfile_directory() / "jdk/bin/javac") == "true" {
+    justfile_directory() / "jdk"
+} else {
+    env("JAVA_HOME", `j="$(command -v javac 2>/dev/null)" && dirname "$(dirname "$(readlink -f "$j")")" || true`)
+})
 
 export JAVA_HOME := jdk
 
+# How a recipe calls another recipe of this justfile, and how it hashes a file.
+just := quote(just_executable()) + " --justfile " + quote(justfile())
+hasher := if os() == "macos" { "shasum -a 256" } else { "sha256sum" }
+
 default: build
 
-# Compile the sources and pack them, the icons and BouncyCastle into dist/opentrap.jar
-build: _check-jdk
-    #!/usr/bin/env bash
-    set -euo pipefail
-    # Start from an empty build/ so nothing left by an earlier build is packed.
-    rm -rf build && mkdir -p build dist
-    echo "Compiling..."
-    srcs=()
-    while IFS= read -r f; do srcs+=("$f"); done < <(find src -name '*.java')
-    "{{ javac }}" --release {{ java_release }} -d build -cp "lib/*:build" "${srcs[@]}"
-    echo "Copying resources..."
-    mkdir -p build/opentrap/ui/icons
-    cp src/opentrap/ui/icons/*.png build/opentrap/ui/icons/
-    echo "Unpacking BouncyCastle into the jar..."
-    (cd build && for j in ../lib/*.jar; do "{{ jar }}" xf "$j"; done)
-    rm -f build/META-INF/*.SF build/META-INF/*.DSA build/META-INF/*.RSA
-    "{{ jar }}" --create --file dist/opentrap.jar --main-class opentrap.ui.Main -C build .
-    echo "Built dist/opentrap.jar ($(du -h dist/opentrap.jar | cut -f1))"
+# Compile the sources and pack them, the icons and the vendored jars into dist/opentrap.jar
+build: _classes
+    "$JAVA_HOME/bin/jar" --create --file dist/opentrap.jar --main-class opentrap.ui.Main -C build .
+    @echo "Built dist/opentrap.jar ($(du -h dist/opentrap.jar | cut -f1))"
 
 # Build, then compile and run the test suite (tests/ is never packed into the jar)
 test: build
@@ -62,37 +70,382 @@ test: build
     echo "Compiling tests..."
     srcs=()
     while IFS= read -r f; do srcs+=("$f"); done < <(find tests -name '*.java')
-    "{{ javac }}" --release {{ java_release }} -nowarn -d build-tests -cp "lib/*:build" "${srcs[@]}"
+    "$JAVA_HOME/bin/javac" --release "$JAVA_RELEASE" -nowarn -d build-tests -cp "lib/*:build" "${srcs[@]}"
     echo "Running tests..."
     echo
-    exec "{{ java }}" -Djava.io.tmpdir="${TMPDIR:-/tmp}" -cp "lib/*:build:build-tests" RunTests
+    # Tests create their scratch files with Files.createTemp*. Java on macOS
+    # takes its temp directory from the system, not from $TMPDIR, so a
+    # sandboxed run would write somewhere it may not. Follow $TMPDIR when set.
+    exec "$JAVA_HOME/bin/java" -Djava.io.tmpdir="${TMPDIR:-/tmp}" -cp "lib/*:build:build-tests" RunTests
 
-# Launch OpenTRAP; pass a scale such as 1.5 or 2 to force the interface scale
-run scale="": _check-jdk
+# Launch OpenTRAP; a first argument such as 1.5 or 2 forces the interface scale, the rest go to the app
+run *args: _check-jdk
     #!/usr/bin/env bash
     set -euo pipefail
-    [ -f dist/opentrap.jar ] || just build
-    scale="{{ scale }}"
+    [ -f dist/opentrap.jar ] || {{ just }} build
+    # The interface scale is normally detected from the screen (a 4K display
+    # gets 200%, 2.5K 150%, anything smaller 100%), and a choice from the
+    # view menu overrides it from then on. A numeric first argument or
+    # OPENTRAP_SCALE forces one for this launch.
+    scale=""
+    if [[ "${1:-}" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then scale="$1"; shift; fi
     scale="${OPENTRAP_SCALE:-$scale}"
-    args=()
+    # Max heap as a share of RAM; the scan engine and the testing browser run
+    # as their own processes outside this JVM.
+    opts=(-XX:MaxRAMPercentage=50 -XX:+UseG1GC -XX:G1PeriodicGCInterval=300000)
     if [ -n "$scale" ]; then
-        args+=("-Dsun.java2d.uiScale=$scale" "-Dopentrap.scaled=$scale")
+        # Setting the real HiDPI property here means the first JVM already has
+        # the right scale, so the app does not have to relaunch itself.
+        opts+=("-Dsun.java2d.uiScale=$scale" "-Dopentrap.scaled=$scale")
     fi
-    # Max heap as a share of RAM; the scan engine and testing browser run as
-    # their own processes outside this JVM.
-    exec "{{ java }}" -XX:MaxRAMPercentage=50 -XX:+UseG1GC -XX:G1PeriodicGCInterval=300000 \
-        -Xdock:name=OpenTRAP -Xdock:icon=src/opentrap/ui/icons/opentrap_256.png \
-        ${args[@]+"${args[@]}"} -jar dist/opentrap.jar
+    if [ "$(uname -s)" = Darwin ]; then
+        opts+=(-Xdock:name=OpenTRAP -Xdock:icon=src/opentrap/ui/icons/opentrap_256.png)
+    elif [ -z "${_JAVA_AWT_WM_NONREPARENTING+x}" ]; then
+        # Java's X11 toolkit assumes a reparenting window manager. Under the
+        # tiling and wlroots-family compositors below, Swing windows paint
+        # blank white unless this hint is set. Set it only when the caller has
+        # not; it is harmless where it is not needed.
+        for d in $(printf '%s' "${XDG_CURRENT_DESKTOP:-}" | tr ':' ' ' | tr '[:upper:]' '[:lower:]'); do
+            case "$d" in
+                sway|i3|hyprland|river|dwl|bspwm|labwc) export _JAVA_AWT_WM_NONREPARENTING=1; break ;;
+            esac
+        done
+    fi
+    exec "$JAVA_HOME/bin/java" "${opts[@]}" -jar dist/opentrap.jar "$@"
+
+# Build the self-contained release jar, with the scan engine in engine/ embedded
+release: _classes
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Unlike the lean dev jar, this one carries the trimmed ZAP engine as a
+    # resource. On first run the app extracts it once to ~/.opentrap/engine
+    # and runs it headless, so the one jar is all a user needs. The UTC
+    # timestamp names the file and is the jar's Implementation-Version, which
+    # the app shows in its title. The testing browser is not embedded.
+    ts="$(date -u +%Y%m%d-%H%M%S)"
+    echo "Release build $ts (UTC)"
+    if ls engine/zap-*.jar >/dev/null 2>&1; then
+        echo "Embedding scan engine..."
+        mkdir -p build/opentrap/engine
+        (cd engine && zip -qr -1 ../build/opentrap/engine/engine.zip .)
+        zv="$(ls engine/zap-*.jar | head -1 | sed -E 's#.*/zap-([0-9.]+)\.jar#\1#')"
+        printf '%s' "$zv" > build/opentrap/engine/VERSION
+        echo "  engine $zv embedded ($(du -h build/opentrap/engine/engine.zip | cut -f1))"
+    else
+        echo "WARNING: no engine/ present. Run 'just engine' first, or the release jar"
+        echo "         will fall back to a system ZAP at runtime if one is installed."
+    fi
+    manifest="$(mktemp "${TMPDIR:-/tmp}/opentrap-manifest.XXXXXX")"
+    trap 'rm -f "$manifest"' EXIT
+    printf 'Implementation-Version: %s\n' "$ts" > "$manifest"
+    out="dist/opentrap_${ts}.jar"
+    "$JAVA_HOME/bin/jar" --create --file "$out" --manifest "$manifest" --main-class opentrap.ui.Main -C build .
+    echo
+    echo "Built $out ($(du -h "$out" | cut -f1))"
+    echo "Run it with:  java -jar $out"
+
+# Pack the release jar, a Java runtime and the engine into one AppImage
+[linux]
+appimage:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    [ "$(uname -m)" = x86_64 ] || { echo "The AppImage is built for x86_64 only; this machine is $(uname -m)." >&2; exit 1; }
+    # The runtime inside must come from the pinned portable JDK (old glibc),
+    # or the app only starts on machines as new as the build host. Use it for
+    # the release build too, and for jpackage.
+    {{ just }} jdk
+    export JAVA_HOME="$PWD/jdk"
+    echo ">> building the self-contained release jar"
+    OPENTRAP_JDK="$JAVA_HOME" {{ just }} release
+    jar="$(ls -t dist/opentrap_*.jar | head -1)"
+
+    # appimagetool runs as part of this build, so it is fetched pinned to the
+    # version and sha256 in tools/versions and cached per version under
+    # ~/.cache/opentrap. An unverified download is never run.
+    ait="$HOME/.cache/opentrap/appimagetool-x86_64-${APPIMAGETOOL_VERSION}.AppImage"
+    if [ ! -x "$ait" ]; then
+        echo ">> fetching appimagetool ${APPIMAGETOOL_VERSION}"
+        mkdir -p "$(dirname "$ait")"
+        trap 'rm -f "$ait.part"' EXIT
+        curl -fsSL -o "$ait.part" "https://github.com/AppImage/appimagetool/releases/download/${APPIMAGETOOL_VERSION}/appimagetool-x86_64.AppImage"
+        {{ just }} _verify "$ait.part" "$APPIMAGETOOL_SHA256"
+        chmod +x "$ait.part"
+        mv "$ait.part" "$ait"
+    fi
+
+    echo ">> assembling a portable Java runtime from the bundled JDK"
+    rm -rf build/otin build/appimage build/runtime AppDir
+    mkdir -p build/otin
+    cp "$jar" build/otin/
+    # The runtime must keep bin/java and a full module set: the bundled scan
+    # engine runs as its own Java process (java.home/bin/java), and jpackage's
+    # default runtime strips bin/java and trims modules. The portable Temurin
+    # ships without jmods, so jlink cannot repackage it; copy it as the runtime
+    # image instead and drop only what is not needed at run time.
+    cp -a jdk build/runtime
+    rm -rf build/runtime/lib/src.zip build/runtime/include build/runtime/man \
+           build/runtime/demo build/runtime/sample build/runtime/jmods
+
+    echo ">> jpackage: self-contained app image using that runtime"
+    "$JAVA_HOME/bin/jpackage" --type app-image --name OpenTRAP \
+        --input build/otin --main-jar "$(basename "$jar")" --main-class opentrap.ui.Main \
+        --icon src/opentrap/ui/icons/opentrap_256.png \
+        --runtime-image build/runtime --java-options "-XX:MaxRAMPercentage=50 -XX:+UseG1GC -XX:G1PeriodicGCInterval=300000" \
+        --dest build/appimage
+
+    echo ">> assembling AppDir (with a scale-probing launcher)"
+    mkdir -p AppDir/usr
+    cp -a build/appimage/OpenTRAP/. AppDir/usr/
+    cp src/opentrap/ui/icons/opentrap_256.png AppDir/opentrap.png
+    # The launcher picks a HiDPI scale with a quick headless probe and sets it
+    # before the real JVM starts. Inside an AppImage the in-app relaunch the
+    # plain jar uses would tear down the mount and kill the app, so the scale
+    # is chosen up front instead. AppRun is generated, and stays /bin/sh.
+    cat > AppDir/AppRun <<'RUN'
+    #!/bin/sh
+    HERE="$(dirname "$(readlink -f "$0")")"
+    # Java's X11 toolkit assumes a reparenting window manager. Under the tiling
+    # and wlroots-family compositors below, Swing windows paint blank white unless
+    # this hint is set. Set it only when the caller has not set it themselves; it
+    # is harmless where it is not needed.
+    if [ -z "${_JAVA_AWT_WM_NONREPARENTING+x}" ]; then
+      for d in $(printf '%s' "${XDG_CURRENT_DESKTOP:-}" | tr ':' ' ' | tr '[:upper:]' '[:lower:]'); do
+        case "$d" in
+          sway|i3|hyprland|river|dwl|bspwm|labwc) export _JAVA_AWT_WM_NONREPARENTING=1; break ;;
+        esac
+      done
+    fi
+    SCALE="$("$HERE/usr/bin/OpenTRAP" --print-scale 2>/dev/null | tr -d '[:space:]')"
+    case "$SCALE" in
+      1.25|1.5|2|2.0|3|3.0) export JAVA_TOOL_OPTIONS="${JAVA_TOOL_OPTIONS:+$JAVA_TOOL_OPTIONS }-Dsun.java2d.uiScale=$SCALE -Dopentrap.scaled=$SCALE" ;;
+    esac
+    exec "$HERE/usr/bin/OpenTRAP" "$@"
+    RUN
+    chmod +x AppDir/AppRun
+    cat > AppDir/OpenTRAP.desktop <<'DESK'
+    [Desktop Entry]
+    Type=Application
+    Name=OpenTRAP
+    Comment=Open web security testing proxy
+    Exec=OpenTRAP
+    Icon=opentrap
+    Categories=Development;Network;Security;
+    Terminal=false
+    DESK
+
+    echo ">> packing the AppImage"
+    ARCH=x86_64 "$ait" --appimage-extract-and-run AppDir dist/opentrap-x86_64.appimage
+    echo
+    echo "Built dist/opentrap-x86_64.appimage"
+    echo "Run it with:  chmod +x dist/opentrap-x86_64.appimage && ./dist/opentrap-x86_64.appimage"
+
+# Publish the tested AppImage in dist/ as a GitHub release; the timestamp names the jar it was built from
+[linux]
+publish timestamp notes:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # A release is exactly one file, the AppImage, which carries the Java
+    # runtime and the scan engine; the jar is not published. The asset keeps
+    # a fixed name, so the permanent link
+    #   https://github.com/opentrap/opentrap/releases/latest/download/opentrap-x86_64.appimage
+    # always serves the newest release. The version is the release tag.
+    ts="$1" notes="$2"
+    repo="opentrap/opentrap"
+    name="opentrap-x86_64.appimage"
+    app="$PWD/dist/$name"
+    [ -f "dist/opentrap_${ts}.jar" ] || { echo "missing dist/opentrap_${ts}.jar" >&2; exit 1; }
+    [ -f "$app" ] || { echo "missing dist/$name" >&2; exit 1; }
+    [ -f "$notes" ] || { echo "missing notes file $notes" >&2; exit 1; }
+
+    stage="$(mktemp -d "${TMPDIR:-/tmp}/opentrap.XXXXXX")"
+    trap 'rm -rf "$stage"' EXIT
+    # The AppImage must have been built from this jar.
+    (cd "$stage" && "$app" --appimage-extract >/dev/null)
+    if [ ! -f "$stage/squashfs-root/usr/lib/app/opentrap_${ts}.jar" ]; then
+        echo "the AppImage does not contain opentrap_${ts}.jar; rebuild it with 'just appimage'" >&2
+        exit 1
+    fi
+    rm -rf "$stage/squashfs-root"
+    cp "$app" "$stage/$name"
+
+    echo ">> publishing $ts"
+    gh release create "$ts" "$stage/$name" \
+        --repo "$repo" --title "OpenTRAP $ts" --notes-file "$notes" --latest
+
+    echo ">> verifying"
+    local_sum="$({{ hasher }} "$stage/$name" | cut -d' ' -f1)"
+    remote_sum="$(gh release view "$ts" --repo "$repo" --json assets \
+        --jq ".assets[] | select(.name==\"$name\") | .digest" | sed 's/^sha256://')"
+    target="$(curl -sI "https://github.com/$repo/releases/latest/download/$name" \
+        | grep -i '^location' | grep -o 'releases/download/[^/]*' || true)"
+    if [ "$local_sum" = "$remote_sum" ] && [ "$target" = "releases/download/$ts" ]; then
+        echo "   ok  $name  (checksum matches, latest link -> $ts)"
+    else
+        echo "   FAIL $name  local=$local_sum remote=$remote_sum latest->$target" >&2
+        exit 1
+    fi
+    echo "Published https://github.com/$repo/releases/tag/$ts"
+
+# Remove build outputs
+clean:
+    rm -rf build build-tests dist AppDir
+
+# Fetch the pinned portable Temurin JDK into jdk/ (the AppImage runtime is built from it)
+[linux]
+jdk:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Temurin is built on an old glibc (2.17), so a runtime made from it
+    # starts on mainstream Linux, not only on the machine that built it. The
+    # exact release and its sha256 are pinned in tools/versions.
+    [ "$(uname -m)" = x86_64 ] || { echo "The pinned JDK is for x86_64 Linux; this machine is $(uname -m). Set OPENTRAP_JDK to a JDK home instead." >&2; exit 1; }
+    if [ -x jdk/bin/javac ]; then
+        # The JDK's own release file names its exact version, e.g. 27.0.1.1+4.
+        have="$(sed -n 's/^JAVA_RUNTIME_VERSION="\(.*\)"$/\1/p' jdk/release 2>/dev/null || true)"
+        if [ "$have" != "$JDK_VERSION" ]; then
+            echo "jdk/ holds ${have:-an unknown version}, but tools/versions pins ${JDK_VERSION}." >&2
+            echo "Delete jdk/ and re-run to fetch the pinned JDK." >&2
+            exit 1
+        fi
+        echo "jdk/ already present: $(jdk/bin/java -version 2>&1 | head -1)"
+        echo "Delete jdk/ and re-run to refresh."
+        exit 0
+    fi
+    # Temurin assets follow a fixed scheme: tag jdk-27.0.1.1+4 ("+" is %2B in
+    # the URL), file OpenJDK27U-jdk_x64_linux_hotspot_27.0.1.1_4.tar.gz.
+    major="${JDK_VERSION%%.*}"
+    url="https://github.com/adoptium/temurin${major}-binaries/releases/download/jdk-${JDK_VERSION//+/%2B}/OpenJDK${major}U-jdk_x64_linux_hotspot_${JDK_VERSION//+/_}.tar.gz"
+    echo ">> downloading Temurin JDK ${JDK_VERSION} (x64 linux)"
+    tmp="$(mktemp -d "${TMPDIR:-/tmp}/opentrap.XXXXXX")"
+    trap 'rm -rf "$tmp"' EXIT
+    curl -fsSL -o "$tmp/jdk.tar.gz" "$url"
+    {{ just }} _verify "$tmp/jdk.tar.gz" "$JDK_SHA256"
+    tar -xzf "$tmp/jdk.tar.gz" -C "$tmp"
+    src="$(find "$tmp" -maxdepth 1 -type d -name 'jdk-*' | head -1)"
+    [ -n "$src" ] || { echo "could not find the extracted JDK directory" >&2; exit 1; }
+    rm -rf jdk
+    mv "$src" jdk
+    echo "Installed jdk/: $(jdk/bin/java -version 2>&1 | head -1)"
+
+# Show the JDK the recipes use (macOS has no pinned portable JDK; Temurin comes from Homebrew)
+[macos]
+jdk: _check-jdk
+    @echo "Using $JAVA_HOME: $("$JAVA_HOME/bin/java" -version 2>&1 | grep -v "^Picked up" | head -1)"
 
 # Fetch the pinned ZAP engine into engine/; this replaces engine/, dropping add-ons added with 'just addon'
 engine:
-    ./fetch-zap.sh
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # OpenTRAP runs ZAP (Apache 2.0, see CREDITS.md) with no user interface,
+    # as a headless scan engine on the loopback. The Core package is used (no
+    # bundled JRE) because OpenTRAP already runs on a JVM. To update, bump
+    # ZAP_VERSION and its sha256 in tools/versions and re-run this.
+    dest="$PWD/engine"
+    echo "Installing pinned ZAP engine v${ZAP_VERSION} (edit tools/versions to change)..."
+    tmp="$(mktemp -d "${TMPDIR:-/tmp}/opentrap.XXXXXX")"
+    trap 'rm -rf "$tmp"' EXIT
+    url="https://github.com/zaproxy/zaproxy/releases/download/v${ZAP_VERSION}/ZAP_${ZAP_VERSION}_Core.zip"
+    echo "Downloading $url ..."
+    curl -L --fail -o "$tmp/zap.zip" "$url"
+    {{ just }} _verify "$tmp/zap.zip" "$ZAP_SHA256"
+    unzip -q "$tmp/zap.zip" -d "$tmp"
+
+    # The zip holds a single top-level ZAP_<ver>/ directory; flatten it into engine/.
+    inner="$(ls -d "$tmp"/ZAP_* 2>/dev/null | head -1 || true)"
+    [ -n "$inner" ] || inner="$(ls -d "$tmp"/*/ 2>/dev/null | head -1 || true)"
+    [ -n "$inner" ] || { echo "Unexpected archive layout" >&2; exit 1; }
+    rm -rf "$dest"; mkdir -p "$dest"
+    cp -a "$inner"/. "$dest"/
+
+    # Keep only the add-ons OpenTRAP drives (active and passive scan rules, the
+    # spiders and the infrastructure they need), so the bundled engine stays
+    # small. A clean checkout reproduces the exact engine a release ships.
+    keep=" ascanrules ascanrulesBeta pscan pscanrules pscanrulesBeta spider spiderAjax selenium retire oast directorylistv1 commonlib network database callhome "
+    for f in "$dest"/plugin/*.zap; do
+        [ -e "$f" ] || continue
+        name="$(basename "$f" | sed -E 's/-(release|beta|alpha)-.*//')"
+        case "$keep" in *" $name "*) ;; *) rm -f "$f" ;; esac
+    done
+
+    # The AJAX spider and its Selenium backend are not in Core, so they come
+    # from the ZAP marketplace. spiderAjax needs a newer commonlib than Core
+    # ships, so commonlib is replaced too. The beta scan-rule packs add many
+    # more checks. Versions are pinned in tools/versions and must stay
+    # compatible with ZAP_VERSION.
+    ext="https://github.com/zaproxy/zap-extensions/releases/download"
+    fetch_addon() {  # <id> <version> <quality> <sha256>
+        local id="$1" ver="$2" q="$3" sha="$4"
+        rm -f "$dest/plugin/$id-"*.zap
+        echo "Fetching add-on $id $q $ver..."
+        curl -L --fail -o "$tmp/$id.zap" "$ext/$id-v$ver/$id-$q-$ver.zap"
+        {{ just }} _verify "$tmp/$id.zap" "$sha"
+        mv "$tmp/$id.zap" "$dest/plugin/$id-$q-$ver.zap"
+    }
+    fetch_addon commonlib      "$ZAP_ADDON_COMMONLIB"       release "$ZAP_ADDON_COMMONLIB_SHA256"
+    fetch_addon selenium       "$ZAP_ADDON_SELENIUM"        release "$ZAP_ADDON_SELENIUM_SHA256"
+    fetch_addon spiderAjax     "$ZAP_ADDON_SPIDERAJAX"      release "$ZAP_ADDON_SPIDERAJAX_SHA256"
+    fetch_addon ascanrulesBeta "$ZAP_ADDON_ASCANRULES_BETA" beta    "$ZAP_ADDON_ASCANRULES_BETA_SHA256"
+    fetch_addon pscanrulesBeta "$ZAP_ADDON_PSCANRULES_BETA" beta    "$ZAP_ADDON_PSCANRULES_BETA_SHA256"
+
+    jar="$(ls "$dest"/zap-*.jar 2>/dev/null | head -1 || true)"
+    [ -n "$jar" ] || { echo "No zap jar after unpack" >&2; exit 1; }
+    echo "ZAP engine ready: $jar"
+    echo "Add-ons: $(ls "$dest"/plugin/*.zap 2>/dev/null | wc -l | tr -d ' ')"
+
+# Fetch the pinned Chromium snapshot and its chromedriver into browser/
+[linux]
+browser:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Plain open-source Chromium (BSD), not Chrome for Testing, so there is no
+    # "automated testing" banner and it can be shipped. The snapshot revision
+    # and the sha256 of both archives are pinned in tools/versions; Google's
+    # snapshot storage publishes no hash, so the pins are the hashes recorded
+    # when the archives were first fetched.
+    [ "$(uname -m)" = x86_64 ] || { echo "The pinned Chromium snapshot is for x86_64 Linux; this machine is $(uname -m)." >&2; exit 1; }
+    dest="$PWD/browser"
+    base="https://commondatastorage.googleapis.com/chromium-browser-snapshots/Linux_x64/$CHROMIUM_REVISION"
+    mkdir -p "$dest"
+    # Downloads land in a scratch directory and move into browser/ only once
+    # complete and verified, so an interrupted run leaves no half tree behind.
+    tmp="$(mktemp -d "${TMPDIR:-/tmp}/opentrap.XXXXXX")"
+    trap 'rm -rf "$tmp"' EXIT
+    echo "Installing pinned Chromium snapshot $CHROMIUM_REVISION (edit tools/versions to change)..."
+    echo "Downloading Chromium..."
+    curl -fSL -o "$tmp/chrome.zip" "$base/chrome-linux.zip"
+    {{ just }} _verify "$tmp/chrome.zip" "$CHROMIUM_CHROME_SHA256"
+    echo "Extracting..."
+    unzip -q "$tmp/chrome.zip" -d "$tmp"
+    rm -rf "$dest/chrome-linux"
+    mv -f "$tmp/chrome-linux" "$dest/chrome-linux"
+    chmod +x "$dest/chrome-linux/chrome"
+    echo "$CHROMIUM_REVISION" > "$dest/chrome-linux/REVISION"
+    echo "Bundled Chromium ready at $dest/chrome-linux/chrome"
+    "$dest/chrome-linux/chrome" --version 2>/dev/null || true
+    # The chromedriver from the same snapshot, so ZAP's AJAX spider can drive
+    # this exact Chromium headless.
+    echo "Downloading matching chromedriver..."
+    curl -fSL -o "$tmp/chromedriver.zip" "$base/chromedriver_linux64.zip"
+    {{ just }} _verify "$tmp/chromedriver.zip" "$CHROMIUM_DRIVER_SHA256"
+    unzip -q "$tmp/chromedriver.zip" -d "$tmp"
+    # Flatten to browser/chromedriver, where EmbeddedBrowser.findDriver looks first.
+    rm -rf "$dest/chromedriver" "$dest/chromedriver_linux64"
+    mv -f "$tmp/chromedriver_linux64/chromedriver" "$dest/chromedriver"
+    chmod +x "$dest/chromedriver"
+    echo "Bundled chromedriver ready at $dest/chromedriver"
+    "$dest/chromedriver" --version 2>/dev/null || true
+
+# There is no pinned Chromium for macOS yet
+[macos]
+browser:
+    @echo "The pinned Chromium snapshot is for x86_64 Linux only; there is none for macOS yet." >&2
+    @exit 1
 
 # Download a ZAP add-on into engine/plugin/; quality is release, beta, alpha or auto (tries each)
 addon id version quality="auto" sha256="":
     #!/usr/bin/env bash
     set -euo pipefail
-    id="{{ id }}" ver="{{ version }}" quality="{{ quality }}" want="{{ sha256 }}"
+    id="$1" ver="$2" quality="$3" want="$4"
     dir=engine/plugin
     [ -d "$dir" ] || { echo "No engine in engine/. Fetch it first: just engine" >&2; exit 1; }
     [[ "$id" =~ ^[A-Za-z0-9_]+$ ]] || { echo "Not an add-on id: $id" >&2; exit 1; }
@@ -114,7 +467,7 @@ addon id version quality="auto" sha256="":
     done
     [ -n "$name" ] || { echo "${id} ${ver} is not on the ZAP marketplace (tried: ${quals[*]}). Check the id and version." >&2; exit 1; }
     unzip -l "$tmp" ZapAddOn.xml >/dev/null 2>&1 || { echo "$name is not a ZAP add-on (no ZapAddOn.xml)" >&2; exit 1; }
-    got="$(shasum -a 256 "$tmp" | cut -d' ' -f1)"
+    got="$({{ hasher }} "$tmp" | cut -d' ' -f1)"
     if [ -n "$want" ] && [ "$got" != "$want" ]; then
         printf 'sha256 mismatch for %s:\n  expected %s\n  got      %s\n' "$name" "$want" "$got" >&2
         exit 1
@@ -133,7 +486,7 @@ addon id version quality="auto" sha256="":
 addons action="check" *ids:
     #!/usr/bin/env bash
     set -euo pipefail
-    action="{{ action }}"
+    action="$1"; shift
     case "$action" in
         check|update) ;;
         *) echo "Usage: just addons [check|update] [add-on id ...]" >&2; exit 1 ;;
@@ -166,7 +519,7 @@ addons action="check" *ids:
         b="${f##*/}"
         [[ "$b" =~ ^([A-Za-z0-9_]+)-(release|beta|alpha)-.+\.zap$ ]] && targets+=("${BASH_REMATCH[1]}")
     done
-    for id in {{ ids }}; do
+    for id in "$@"; do
         [[ "$id" =~ ^[A-Za-z0-9_]+$ ]] || { echo "Not an add-on id: $id" >&2; exit 1; }
         [ -n "$(field "$id" version)" ] || { echo "$id is not published for ZAP $minor." >&2; exit 1; }
         targets+=("$id")
@@ -199,7 +552,7 @@ addons action="check" *ids:
 
     if [ "${#todo[@]}" -eq 0 ]; then echo "Nothing to install for ZAP $zap."; exit 0; fi
     if [ "$action" = check ]; then
-        echo "${#todo[@]} to install. Run: just addons update {{ ids }}"
+        echo "${#todo[@]} to install. Run: just addons update${*:+ $*}"
         exit 0
     fi
 
@@ -211,8 +564,7 @@ addons action="check" *ids:
         tmp="$dir/.$id.part"
         echo "Downloading $file ..."
         curl -fsSL -o "$tmp" "$url"
-        got="$(shasum -a 256 "$tmp" | cut -d' ' -f1)"
-        [ "$got" = "${hash#SHA-256:}" ] || { printf 'sha256 mismatch for %s:\n  expected %s\n  got      %s\n' "$file" "${hash#SHA-256:}" "$got" >&2; exit 1; }
+        {{ just }} _verify "$tmp" "${hash#SHA-256:}"
         unzip -l "$tmp" ZapAddOn.xml >/dev/null 2>&1 || { echo "$file is not a ZAP add-on (no ZapAddOn.xml)" >&2; exit 1; }
         rm -f "$dir/$id-release-"*.zap "$dir/$id-beta-"*.zap "$dir/$id-alpha-"*.zap
         mv "$tmp" "$dir/$file"
@@ -220,9 +572,121 @@ addons action="check" *ids:
     echo "Installed ${#todo[@]} add-on(s), each checked against its published sha256. Restart OpenTRAP to load them."
     echo "Note: 'just engine' resets engine/ to the pinned versions; run 'just addons update' again after it."
 
-# Remove build outputs
-clean:
-    rm -rf build build-tests dist
+# Report which pins in tools/versions have a newer upstream release (changes nothing)
+check-updates:
+    #!/usr/bin/env bash
+    # Deliberately no -e: one failed upstream lookup must not stop the report.
+    set -uo pipefail
+    row() { printf '  %-14s pinned %-14s latest %-14s %s\n' "$1" "$2" "$3" "$4"; }
+    flag() {
+        if [ -z "$2" ]; then echo "lookup failed"
+        elif [ "$1" != "$2" ]; then echo "UPDATE AVAILABLE"
+        else echo "up to date"; fi
+    }
+    maven() {  # <group> <artifact>
+        curl -fsS --max-time 20 "https://search.maven.org/solrsearch/select?q=g:$1+AND+a:$2&rows=1&wt=json" 2>/dev/null \
+            | grep -oE '"latestVersion":"[^"]*"' | head -1 | cut -d'"' -f4
+    }
+    echo "OpenTRAP bundled tool versions:"
+    echo
+    zap="$(curl -fsS --max-time 20 https://api.github.com/repos/zaproxy/zaproxy/releases/latest 2>/dev/null \
+        | grep -oE '"tag_name": *"[^"]*"' | head -1 | cut -d'"' -f4 | sed 's/^v//')"
+    row zap-engine "$ZAP_VERSION" "${zap:-?}" "$(flag "$ZAP_VERSION" "$zap")"
+    chrome="$(curl -fsS --max-time 20 https://commondatastorage.googleapis.com/chromium-browser-snapshots/Linux_x64/LAST_CHANGE 2>/dev/null)"
+    row chromium "$CHROMIUM_REVISION" "${chrome:-?}" "$(flag "$CHROMIUM_REVISION" "$chrome")"
+    bc="$(maven org.bouncycastle bcprov-jdk18on)"
+    row bouncycastle "$BOUNCYCASTLE_VERSION" "${bc:-?}" "$(flag "$BOUNCYCASTLE_VERSION" "$bc")"
+    br="$(maven org.brotli dec)"
+    row brotli-dec "$BROTLI_DEC_VERSION" "${br:-?}" "$(flag "$BROTLI_DEC_VERSION" "$br")"
+    echo
+    echo "To update: edit tools/versions (a version and its sha256 together), then"
+    echo "run the matching recipe (just engine, just browser) or replace the jar in lib/."
+    echo "ZAP add-ons beyond the pins: just addons."
+
+# Install the launcher icon and a menu entry for this checkout; 'system' installs for all users (needs root)
+[linux]
+install-desktop scope="user":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # The icon goes into the hicolor theme, which every desktop falls back to
+    # last, and the entry refers to it by the name "opentrap", so it looks the
+    # same whatever the user's theme.
+    case "$1" in
+        user)   iconroot="$HOME/.local/share/icons/hicolor"; appdir="$HOME/.local/share/applications" ;;
+        system) iconroot=/usr/share/icons/hicolor; appdir=/usr/share/applications ;;
+        *) echo "Scope must be user or system, not: $1" >&2; exit 1 ;;
+    esac
+    # The entry launches 'just run' in this checkout. Desktop entries give $,
+    # backquote, backslash and double quote a meaning even inside quotes, so
+    # refuse paths that hold one rather than escape them twice over.
+    launcher=({{ quote(just_executable()) }} --justfile {{ quote(justfile()) }} run)
+    for a in "${launcher[@]}"; do
+        case "$a" in *[\$\`\\\"]*) echo "Cannot write a desktop entry for a path with \$, \`, \\ or \": $a" >&2; exit 1 ;; esac
+    done
+    exec_line="Exec="
+    for a in "${launcher[@]}"; do exec_line+="\"${a//%/%%}\" "; done
+
+    tmp="$(mktemp -d "${TMPDIR:-/tmp}/opentrap.XXXXXX")"
+    trap 'rm -rf "$tmp"' EXIT
+    echo "Installing OpenTRAP desktop entry ($1 scope)..."
+    # Scalable source, for themes and desktops that prefer SVG.
+    mkdir -p "$iconroot/scalable/apps"
+    cp icon/opentrap.svg "$iconroot/scalable/apps/opentrap.svg"
+    # Raster sizes, rendered by the app itself so no SVG tool is needed.
+    if [ -f dist/opentrap.jar ] && [ -x "$JAVA_HOME/bin/java" ]; then
+        "$JAVA_HOME/bin/java" -cp dist/opentrap.jar opentrap.ui.AppIcon "$tmp" >/dev/null
+        for size in 16 24 32 48 64 128 256; do
+            mkdir -p "$iconroot/${size}x${size}/apps"
+            cp "$tmp/opentrap_${size}.png" "$iconroot/${size}x${size}/apps/opentrap.png"
+        done
+    else
+        echo "  note: no dist/opentrap.jar or no JDK, installed the SVG only (run 'just build' for PNG sizes)"
+    fi
+    # Any Exec line from the template or an earlier install is dropped first,
+    # so re-running (or moving the checkout) replaces it.
+    mkdir -p "$appdir"
+    { grep -v '^Exec=' icon/opentrap.desktop; printf '%s\n' "${exec_line% }"; } > "$appdir/opentrap.desktop"
+    chmod +x "$appdir/opentrap.desktop"
+    # Refresh the caches so the entry appears without a logout.
+    if command -v gtk-update-icon-cache >/dev/null 2>&1; then gtk-update-icon-cache -f -t "$iconroot" >/dev/null 2>&1 || true; fi
+    if command -v update-desktop-database >/dev/null 2>&1; then update-desktop-database "$appdir" >/dev/null 2>&1 || true; fi
+    echo "Installed:"
+    echo "  icon  -> $iconroot/{scalable,*x*}/apps/opentrap.*"
+    echo "  entry -> $appdir/opentrap.desktop"
+    echo "OpenTRAP should now appear in your application menu with its own icon."
+
+# Compile src/ into an empty build/, with the icons and the unpacked vendored jars
+_classes: _check-jdk
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Start from an empty build/ so nothing left by an earlier build or by the
+    # AppImage packaging (its runtime and staging live under build/) is packed.
+    rm -rf build && mkdir -p build dist
+    echo "Compiling..."
+    srcs=()
+    while IFS= read -r f; do srcs+=("$f"); done < <(find src -name '*.java')
+    "$JAVA_HOME/bin/javac" --release "$JAVA_RELEASE" -d build -cp "lib/*:build" "${srcs[@]}"
+    echo "Copying resources..."
+    mkdir -p build/opentrap/ui/icons
+    cp src/opentrap/ui/icons/*.png build/opentrap/ui/icons/
+    echo "Unpacking the vendored jars..."
+    (cd build && for j in ../lib/*.jar; do "$JAVA_HOME/bin/jar" xf "$j"; done)
+    rm -f build/META-INF/*.SF build/META-INF/*.DSA build/META-INF/*.RSA
 
 _check-jdk:
-    @[ -x "{{ javac }}" ] || { echo "No JDK at {{ jdk }}. Install it with: brew install --cask temurin" >&2; exit 1; }
+    #!/usr/bin/env bash
+    if [ ! -x "$JAVA_HOME/bin/javac" ]; then
+        if [ "$(uname -s)" = Darwin ]; then hint="brew install --cask temurin"; else hint="just jdk (x86_64), or set OPENTRAP_JDK to a JDK home"; fi
+        echo "No JDK at ${JAVA_HOME:-(none found)}. Install one with: $hint" >&2
+        exit 1
+    fi
+
+# Fail unless the file's sha256 is the expected one
+_verify file expected:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    got="$({{ hasher }} "$1" | cut -d' ' -f1)"
+    if [ "$got" != "$2" ]; then
+        printf 'sha256 mismatch for %s:\n  expected %s (update the pin in tools/versions?)\n  got      %s\n' "$1" "$2" "$got" >&2
+        exit 1
+    fi

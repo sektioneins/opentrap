@@ -27,9 +27,9 @@ than packed into the jar:
   (spider) and active-scan rules power OpenTRAP's crawl and audit, and its
   findings are mapped into OpenTRAP's own issue model and shown in OpenTRAP's UI.
   Nothing of ZAP's interface is shown to the user. The engine is fetched by
-  `fetch-zap.sh`. Apache 2.0 is compatible with OpenTRAP's AGPL-3.0 licence.
+  `just engine`. Apache 2.0 is compatible with OpenTRAP's AGPL-3.0 licence.
 - **Chromium**, the embedded testing browser, BSD-licensed open-source build,
-  fetched by `fetch-browser.sh`.
+  fetched by `just browser`.
 
 # Organisation logos
 

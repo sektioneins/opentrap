@@ -11,7 +11,7 @@ import java.util.Arrays;
 public class Main {
     /**
      * The build identifier, a UTC timestamp (YYYYMMDD-HHMMSS) stamped into the jar
-     * manifest by release.sh, so every build is uniquely and sortably identified
+     * manifest by the release recipe (just release), so every build is uniquely and sortably identified
      * and the running app reports exactly which one it is. A dev build has none,
      * and reports "dev".
      */

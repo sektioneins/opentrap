@@ -232,24 +232,27 @@ authority, so there is nothing to configure and no certificate to install.
 
 ## Build from source
 
+The build runs through [just](https://github.com/casey/just), on Linux and
+macOS; `just --list` shows every recipe.
+
 ```
-./build.sh      # compile src/ into a lean dev jar (uses an engine already on disk)
-./test.sh       # run the test suite
-./run.sh        # launch the dev build
+just build      # compile src/ into a lean dev jar (uses an engine already on disk)
+just test       # run the test suite
+just run        # launch the dev build
 ```
 
-`./install-desktop.sh` adds a menu entry for your development build, so it sits
-in your applications list beside the AppImage. No root needed; pass `--system`
-to install it for all users instead.
+On Linux, `just install-desktop` adds a menu entry for your development build,
+so it sits in your applications list beside the AppImage. No root needed;
+`just install-desktop system` installs it for all users instead.
 
 Releasing is a maintainer job, described in
-[MAINTAINING.md](MAINTAINING.md): `./release.sh` builds the self-contained
-release jar and `./package-appimage.sh` packs the AppImage that is published.
+[MAINTAINING.md](MAINTAINING.md): `just release` builds the self-contained
+release jar and `just appimage` packs the AppImage that is published.
 
 The only compiled-in dependencies are BouncyCastle (the proxy CA) and a Brotli
 decoder. The scan engine, testing browser and a portable JDK are fetched on
-demand by `./fetch-zap.sh`, `./fetch-browser.sh` and `./fetch-jdk.sh`; bundled
-versions are pinned in `tools/versions`. The portable JDK (Eclipse Temurin, built
+demand by `just engine`, `just browser` and `just jdk`; bundled versions are
+pinned in `tools/versions`. The portable JDK (Eclipse Temurin, built
 on an old glibc) is what lets the AppImage run across distributions rather than
 only on the build host. See `DEPENDENCIES.md`.
 

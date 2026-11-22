@@ -2278,7 +2278,7 @@ public class DashboardTool implements ToolModule {
         if (ze == null || !ze.available()) {
             JOptionPane.showMessageDialog(ctx.frame(),
                     "The scan engine (OWASP ZAP) is not installed.\n"
-                    + "Run ./fetch-zap.sh to add it, then try again.",
+                    + "Run 'just engine' to add it, then try again.",
                     "Scan engine required", JOptionPane.WARNING_MESSAGE);
             return;
         }

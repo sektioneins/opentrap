@@ -7,18 +7,19 @@ components and their licences, see [DEPENDENCIES.md](DEPENDENCIES.md) and
 
 ## Fresh clone: get a working tree
 
-A clone has the source but not the large, fetched tools (they are gitignored).
-Fetch them once:
+Every task below is a recipe in the `justfile` (`just --list`); CONTRIBUTING.md
+lists what the recipes need. A clone has the source but not the large, fetched
+tools (they are gitignored). Fetch them once:
 
 ```
-./fetch-jdk.sh       # portable Temurin JDK into jdk/  (required for a portable AppImage)
-./fetch-zap.sh       # OWASP ZAP scan engine into engine/
-./fetch-browser.sh   # optional: the testing browser into browser/
+just jdk         # Linux x64: portable Temurin JDK into jdk/ (required for a portable AppImage)
+just engine      # OWASP ZAP scan engine into engine/
+just browser     # optional, Linux x64: the testing browser into browser/
 ```
 
 Pinned versions live in `tools/versions`, the single source of truth; the fetch
-scripts install those versions. Bump a line there as part of a release, then
-re-run the matching fetch script.
+recipes install those versions. Bump a line there as part of a release, then
+re-run the matching fetch recipe.
 
 Java is pinned twice there. `JAVA_RELEASE` (27) is the language and API level:
 every build compiles with `--release` set to it, so it is the oldest JDK that
@@ -30,9 +31,9 @@ be above the runtime's major.
 ## Build and run
 
 ```
-./build.sh      # lean dev jar  -> dist/opentrap.jar
-./run.sh        # launch the dev jar (auto HiDPI scale; ./run.sh 2 to force)
-./test.sh       # run the test suite
+just build      # lean dev jar  -> dist/opentrap.jar
+just run        # launch the dev jar (auto HiDPI scale; just run 2 to force)
+just test       # run the test suite
 ```
 
 ## Roadmap
@@ -43,7 +44,7 @@ drives the Roadmap tab under Discover and the dialog each placeholder opens.
 After changing the registry, rebuild and regenerate the file:
 
 ```
-./build.sh
+just build
 java -cp build opentrap.ui.Unbuilt ROADMAP.md
 ```
 
@@ -53,22 +54,22 @@ never disagree about what is open.
 ## Release (the AppImage is the only published artefact)
 
 ```
-./package-appimage.sh    # builds the release jar, then the AppImage -> dist/opentrap-x86_64.appimage
+just appimage    # builds the release jar, then the AppImage -> dist/opentrap-x86_64.appimage
 ```
 
 Test the AppImage by hand, then publish:
 
 ```
-./publish.sh <timestamp> <notes.md>
+just publish <timestamp> <notes.md>
 ```
 
-- `<timestamp>` is the build **embedded in the AppImage**. `package-appimage.sh`
-  calls `release.sh`, which stamps a fresh `opentrap_<timestamp>.jar`, so the
+- `<timestamp>` is the build **embedded in the AppImage**. `just appimage`
+  runs `just release`, which stamps a fresh `opentrap_<timestamp>.jar`, so the
   timestamp to publish is the jar inside the AppImage, not an earlier one left in
   `dist/`. Find it with:
   `./dist/opentrap-x86_64.appimage --appimage-extract 'usr/lib/app/*'` then
   `ls squashfs-root/usr/lib/app/`.
-- `publish.sh` creates the GitHub release, uploads the AppImage under the fixed
+- `just publish` creates the GitHub release, uploads the AppImage under the fixed
   name `opentrap-x86_64.appimage`, marks it latest, and verifies that the
   permanent link
   `https://github.com/opentrap/opentrap/releases/latest/download/opentrap-x86_64.appimage`
@@ -77,16 +78,16 @@ Test the AppImage by hand, then publish:
 ## Critical: AppImage portability (glibc)
 
 The AppImage must be built from the **portable Temurin JDK** in `jdk/`
-(`./fetch-jdk.sh`), not the system JDK. Temurin is built on glibc 2.17, so the
+(`just jdk`), not the system JDK. Temurin is built on glibc 2.17, so the
 packaged app runs across mainstream Linux. Building the runtime from a
 bleeding-edge system JDK (for example on Kali, glibc 2.38) produces an AppImage
 that quits before showing its window on older distributions such as Ubuntu LTS and
 Debian stable, and fails the AppImageHub launch-and-screenshot test.
 
-`build.sh`, `release.sh` and `package-appimage.sh` automatically prefer `jdk/` when
-it is present, and `package-appimage.sh` fetches it if missing. Temurin ships
-without `jmods`, so `package-appimage.sh` uses the JDK as the runtime image
-directly rather than running `jlink`.
+On Linux every recipe prefers `jdk/` when it is present, and `just appimage`
+fetches it if missing and builds the release jar with it whatever JDK the other
+recipes would pick. Temurin ships without `jmods`, so `just appimage` uses the
+JDK as the runtime image directly rather than running `jlink`.
 
 Verify portability after building: every binary in the AppImage should require no
 newer than `GLIBC_2.17`:
@@ -104,7 +105,7 @@ A few parts are non-obvious and worth knowing before changing them.
 
 **The scan engine runs as a separate process.** The release jar embeds the trimmed
 OWASP ZAP engine as a resource (`/opentrap/engine/engine.zip`, put there by
-`release.sh`). On first use `opentrap.engine.ZapEngine` extracts it once to
+`just release`). On first use `opentrap.engine.ZapEngine` extracts it once to
 `~/.opentrap/engine`, then launches it **headless as its own Java process** using
 the bundled runtime (`java.home/bin/java`). OpenTRAP never links ZAP in-process; it
 drives it over ZAP's local HTTP API (`opentrap.engine.ZapApi`, e.g.
@@ -128,7 +129,7 @@ second scan carries on from where the first stopped.
 
 **The testing browser is not bundled in the release.** It is large (~680 MB), so
 the release stays small. `opentrap.proxy.EmbeddedBrowser` uses a Chromium found in
-the product `browser/` folder (populated by `fetch-browser.sh`, or by the optional
+the product `browser/` folder (populated by `just browser`, or by the optional
 in-app download) or one already on the system `PATH`. It launches with an isolated
 profile under `~/.opentrap/browser`, pointed at the proxy
 (`--proxy-server=http://127.0.0.1:<port>`) and trusting the proxy CA, so TLS
@@ -174,11 +175,11 @@ Settings, including these, travel in the file; `ProjectOptions` names the keys.
 toolkit assumes a reparenting window manager; under sway, i3, Hyprland, river,
 dwl, bspwm and labwc, Swing windows paint blank white without
 `_JAVA_AWT_WM_NONREPARENTING=1`. The JVM reads it from the environment at
-startup, so both launchers (`AppRun` written by `package-appimage.sh`, and
-`run.sh`) set it when `XDG_CURRENT_DESKTOP` names one of those and the caller
+startup, so both launchers (`AppRun` written by `just appimage`, and
+`just run`) set it when `XDG_CURRENT_DESKTOP` names one of those and the caller
 has not set it already. The in-app scale relaunch inherits the environment.
 
-**The build identifier is the jar manifest version.** `release.sh` stamps
+**The build identifier is the jar manifest version.** `just release` stamps
 `Implementation-Version` with the UTC build timestamp; `opentrap.ui.Main.VERSION`
 reads it back (a dev build reports `dev`). It appears in the title bar and About
 box, and it is the release tag.

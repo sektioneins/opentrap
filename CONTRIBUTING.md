@@ -22,7 +22,7 @@ Changes come in as pull requests from your own fork of the repository.
        git checkout -b my-change upstream/main
 
 4. **Make the change** and keep it focused on one thing. Build and run it
-   (`./build.sh` then `./run.sh`) and confirm the app still launches and your
+   (`just build` then `just run`) and confirm the app still launches and your
    change behaves as intended.
 5. **Commit and push** the branch to your fork:
 
@@ -44,23 +44,33 @@ naming, comment density and idioms. Do not reformat unrelated code.
 
 ## Building
 
-    ./build.sh      # compiles src/ and repacks dist/opentrap.jar
-    ./run.sh        # launches the app
-    ./test.sh       # compiles and runs the test suite
+    just build      # compiles src/ and repacks dist/opentrap.jar
+    just run        # launches the app
+    just test       # compiles and runs the test suite
+    just --list     # every recipe: fetching, releasing, packaging
 
 Tests live under `tests/` rather than `src/`, so they are never packed into the
 shipped jar. Any change with logic to it should come with test cases.
 
-Requirements: Java 27. The build scripts compile with `--release 27`
-(`JAVA_RELEASE` in `tools/versions`); the AppImage ships Eclipse Temurin 27, and
-CI builds and tests on it. Few distributions package Java 27 yet: on Linux x64
-`./fetch-jdk.sh` installs the pinned Temurin into `jdk/`, which the build
-scripts prefer. BouncyCastle and a
-Brotli decoder are vendored under `lib/`; the ZAP scan engine and the Chromium
-browser are fetched on demand by `./fetch-zap.sh` and `./fetch-browser.sh`. See
-`DEPENDENCIES.md` for how
-bundled tools are pinned and updated across releases, and run
-`./tools/check-updates.sh` to see what has a newer version.
+Requirements:
+
+- Java 27. The recipes compile with `--release 27` (`JAVA_RELEASE` in
+  `tools/versions`); the AppImage ships Eclipse Temurin 27, and CI builds and
+  tests on it. Few distributions package Java 27 yet: on Linux x64 `just jdk`
+  installs the pinned Temurin into `jdk/`, which the recipes prefer. On macOS
+  they use the Temurin 27 that `java_home` finds (`brew install --cask
+  temurin`). `OPENTRAP_JDK` set to a JDK home overrides both.
+- [just](https://github.com/casey/just) 1.59 or newer (`JUST_VERSION` in
+  `tools/versions`), from your package manager or `brew install just`.
+- bash. Recipes run under the first `bash` on PATH; on macOS put Homebrew's
+  bash ahead of the system bash 3.2.
+- curl, unzip and zip for the fetch and release recipes.
+
+BouncyCastle and a Brotli decoder are vendored under `lib/`; the ZAP scan
+engine and the Chromium browser are fetched on demand by `just engine` and
+`just browser`. See `DEPENDENCIES.md` for how bundled tools are pinned and
+updated across releases, and run `just check-updates` to see what has a newer
+version.
 
 ## How the code is organised
 
@@ -129,7 +139,7 @@ Register it in `src/opentrap/ui/Bootstrap.java`:
 frame.register(new opentrap.hello.HelloTool());
 ```
 
-Then `./build.sh && ./run.sh`, and a "hello" tab appears. That is the whole
+Then `just build run`, and a "hello" tab appears. That is the whole
 extension model. To receive requests from other tools' "send to" menus, call
 `ctx.registerSink("hello", ...)` in `init`; everything else shared (traffic,
 scope, issues) is on `SuiteContext`.

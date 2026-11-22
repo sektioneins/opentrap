@@ -8,8 +8,8 @@ developers; a user never has to think about it.
 
 | Tool | Version pin | Where | How it is installed | Licence |
 |---|---|---|---|---|
-| OWASP ZAP (scan engine) | `tools/versions` | `engine/` | `./fetch-zap.sh` | Apache 2.0 |
-| Chromium (browser) | `tools/versions` | `browser/` | `./fetch-browser.sh` | BSD |
+| OWASP ZAP (scan engine) | `tools/versions` | `engine/` | `just engine` | Apache 2.0 |
+| Chromium (browser) | `tools/versions` | `browser/` | `just browser` | BSD |
 | BouncyCastle (CA) | `tools/versions` | `lib/` | jar in `lib/` | MIT |
 | Brotli decoder | `tools/versions` | `lib/` | jar in `lib/` | MIT |
 
@@ -24,15 +24,15 @@ and the Brotli decoder are small jars vendored under `lib/` and unpacked into
 ## Single source of truth
 
 `tools/versions` holds the pinned version of every bundled tool and the
-sha256 of every artifact the fetch scripts download. The fetch scripts
-install exactly those bytes and refuse a download whose hash does not match,
+sha256 of every artifact the fetch recipes download. The fetch recipes in
+the `justfile` install exactly those bytes and refuse a download whose hash does not match,
 so a build is reproducible rather than pulling whatever is latest that day.
 
 ## Release-cycle workflow
 
 1. Run the update check:
 
-       ./tools/check-updates.sh
+       just check-updates
 
    It prints, for the ZAP engine, Chromium, BouncyCastle and the Brotli
    decoder, the pinned version, the latest upstream version, and whether an
@@ -45,15 +45,16 @@ so a build is reproducible rather than pulling whatever is latest that day.
 
 3. Re-install the bundled binaries:
 
-       ./fetch-zap.sh         # after changing ZAP_VERSION
-       ./fetch-browser.sh     # after changing CHROMIUM_REVISION
+       just engine     # after changing ZAP_VERSION
+       just browser    # after changing CHROMIUM_REVISION
 
-   For a jar under `lib/`, replace it with the new version and update the
-   filename reference in `build.sh` if the name changed.
+   For a jar under `lib/`, replace it with the new version. The recipes put
+   every `lib/*.jar` on the classpath, so a new file name needs no other
+   change.
 
 4. Build and run the tests, then smoke-test a crawl and a scan:
 
-       ./build.sh && ./test.sh
+       just test
 
 5. Record the bump in the release notes, and keep the licence attribution in
    `CREDITS.md` current if a tool is added or removed.

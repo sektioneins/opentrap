@@ -83,7 +83,7 @@ public class ActiveScanPanel extends JPanel {
         loadStarted = true;
         ZapEngine ze = ZapEngine.shared();
         if (ze == null || !ze.available()) {
-            status.setText("Scan engine (ZAP) not installed. Run ./fetch-zap.sh to add it.");
+            status.setText("Scan engine (ZAP) not installed. Run 'just engine' to add it.");
             return;
         }
         status.setText("Starting scan engine and loading active rules...");

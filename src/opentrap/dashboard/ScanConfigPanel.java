@@ -741,7 +741,7 @@ public final class ScanConfigPanel extends JPanel {
                 try {
                     opentrap.engine.ZapEngine ze = opentrap.engine.ZapEngine.shared();
                     if (ze == null || !ze.available()) {
-                        note = "Scan engine not installed: run ./fetch-zap.sh to list its checks.";
+                        note = "Scan engine not installed: run 'just engine' to list its checks.";
                     } else {
                         ze.start();
                         for (var s : ze.api().passiveScanners())
