@@ -3,6 +3,7 @@ package opentrap.proxy;
 import opentrap.core.Debug;
 
 import java.util.concurrent.Semaphore;
+import java.util.function.BiConsumer;
 
 /**
  * Runs each connection on its own virtual thread, at most {@code max} at a
@@ -15,8 +16,15 @@ final class ConnectionRunner {
     private final int max;
     private final String namePrefix;
     private final Thread.Builder builder;
+    private final BiConsumer<String, Throwable> onFailure;
 
     ConnectionRunner(int max, String namePrefix) {
+        this(max, namePrefix, Debug::error);
+    }
+
+    /** {@code onFailure} receives a message and the Throwable a task ended with. */
+    ConnectionRunner(int max, String namePrefix, BiConsumer<String, Throwable> onFailure) {
+        this.onFailure = onFailure;
         this.max = max;
         this.slots = new Semaphore(max);
         this.namePrefix = namePrefix;
@@ -29,7 +37,7 @@ final class ConnectionRunner {
         try {
             builder.start(() -> {
                 try { task.run(); }
-                catch (Throwable t) { Debug.error(namePrefix + "task failed", t); }
+                catch (Throwable t) { onFailure.accept(namePrefix + "task failed", t); }
                 finally { slots.release(); }
             });
         } catch (Throwable t) {

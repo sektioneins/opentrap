@@ -56,15 +56,24 @@ public final class ConnectionRunnerTest {
         });
 
         Harness.test("a connection that throws still frees its slot", () -> {
-            ConnectionRunner runner = new ConnectionRunner(1, "proxy-conn-");
+            AtomicReference<String> message = new AtomicReference<>();
+            AtomicReference<Throwable> failure = new AtomicReference<>();
+            CountDownLatch reported = new CountDownLatch(1);
+            ConnectionRunner runner = new ConnectionRunner(1, "proxy-conn-", (m, t) -> {
+                message.set(m); failure.set(t); reported.countDown();
+            });
             CountDownLatch second = new CountDownLatch(1);
-            submit(runner, () -> { throw new RuntimeException("expected by the test"); });
+            RuntimeException thrown = new RuntimeException("expected by the test");
+            submit(runner, () -> { throw thrown; });
             Thread caller = new Thread(() -> {
                 submit(runner, second::countDown);
             }, "second-caller");
             caller.setDaemon(true);
             caller.start();
             Expect.isTrue(passed(second), "second task ran");
+            Expect.isTrue(passed(reported), "the failure was reported");
+            Expect.isTrue(failure.get() == thrown, "the thrown exception is passed on");
+            Expect.equal(message.get(), "proxy-conn-task failed", "failure message");
         });
     }
 
