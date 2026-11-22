@@ -13,7 +13,7 @@ import java.time.Duration;
 import java.util.Locale;
 
 /**
- * The HTTP/2 send path. Rather than hand-roll HPACK and framing, this delegates
+ * The HTTP/2 and HTTP/3 send path. Rather than hand-roll HPACK and framing, this delegates
  * to the JDK's own HTTP client, which negotiates HTTP/2 over ALPN and falls back
  * to HTTP/1.1 under {@link HttpMode#AUTO}. {@link HttpMode#HTTP_3} tries QUIC at
  * the URI's host and port first and falls back to HTTP/2 or HTTP/1.1; the status

@@ -132,7 +132,9 @@ public class Main {
             }
             Debug.log("showing main window (" + w + "x" + h + ")");
             frame.setVisible(true);
-            Debug.log("main window shown after " + ManagementFactory.getRuntimeMXBean().getUptime() + " ms");
+            if (Debug.enabled()) {
+                Debug.log("main window shown after " + ManagementFactory.getRuntimeMXBean().getUptime() + " ms");
+            }
             frame.toFront();
             frame.requestFocus();
             Debug.log("main window is visible");
@@ -152,13 +154,15 @@ public class Main {
             ProjectStartupDialog startup = new ProjectStartupDialog(frame, TITLE);
             // The dialog is modal, so setVisible returns only once it closes. The
             // start-up time is taken when the dialog reports it is open, once only.
-            startup.addWindowListener(new java.awt.event.WindowAdapter() {
-                @Override
-                public void windowOpened(java.awt.event.WindowEvent e) {
-                    Debug.log("start-up window shown after " + ManagementFactory.getRuntimeMXBean().getUptime() + " ms");
-                    startup.removeWindowListener(this);
-                }
-            });
+            if (Debug.enabled()) {
+                startup.addWindowListener(new java.awt.event.WindowAdapter() {
+                    @Override
+                    public void windowOpened(java.awt.event.WindowEvent e) {
+                        Debug.log("start-up window shown after " + ManagementFactory.getRuntimeMXBean().getUptime() + " ms");
+                        startup.removeWindowListener(this);
+                    }
+                });
+            }
             startup.setVisible(true);
             Debug.log("startup dialog closed: proceeded=" + startup.proceeded()
                     + " mode=" + startup.mode());

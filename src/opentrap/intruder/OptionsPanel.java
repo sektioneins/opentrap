@@ -66,7 +66,8 @@ public class OptionsPanel extends OptionsPage {
                 OptionsPage.fieldRow("number of threads:", threads, ""),
                 OptionsPage.fieldRow("throttle (ms between requests):", throttle, ""));
         section("protocol",
-                Ui.note("HTTP/1 is raw and byte-exact; HTTP/2 and auto use the JDK transport."),
+                Ui.note("HTTP/1 is raw and byte-exact; HTTP/2, HTTP/3 and auto use the JDK transport. "
+                        + "HTTP/3 falls back to HTTP/2 or HTTP/1.1 when the server has no QUIC."),
                 OptionsPage.labelRow("send requests over:", mode));
         section("redirects", followRedirects);
         section("grep - match",
