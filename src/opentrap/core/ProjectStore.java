@@ -56,7 +56,7 @@ public final class ProjectStore implements Closeable {
     private static final int VERSION = 1;
     static final int HEADER = 8;                    // magic(4) + version(4)
     static final int FRAME = 8;                     // payloadLen(4) + crc32(4)
-    private static final int MAX_RECORD = 512 * 1024 * 1024;
+    static final int MAX_RECORD = 512 * 1024 * 1024;
 
     private final FileChannel ch;
     private final Path path;

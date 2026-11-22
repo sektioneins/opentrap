@@ -21,6 +21,7 @@ public final class RunTests {
         new opentrap.core.ScopeUrlRegexTest().run();
         new opentrap.core.MessageStoreCapTest().run();
         new opentrap.core.ProjectStoreTest().run();
+        new opentrap.core.ProjectSerialTest().run();
         new opentrap.core.MessageStoreDiskTest().run();
         new opentrap.core.WebSocketStoreTest().run();
         new opentrap.session.SessionTest().run();
