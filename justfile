@@ -11,7 +11,7 @@
 #   just clean        remove build/, build-tests/, dist/ and AppDir/
 #
 #   just jdk          Linux x64: fetch the pinned portable JDK into jdk/
-#   just engine       fetch the pinned OWASP ZAP scan engine into engine/
+#   just engine       fetch the pinned OWASP ZAP scan engine, with the latest add-ons, into engine/
 #   just browser      Linux x64: fetch the pinned Chromium and chromedriver into browser/
 #   just addon spiderAjax 23.33.0    add a ZAP add-on to engine/plugin/
 #   just addon pscanrulesBeta 50 beta <sha256>   fixed quality, verified hash
@@ -125,20 +125,20 @@ release: _classes
     ts="$(date -u +%Y%m%d-%H%M%S)"
     echo "Release build $ts (UTC)"
     if ls engine/zap-*.jar >/dev/null 2>&1; then
-        # Ship only the engine 'just engine' installs for tools/versions:
-        # nothing added, removed or updated since (such as by 'just addon'),
-        # and no stray files.
+        # Ship only the engine 'just engine' last installed, for the current
+        # ZAP pins: nothing added, removed or updated since (such as by
+        # 'just addon'), and no stray files.
         [ -f engine/.pinned ] || { echo "engine/ was not installed by 'just engine', so it cannot be checked against tools/versions. Run 'just engine'." >&2; exit 1; }
         state="$(mktemp "${TMPDIR:-/tmp}/opentrap-engine.XXXXXX")"
         trap 'rm -f "$state"' EXIT
         {{ just }} _engine-state > "$state"
         if ! cmp -s engine/.pinned "$state"; then
-            echo "engine/ is not what 'just engine' installs for tools/versions (- recorded, + now):" >&2
+            echo "engine/ is not what 'just engine' installed for tools/versions (- recorded, + now):" >&2
             diff engine/.pinned "$state" | grep '^[<>]' | sed 's/^</-/; s/^>/+/' | head -20 >&2 || true
-            echo "Run 'just engine' to reinstall the pinned engine, or update the pins first." >&2
+            echo "Run 'just engine' to reinstall ZAP ${ZAP_VERSION} with the latest add-ons." >&2
             exit 1
         fi
-        echo "Embedding scan engine (matches tools/versions)..."
+        echo "Embedding scan engine (as 'just engine' installed it)..."
         mkdir -p build/opentrap/engine
         (cd engine && zip -qr -1 ../build/opentrap/engine/engine.zip .)
         zv="$(ls engine/zap-*.jar | head -1 | sed -E 's#.*/zap-([0-9.]+)\.jar#\1#')"
@@ -351,10 +351,11 @@ engine:
     set -euo pipefail
     # OpenTRAP runs ZAP (Apache 2.0, see CREDITS.md) with no user interface,
     # as a headless scan engine on the loopback. The Core package is used (no
-    # bundled JRE) because OpenTRAP already runs on a JVM. To update, bump
-    # ZAP_VERSION and its sha256 in tools/versions and re-run this.
+    # bundled JRE) because OpenTRAP already runs on a JVM. ZAP itself is
+    # pinned: to update, bump ZAP_VERSION and its sha256 in tools/versions
+    # and re-run this. The add-ons are the latest published for that release.
     dest="$PWD/engine"
-    echo "Installing pinned ZAP engine v${ZAP_VERSION} (edit tools/versions to change)..."
+    echo "Installing pinned ZAP engine v${ZAP_VERSION} (edit tools/versions to change) with the latest add-ons..."
     tmp="$(mktemp -d "${TMPDIR:-/tmp}/opentrap.XXXXXX")"
     trap 'rm -rf "$tmp"' EXIT
     url="https://github.com/zaproxy/zaproxy/releases/download/v${ZAP_VERSION}/ZAP_${ZAP_VERSION}_Core.zip"
@@ -372,7 +373,7 @@ engine:
 
     # Keep only the add-ons OpenTRAP drives (active and passive scan rules, the
     # spiders and the infrastructure they need), so the bundled engine stays
-    # small. A clean checkout reproduces the exact engine a release ships.
+    # small.
     keep=" ascanrules ascanrulesBeta pscan pscanrules pscanrulesBeta spider spiderAjax selenium retire oast directorylistv1 commonlib network database callhome "
     for f in "$dest"/plugin/*.zap; do
         [ -e "$f" ] || continue
@@ -380,30 +381,18 @@ engine:
         case "$keep" in *" $name "*) ;; *) rm -f "$f" ;; esac
     done
 
-    # The AJAX spider and its Selenium backend are not in Core, so they come
-    # from the ZAP marketplace. spiderAjax needs a newer commonlib than Core
-    # ships, so commonlib is replaced too. The beta scan-rule packs add many
-    # more checks. Versions are pinned in tools/versions and must stay
-    # compatible with ZAP_VERSION.
-    ext="https://github.com/zaproxy/zap-extensions/releases/download"
-    fetch_addon() {  # <id> <version> <quality> <sha256>
-        local id="$1" ver="$2" q="$3" sha="$4"
-        rm -f "$dest/plugin/$id-"*.zap
-        echo "Fetching add-on $id $q $ver..."
-        curl -L --fail -o "$tmp/$id.zap" "$ext/$id-v$ver/$id-$q-$ver.zap"
-        {{ just }} _verify "$tmp/$id.zap" "$sha"
-        mv "$tmp/$id.zap" "$dest/plugin/$id-$q-$ver.zap"
-    }
-    fetch_addon commonlib      "$ZAP_ADDON_COMMONLIB"       release "$ZAP_ADDON_COMMONLIB_SHA256"
-    fetch_addon selenium       "$ZAP_ADDON_SELENIUM"        release "$ZAP_ADDON_SELENIUM_SHA256"
-    fetch_addon spiderAjax     "$ZAP_ADDON_SPIDERAJAX"      release "$ZAP_ADDON_SPIDERAJAX_SHA256"
-    fetch_addon ascanrulesBeta "$ZAP_ADDON_ASCANRULES_BETA" beta    "$ZAP_ADDON_ASCANRULES_BETA_SHA256"
-    fetch_addon pscanrulesBeta "$ZAP_ADDON_PSCANRULES_BETA" beta    "$ZAP_ADDON_PSCANRULES_BETA_SHA256"
+    # The AJAX spider and its Selenium backend are not in Core, and the beta
+    # scan-rule packs add many more checks. Every kept add-on is then brought
+    # to the newest version ZAP publishes for this ZAP release, exactly as
+    # 'just addons update' does, dependencies included (spiderAjax needs a
+    # newer commonlib than Core ships). Each download is checked against the
+    # sha256 in ZAP's list.
+    {{ just }} addons update selenium spiderAjax ascanrulesBeta pscanrulesBeta
 
     jar="$(ls "$dest"/zap-*.jar 2>/dev/null | head -1 || true)"
     [ -n "$jar" ] || { echo "No zap jar after unpack" >&2; exit 1; }
-    # Record the pins and every installed file's hash, so 'just release' can
-    # tell whether engine/ still holds exactly this.
+    # Record the ZAP pins and every installed file's hash, so 'just release'
+    # can tell whether engine/ still holds exactly this.
     {{ just }} _engine-state > "$dest/.pinned"
     echo "ZAP engine ready: $jar"
     echo "Add-ons: $(ls "$dest"/plugin/*.zap 2>/dev/null | wc -l | tr -d ' ')"
@@ -496,7 +485,7 @@ addon id version quality="auto" sha256="":
     needs="$(unzip -p "$dir/$name" ZapAddOn.xml | sed -n 's:.*<not-before-version>\(.*\)</not-before-version>.*:\1:p' | head -1)"
     have="$(ls engine/zap-*.jar 2>/dev/null | head -1 | sed -E 's:.*/zap-(.*)\.jar:\1:')"
     [ -z "$needs" ] || echo "Needs ZAP ${needs} or newer; the engine is ${have:-unknown}."
-    echo "Restart OpenTRAP to load it. 'just release' embeds only the pinned engine, so it refuses this one."
+    echo "Restart OpenTRAP to load it. 'just release' embeds only what 'just engine' installed, so it refuses this one."
 
 # Check ZAP add-ons against the latest for the engine's ZAP release; 'update' installs them, extra ids add more
 addons action="check" *ids:
@@ -586,8 +575,7 @@ addons action="check" *ids:
         mv "$tmp" "$dir/$file"
     done
     echo "Installed ${#todo[@]} add-on(s), each checked against its published sha256. Restart OpenTRAP to load them."
-    echo "Note: 'just engine' resets engine/ to the pinned versions; run 'just addons update' again after it."
-    echo "'just release' embeds only the pinned engine; move the pins in tools/versions to ship these."
+    echo "'just release' embeds only what 'just engine' installed; re-run it to ship the latest add-ons."
 
 # Report which pins in tools/versions have a newer upstream release (changes nothing)
 check-updates:
@@ -631,24 +619,10 @@ check-updates:
     row appimagetool "$APPIMAGETOOL_VERSION" "${ait:-?}" "$(flag "$APPIMAGETOOL_VERSION" "$ait")"
     jst="$(gh_latest casey/just)"
     row just "$JUST_VERSION" "${jst:-?}" "$(flag "$JUST_VERSION" "$jst")"
-    # The pinned ZAP add-ons against ZAP's list for the pinned ZAP release.
-    minor="$(cut -d. -f1-2 <<<"$ZAP_VERSION")"
-    feed="$(mktemp "${TMPDIR:-/tmp}/opentrap-zapversions.XXXXXX")"
-    trap 'rm -f "$feed"' EXIT
-    if curl -fsS --max-time 30 -o "$feed" "https://raw.githubusercontent.com/zaproxy/zap-admin/master/ZapVersions-$minor.xml" 2>/dev/null; then
-        for pin in commonlib:ZAP_ADDON_COMMONLIB selenium:ZAP_ADDON_SELENIUM spiderAjax:ZAP_ADDON_SPIDERAJAX \
-                   ascanrulesBeta:ZAP_ADDON_ASCANRULES_BETA pscanrulesBeta:ZAP_ADDON_PSCANRULES_BETA; do
-            id="${pin%%:*}" var="${pin#*:}"
-            v="$(xmllint --xpath "string(/ZAP/addon_$id/version)" "$feed" 2>/dev/null)"
-            row "$id" "${!var}" "${v:-?}" "$(flag "${!var}" "$v")"
-        done
-    else
-        echo "  (the ZAP $minor add-on list could not be downloaded)"
-    fi
     echo
     echo "To update: edit tools/versions (a version and its sha256 together), then"
     echo "run the matching recipe (just engine, just browser, just jdk) or replace the"
-    echo "jar in lib/. Add-ons outside the pins: just addons."
+    echo "jar in lib/. The add-ons follow the latest for ZAP_VERSION: just addons."
 
 # Install the launcher icon and a menu entry for this checkout; 'system' installs for all users (needs root)
 [linux]

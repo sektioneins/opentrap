@@ -33,12 +33,18 @@ Two checks keep a build to those pins:
 
 - Every build refuses a `lib/` that holds other jars than the pinned ones, or
   other bytes (the sha256 pins are those of the jars on Maven Central).
-- `just engine` records the engine pins and the hash of every installed file
-  in `engine/.pinned`. `just release` refuses to embed an `engine/` that no
+- `just engine` records the ZAP pins and the hash of every installed file in
+  `engine/.pinned`. `just release` refuses to embed an `engine/` that no
   longer matches that record or whose pins have moved since, so an add-on
-  added or updated with `just addon` or `just addons update` never ships by
-  accident. Move its pin in `tools/versions` and re-run `just engine` to ship
-  it.
+  added or updated afterwards with `just addon` or `just addons update` never
+  ships by accident. Re-run `just engine` to ship the latest add-ons.
+
+ZAP itself is pinned, its add-ons are not. `just engine` installs the newest
+version of every add-on OpenTRAP keeps that ZAP publishes for the pinned ZAP
+release (`ZapVersions-<major.minor>.xml`, which ZAP's own update check reads),
+each checked against the sha256 in that list. It installs the same add-ons as
+`just addons update`, so a release carries the add-ons current on the day
+`just engine` last ran; the file names in `engine/.pinned` record which.
 
 ## Release-cycle workflow
 
@@ -46,10 +52,10 @@ Two checks keep a build to those pins:
 
        just check-updates
 
-   It prints, for the ZAP engine and its pinned add-ons, Chromium,
-   BouncyCastle, the Brotli decoder, the Temurin JDK, appimagetool and just,
-   the pinned version, the latest upstream version, and whether an update is
-   available. It changes nothing.
+   It prints, for the ZAP engine, Chromium, BouncyCastle, the Brotli decoder,
+   the Temurin JDK, appimagetool and just, the pinned version, the latest
+   upstream version, and whether an update is available. It changes nothing.
+   `just addons` does the same for the add-ons in `engine/`.
 
 2. For each tool you want to move, edit its version and its SHA256 together
    in `tools/versions`. For a release asset, the sha256 is published alongside
@@ -58,7 +64,7 @@ Two checks keep a build to those pins:
 
 3. Re-install the bundled binaries:
 
-       just engine     # after changing ZAP_VERSION
+       just engine     # after changing ZAP_VERSION, and for the latest add-ons
        just browser    # after changing CHROMIUM_REVISION
 
    For a jar under `lib/`, replace it with the new version from Maven
