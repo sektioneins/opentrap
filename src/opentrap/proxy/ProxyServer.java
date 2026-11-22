@@ -14,9 +14,9 @@ import java.util.concurrent.*;
 /**
  * The interception proxy.
  *
- * One accept loop per listener, one virtual thread per connection. That is what the
- * original did and it stays comprehensible; the number of connections is bounded so a
- * flood of connections cannot exhaust memory.
+ * One accept loop per listener, one virtual thread per connection. That stays
+ * comprehensible; the number of connections is bounded so a flood of
+ * connections cannot exhaust memory.
  */
 public class ProxyServer {
 

@@ -3,6 +3,7 @@ package opentrap.proxy;
 import opentrap.core.Debug;
 
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadFactory;
 import java.util.function.BiConsumer;
 
 /**
@@ -15,7 +16,7 @@ final class ConnectionRunner {
     private final Semaphore slots;
     private final int max;
     private final String namePrefix;
-    private final Thread.Builder builder;
+    private final ThreadFactory factory;
     private final BiConsumer<String, Throwable> onFailure;
 
     ConnectionRunner(int max, String namePrefix) {
@@ -28,18 +29,20 @@ final class ConnectionRunner {
         this.max = max;
         this.slots = new Semaphore(max);
         this.namePrefix = namePrefix;
-        this.builder = Thread.ofVirtual().name(namePrefix, 0);
+        // The builder itself is not thread safe; its factory is, and every
+        // listener's accept thread calls run().
+        this.factory = Thread.ofVirtual().name(namePrefix, 0).factory();
     }
 
     /** Blocks while {@code max} tasks are running, then starts {@code task}. */
     void run(Runnable task) throws InterruptedException {
         slots.acquire();
         try {
-            builder.start(() -> {
+            factory.newThread(() -> {
                 try { task.run(); }
                 catch (Throwable t) { onFailure.accept(namePrefix + "task failed", t); }
                 finally { slots.release(); }
-            });
+            }).start();
         } catch (Throwable t) {
             // The thread never started, so nothing else will free the slot.
             slots.release();
