@@ -103,7 +103,7 @@ public class DiscoverTool implements ToolModule {
         JPanel gallery = new JPanel(new GridLayout(1, 4, 16, 0));
         gallery.setOpaque(false);
         gallery.setBorder(Ui.pad(8, 24, 24, 24));
-        gallery.add(tile("Command palette", "Press Ctrl+K and type where you want to go: any tool, sub-tab or setting.", "proxy|\n> Go to Proxy\n> Go to Proxy > HTTP history\n> Go to Proxy > Intercept"));
+        gallery.add(tile("Command palette", "Press " + opentrap.ui.Hotkeys.text(opentrap.ui.Hotkeys.get(null, "palette")) + " and type where you want to go: any tool, sub-tab or setting.", "proxy|\n> Go to Proxy\n> Go to Proxy > HTTP history\n> Go to Proxy > Intercept"));
         gallery.add(tile("Scripts", "Filters, custom actions and scan checks are small Java scripts in one library.", "boolean matches(HttpRequestResponse r,\n        Utilities u) {\n  return r.hasResponse();\n}"));
         gallery.add(tile("Intruder", "Payload positions, four attack types, resource pools and grep rules.", "POST /login HTTP/1.1\nHost: §target§\n\nuser=§admin§&pass=§x§"));
         gallery.add(tile("Inspector", "Every message editor carries an inspector of attributes, parameters and headers.", "Request attributes      2\nRequest query params    3\nRequest headers        19"));

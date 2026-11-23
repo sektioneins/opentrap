@@ -3,6 +3,7 @@ package opentrap.proxy;
 import opentrap.core.*;
 import opentrap.ui.CurlCommand;
 import opentrap.ui.Glyphs;
+import opentrap.ui.Hotkeys;
 import opentrap.ui.Theme;
 import opentrap.ui.Ui;
 
@@ -68,6 +69,26 @@ public class HistoryContextMenu {
                 build().show(table, e.getX(), e.getY());
             }
         });
+        // The Send to shortcuts act on the selection without opening the menu.
+        java.util.Map<String, Runnable> keys = new java.util.LinkedHashMap<>();
+        for (String t : Hotkeys.SEND_TO)
+            keys.put(Hotkeys.sendTo(t), () -> { if (ctx.sinkNames().contains(t)) send(t, selected()); });
+        Hotkeys.install(table, JComponent.WHEN_FOCUSED, ctx::settings, keys);
+    }
+
+    /**
+     * What a Send to item and its shortcut do: a tool that takes one item gets
+     * the first selected request, any other every selected entry.
+     */
+    private void send(String tool, List<LogEntry> sel) {
+        if (sel.isEmpty()) return;
+        LogEntry first = sel.get(0);
+        if (ctx.sinkTakesSingleItem(tool)) {
+            if (first.request() != null) ctx.sendTo(tool, first.service(), first.request().copy(), null, null);
+            return;
+        }
+        for (LogEntry e : sel) ctx.sendTo(tool, e.service(),
+                e.request() == null ? null : e.request().copy(), e.response() == null ? null : e.response().copy(), null);
     }
 
     private List<LogEntry> selected() {
@@ -120,13 +141,12 @@ public class HistoryContextMenu {
         for (String t : sinks) if (!ordered.contains(t) && !isEngagement(t)) ordered.add(t);
         for (String tool : ordered) {
             String label = "Send to " + capitalise(tool);
-            String hk = switch (tool) { case "intruder" -> "Ctrl+I"; case "repeater" -> "Ctrl+R"; case "organizer" -> "Ctrl+O"; default -> null; };
+            KeyStroke hk = Hotkeys.get(ctx.settings(), Hotkeys.sendTo(tool));
             if (ctx.sinkTakesSingleItem(tool)) {
-                if (first.request() != null) addK(menu, label + " (request)", hk, () -> ctx.sendTo(tool, first.service(), first.request().copy(), null, null));
+                if (first.request() != null) addK(menu, label + " (request)", hk, () -> send(tool, sel));
                 if (first.response() != null) addK(menu, label + " (response)", null, () -> ctx.sendTo(tool, first.service(), null, first.response().copy(), null));
             } else {
-                addK(menu, label, hk, () -> { for (LogEntry e : sel) ctx.sendTo(tool, e.service(),
-                        e.request() == null ? null : e.request().copy(), e.response() == null ? null : e.response().copy(), null); });
+                addK(menu, label, hk, () -> send(tool, sel));
             }
         }
 
@@ -294,10 +314,10 @@ public class HistoryContextMenu {
         menu.add(mi);
     }
 
-    private void addK(JComponent menu, String label, String hotkey, Runnable action) {
+    private void addK(JComponent menu, String label, KeyStroke hotkey, Runnable action) {
         JMenuItem mi = new JMenuItem(label);
         mi.setFont(Ui.PLAIN);
-        if (hotkey != null) mi.setAccelerator(KeyStroke.getKeyStroke(hotkey.replace("Ctrl+", "ctrl ")));
+        if (hotkey != null) mi.setAccelerator(hotkey);
         mi.addActionListener(e -> action.run());
         menu.add(mi);
     }

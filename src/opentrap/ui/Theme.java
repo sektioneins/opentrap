@@ -352,6 +352,7 @@ public final class Theme {
         d.put("MenuBar.border", BorderFactory.createMatteBorder(0, 0, 1, 0, BORDER));
         MacMenuBar.installDefaults(d);
         MacKeys.installDefaults(d);
+        Hotkeys.freeDefaults(d);
         d.put("Menu.background", bg);
         d.put("Menu.foreground", text);
         d.put("Menu.selectionBackground", sel);

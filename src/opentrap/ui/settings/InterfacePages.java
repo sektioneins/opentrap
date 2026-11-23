@@ -4,6 +4,8 @@ import opentrap.core.Settings;
 import opentrap.core.SuiteContext;
 import opentrap.ui.Fonts;
 import opentrap.ui.Glyphs;
+import opentrap.ui.Hotkeys;
+import opentrap.ui.MacKeys;
 import opentrap.ui.OptionsPage;
 import opentrap.ui.Theme;
 import opentrap.ui.Ui;
@@ -211,213 +213,26 @@ public final class InterfacePages {
             public void removeUpdate(javax.swing.event.DocumentEvent e) { table.filter(search.getText()); }
             public void changedUpdate(javax.swing.event.DocumentEvent e) { table.filter(search.getText()); }
         });
+        String key = MacKeys.menuMask() == java.awt.event.InputEvent.META_DOWN_MASK ? "Command" : "Control";
         p.block("Hotkeys", SettingsPage.Kind.USER,
-                "Select an action to change its hotkey. All hotkeys must use the Control key together with another key; "
-              + "use the reset mark beside a row to return it to its default.",
-                () -> SettingsPage.clearPrefix(s, "hotkey."),
+                "Double-click an action to change its hotkey. All hotkeys must use the " + key + " key together with "
+              + "another key; use the reset mark beside a row to return them all to their defaults.",
+                () -> { SettingsPage.clearPrefix(s, Hotkeys.PREFIX); table.refresh(); },
                 search, table);
         return p;
     }
 
-    /** Action / Category / Hotkey. Rows are the suite's bindable actions; the reference list is appended as it is confirmed. */
+    /** Action / Category / Hotkey, one row per shortcut the suite binds. A change applies at the next key press. */
     static final class HotkeyTable extends JPanel {
-        record Action(String name, String category, String def) {}
-        static final List<Action> ACTIONS = List.of(
-                new Action("Active scan selected message", "Scan", ""),
-                new Action("Add notes", "Annotate", ""),
-                new Action("Add payload position", "Payload positions", ""),
-                new Action("Add to existing issue", "Record an issue", ""),
-                new Action("Add to scope", "Scope", ""),
-                new Action("Add to site map", "Site map", ""),
-                new Action("Analyze target", "Engagement tools", ""),
-                new Action("Audit again", "Audit", ""),
-                new Action("Backspace word", "Edit", "Ctrl+Backspace"),
-                new Action("Base64 URL-decode", "Edit", ""),
-                new Action("Base64 URL-encode", "Edit", ""),
-                new Action("Base64-decode", "Edit", "Ctrl+Shift+B"),
-                new Action("Base64-encode", "Edit", "Ctrl+B"),
-                new Action("Cancel", "Audit queue management", ""),
-                new Action("Certain", "Issue rating", ""),
-                new Action("Change method", "Edit", ""),
-                new Action("Change request method", "Edit", ""),
-                new Action("Clear highlight", "Annotate", ""),
-                new Action("Clear history", "History", ""),
-                new Action("Clear interaction history", "Collaborator", ""),
-                new Action("Clear log", "History", ""),
-                new Action("Clear payload positions", "Payload positions", ""),
-                new Action("Close all tabs", "Close", ""),
-                new Action("Close all tabs in group", "Group management", ""),
-                new Action("Close other tabs", "Close", ""),
-                new Action("Close other tabs in group", "Group", ""),
-                new Action("Close tab", "Tab", ""),
-                new Action("Close tabs the right", "Close", ""),
-                new Action("Close tabs to the left", "Close", ""),
-                new Action("Close tabs to the right", "Close", ""),
-                new Action("Collapse branch", "Branch", ""),
-                new Action("Compare site maps", "Site map", ""),
-                new Action("Copy", "Edit", "Ctrl+C"),
-                new Action("Copy as curl command (bash)", "Export", ""),
-                new Action("Copy collection link", "Manage collection", ""),
-                new Action("Copy links in", "Export", ""),
-                new Action("Copy name", "Edit", ""),
-                new Action("Copy prettified", "Edit", "Ctrl+Alt+C"),
-                new Action("Copy to new collection", "Collections", ""),
-                new Action("Cut", "Edit", "Ctrl+X"),
-                new Action("Define extract grep from response", "Attack results", ""),
-                new Action("Delete", "Delete custom action", ""),
-                new Action("Delete collection", "Delete collection", ""),
-                new Action("Delete custom scan checks", "Custom scan checks", ""),
-                new Action("Delete issues", "Issue", ""),
-                new Action("Delete item", "Edit", ""),
-                new Action("Delete line", "Edit", "Ctrl+D"),
-                new Action("Delete selected interactions", "Collaborator", ""),
-                new Action("Delete word", "Edit", "Ctrl+Delete"),
-                new Action("Detach tab", "Tab management", ""),
-                new Action("Discover content", "Engagement tools", ""),
-                new Action("Done", "Annotate", ""),
-                new Action("Drop", "Intercept", ""),
-                new Action("Drop all intercepted messages", "Intercept", ""),
-                new Action("Drop intercepted message", "Intercept", ""),
-                new Action("Duplicate collection", "Manage collection", ""),
-                new Action("Duplicate custom scan checks", "Custom scan checks", ""),
-                new Action("Duplicate tab", "Tab", ""),
-                new Action("Edit", "Custom action", ""),
-                new Action("Edit and resend", "WebSocket", ""),
-                new Action("Edit custom scan check", "Custom scan checks", ""),
-                new Action("Edit group", "Group", ""),
-                new Action("Expand branch", "Branch", ""),
-                new Action("Expand requested items", "Branch", ""),
-                new Action("Explain selected text", "Al", "Ctrl+E"),
-                new Action("Explore issue", "Al", ""),
-                new Action("Export as EML", "Export", ""),
-                new Action("Export CSV", "Export", ""),
-                new Action("False positive", "Issue rating", ""),
-                new Action("Find comments", "Engagement tools", ""),
-                new Action("Find references", "Engagement tools", ""),
-                new Action("Find scripts", "Engagement tools", ""),
-                new Action("Firm", "Issue rating", ""),
-                new Action("For this directory", "Don't intercept requests", ""),
-                new Action("For this file extension", "Don't intercept requests", ""),
-                new Action("Form URL-encoded", "Edit", ""),
-                new Action("Format BCheck", "Edit", ""),
-                new Action("Forward", "Intercept", ""),
-                new Action("Forward all intercepted messages", "Intercept", ""),
-                new Action("Forward intercepted", "Intercept", "Ctrl+F"),
-                new Action("Forward intercepted message", "Intercept", "Ctrl+F"),
-                new Action("Forward intercepted request and intercept the response", "Intercept", ""),
-                new Action("From this host", "Don't intercept", ""),
-                new Action("From this IP address", "Don't intercept responses", ""),
-                new Action("Ga ta Ganiiancar", "Quritch tah", ""),
-                new Action("Generate CSRF PoC", "Engagement tools", ""),
-                new Action("Go back in tab history", "Table navigation", ""),
-                new Action("Go forward in tab history", "Table navigation", ""),
-                new Action("Go paragraph", "Edit", "Ctrl+Down"),
-                new Action("Go previous paragraph (with selection)", "Edit", "Ctrl+Shift+Up"),
-                new Action("Go Proxy Match and replace", "Switch tab", ""),
-                new Action("Go to Extensions > Bambaa library", "SWITcn Tad", ""),
-                new Action("Go to Extensions > BApp Store", "Switch tab", ""),
-                new Action("Go to Extensions > Custom checks", "Switch tab", ""),
-                new Action("Go to Extensions > Installed", "Switch tab", ""),
-                new Action("Go to Intruder", "Switch tab", "Ctrl+Shift+1"),
-                new Action("Go to item in site map", "Go to source", ""),
-                new Action("Go to Logger", "Switch tab", "Ctrl+Shift+L"),
-                new Action("Go to next paragraph", "Edit", "Ctrl+Down"),
-                new Action("Go to next paragraph (with text selection)", "Edit", "Ctrl+ShifttDown"),
-                new Action("Go to next tab", "Tab", "Ctrl+Equals"),
-                new Action("Go to next word", "Edit", "Ctrl+Right"),
-                new Action("Go to next word (with text selection)", "Edit", "Ctrl+Shift+Right"),
-                new Action("Go to Organizer", "Switch tab", "Ctrl+Shift+O"),
-                new Action("Go to previous paragraph", "Edit", "Ctrl+Up"),
-                new Action("Go to previous tab", "Tab", "Ctrl+Minus"),
-                new Action("Go to previous word", "Edit", "Ctrl+Left"),
-                new Action("Go to previous word (with text selection)", "Edit", "Ctrl+Shift+Left"),
-                new Action("Go to Proxy", "Switch tab", "Ctrl+Shift+P"),
-                new Action("Go to Proxy > HTTP history", "Switch tab", ""),
-                new Action("Go to Proxy > Intercept", "Switch tab", ""),
-                new Action("Go to Proxy > WebSockets history", "Switch tab", ""),
-                new Action("Go to Repeater", "Switch tab", "Ctrl+Shift+R"),
-                new Action("Go to Repeater tab", "Go to source", ""),
-                new Action("K ea 2 ee", "Edit —", "Ctrl+X"),
-                new Action("Mark as read", "Collaborator", ""),
-                new Action("Medium", "Issue rating", ""),
-                new Action("Move to new collection", "Collections", ""),
-                new Action("Multipart", "Edit", ""),
-                new Action("New Collaborator tab", "Create", ""),
-                new Action("New group", "Move to group", ""),
-                new Action("New HTTP tab", "Create", ""),
-                new Action("New Intruder tab", "Create", ""),
-                new Action("New tab group", "Add tab to group", ""),
-                new Action("New WebSocket tab", "Create", ""),
-                new Action("Next search result in editor", "Edit", "Ctrl+Period"),
-                new Action("Open All issues panel", "Open", ""),
-                new Action("Open command palette", "Open", "Ctrl+K"),
-                new Action("Open Event", "Open", ""),
-                new Action("Open new scan launcher", "Scan", ""),
-                new Action("Open response in browser", "Open in browser", ""),
-                new Action("Open search window", "Open", ""),
-                new Action("Open settings window", "Open", ""),
-                new Action("Passive scan selected message", "Scan", ""),
-                new Action("Paste", "Fdit", "Ctrl+V"),
-                new Action("Previous search result in editor", "Edit", "Ctrl+Comma"),
-                new Action("Redo", "Edit", "Ctrl+Y"),
-                new Action("Schedule task", "Engagement tools", ""),
-                new Action("Scrolling view", "Tab view settings", ""),
-                new Action("Search", "tools", ""),
-                new Action("Search in editor", "Edit", "Ctrl+S"),
-                new Action("Search tab names", "Tab", ""),
-                new Action("Select all", "Edit", "Ctrl+A"),
-                new Action("Select response view", "Edit", ""),
-                new Action("Send", "Send", ""),
-                new Action("Send Organizer", "Send", "Ctrl+O"),
-                new Action("Send Repeater request", "Repeater", "Ctrl+Space"),
-                new Action("Send response to Comparer", "Send to", ""),
-                new Action("Send to Comparer", "Send to", ""),
-                new Action("Send to Custom scan checks editor", "Send to", ""),
-                new Action("Send to Decoder", "Send to", ""),
-                new Action("Send to Intruder", "Send to", "Ctrl+I"),
-                new Action("Send to Organizer", "Send to", "Ctrl+O"),
-                new Action("Send to Repeater", "Send to", "Ctrl+R"),
-                new Action("Send to Sequencer", "Send to", ""),
-                new Action("Set introspection query", "API definitions", ""),
-                new Action("Set legacy introspection query", "API definitions", ""),
-                new Action("Share collection", "Manage collection", ""),
-                new Action("Show details in new window", "Audit queue", ""),
-                new Action("Show insertion points", "Audit", ""),
-                new Action("Show new history window", "Window", ""),
-                new Action("To this IP address", "Don't Teaneaa a", ""),
-                new Action("Toggle between last-used body encodings", "Edit", ""),
-                new Action("Toggle confidence", "Issue rating", ""),
-                new Action("Toggle display non-printable characters", "Edit", ""),
-                new Action("Toggle hide uninteresting headers", "Edit", ""),
-                new Action("Toggle interception on/off", "Intercept", "Ctrl+T"),
-                new Action("Toggle line wrapping", "Edit", ""),
-                new Action("Toggle live URL-encoding", "Edit", ""),
-                new Action("Toggle prettify", "Edit", ""),
-                new Action("Toggle severity", "Issue rating", ""),
-                new Action("Toggle side panel", "Open", ""),
-                new Action("Toggle tab view", "Tab view settings", ""),
-                new Action("Toggle task execution", "Scan", ""),
-                new Action("Undo", "Edit", "Ctrl+Z"),
-                new Action("Ungroup tabs", "Group management", ""),
-                new Action("URL-decode", "Edit", "Ctrl+Shift+U"),
-                new Action("URL-encode all characters", "Edit", ""),
-                new Action("URL-encode all characters (Unicode)", "Edit", ""),
-                new Action("URL-encode key characters", "Edit", "Ctrl+U"),
-                new Action("URL-encode key characters (Unicode)", "Edit", ""),
-                new Action("Verified", "Issue rating", ""),
-                new Action("With this content type", "Don't intercept responses", ""),
-                new Action("With this response code", "Don't intercept responses", ""),
-                new Action("Wrapped view", "Tab view settings", ""),
-                new Action("Z Export custom checks", "Custom checks", ""));
         private final Settings s;
-        private final List<Action> shown = new ArrayList<>(ACTIONS);
+        private final List<Hotkeys.Action> shown = new ArrayList<>(Hotkeys.actions());
         private final AbstractTableModel model = new AbstractTableModel() {
             @Override public int getRowCount() { return shown.size(); }
             @Override public int getColumnCount() { return 3; }
             @Override public String getColumnName(int c) { return c == 0 ? "Action" : c == 1 ? "Category" : "Hotkey"; }
             @Override public Object getValueAt(int r, int c) {
-                Action a = shown.get(r);
-                return c == 0 ? a.name() : c == 1 ? a.category() : s.get("hotkey." + a.name(), a.def());
+                Hotkeys.Action a = shown.get(r);
+                return c == 0 ? a.name() : c == 1 ? a.category() : Hotkeys.text(Hotkeys.get(s, a.id()));
             }
         };
         HotkeyTable(Settings s) {
@@ -440,28 +255,53 @@ public final class InterfacePages {
         void filter(String q) {
             shown.clear();
             String n = q.strip().toLowerCase();
-            for (Action a : ACTIONS) if (n.isEmpty() || a.name().toLowerCase().contains(n) || a.category().toLowerCase().contains(n)) shown.add(a);
+            for (Hotkeys.Action a : Hotkeys.actions())
+                if (n.isEmpty() || a.name().toLowerCase().contains(n) || a.category().toLowerCase().contains(n)) shown.add(a);
             model.fireTableDataChanged();
         }
-        private void edit(Action a) {
-            JTextField f = Ui.field(s.get("hotkey." + a.name(), a.def()));
+        void refresh() { model.fireTableDataChanged(); }
+
+        private void edit(Hotkeys.Action a) {
+            KeyStroke[] chosen = { Hotkeys.get(s, a.id()) };
+            JTextField f = Ui.field(Hotkeys.text(chosen[0]));
             f.setEditable(false);
+            JLabel problem = Ui.label(" ");
+            problem.setForeground(Ui.ERROR_RED);
+            Runnable show = () -> {
+                f.setText(chosen[0] == null ? "None" : Hotkeys.text(chosen[0]));
+                String why = Hotkeys.refusal(s, a.id(), chosen[0]);
+                problem.setText(why == null ? " " : why);
+            };
             f.addKeyListener(new java.awt.event.KeyAdapter() {
                 @Override public void keyPressed(java.awt.event.KeyEvent e) {
-                    if (e.getKeyCode() == java.awt.event.KeyEvent.VK_CONTROL || e.getKeyCode() == java.awt.event.KeyEvent.VK_SHIFT || e.getKeyCode() == java.awt.event.KeyEvent.VK_ALT) return;
-                    if (!e.isControlDown()) { f.setText("Hotkeys must use Ctrl"); return; }
-                    f.setText("Ctrl+" + (e.isShiftDown() ? "Shift+" : "") + (e.isAltDown() ? "Alt+" : "") + java.awt.event.KeyEvent.getKeyText(e.getKeyCode()));
+                    e.consume();   // the field must not copy or select on the keys being recorded
+                    switch (e.getKeyCode()) {
+                        case java.awt.event.KeyEvent.VK_CONTROL, java.awt.event.KeyEvent.VK_SHIFT,
+                             java.awt.event.KeyEvent.VK_ALT, java.awt.event.KeyEvent.VK_META,
+                             java.awt.event.KeyEvent.VK_ALT_GRAPH -> { return; }
+                        default -> { }
+                    }
+                    chosen[0] = KeyStroke.getKeyStroke(e.getKeyCode(), e.getModifiersEx());
+                    show.run();
                 }
             });
+            JButton none = Ui.button("None");
+            none.addActionListener(e -> { chosen[0] = null; show.run(); f.requestFocusInWindow(); });
             JButton reset = Ui.button("Reset to default");
-            reset.addActionListener(e -> f.setText(a.def()));
-            JPanel form = Ui.vbox(Ui.label("Press the new hotkey for \"" + a.name() + "\":"), Ui.row(f, reset));
+            reset.addActionListener(e -> { chosen[0] = a.def(); show.run(); f.requestFocusInWindow(); });
+            show.run();
+            JPanel form = Ui.vbox(Ui.label("Press the new hotkey for \"" + a.name() + "\":"), Ui.row(f, none, reset), problem);
             form.setBorder(Ui.pad(10, 10, 10, 10));
-            if (JOptionPane.showConfirmDialog(this, form, "Hotkey", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) == JOptionPane.OK_OPTION
-                    && f.getText().startsWith("Ctrl")) {
-                s.set("hotkey." + a.name(), f.getText());
-                model.fireTableDataChanged();
+            SwingUtilities.invokeLater(f::requestFocusInWindow);
+            if (JOptionPane.showConfirmDialog(this, form, "Hotkey", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION)
+                return;
+            String why = Hotkeys.refusal(s, a.id(), chosen[0]);
+            if (why != null) {
+                JOptionPane.showMessageDialog(this, why + ". The hotkey was not changed.", "Hotkey", JOptionPane.WARNING_MESSAGE);
+                return;
             }
+            Hotkeys.set(s, a.id(), chosen[0]);
+            model.fireTableDataChanged();
         }
     }
 

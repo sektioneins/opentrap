@@ -266,6 +266,7 @@ public class MessageEditor extends JPanel {
 
         installPopup(prettyPane);
         installPopup(rawArea);
+        installSendKeys();
     }
 
     private JToggleButton wrapToggle;
@@ -1154,7 +1155,7 @@ public class MessageEditor extends JPanel {
             final String t = tool;
             JMenuItem mi = sendItem(t);
             if (mi == null) continue;
-            KeyStroke ks = shortcutFor(t);
+            KeyStroke ks = Hotkeys.get(ctx.settings(), Hotkeys.sendTo(t));
             if (ks != null) mi.setAccelerator(ks);
             menu.add(mi);
             anySend = true;
@@ -1258,40 +1259,45 @@ public class MessageEditor extends JPanel {
     }
 
     private JMenuItem sendItem(String t) {
+        Runnable send = sendAction(t);
+        if (send == null) return null;
+        JMenuItem mi = new JMenuItem("Send to " + t);
+        mi.setFont(Ui.PLAIN);
+        mi.addActionListener(e -> send.run());
+        return mi;
+    }
+
+    /** What sending the shown message to a tool does, or null when there is nothing to send. */
+    private Runnable sendAction(String t) {
         boolean haveRequest = (flags & REQUEST) != 0 || relatedRequest != null;
         boolean haveMessage = message != null && message.raw().length > 0;
         if (ctx.sinkTakesSingleItem(t)) {
             if (!haveMessage) return null;
-            JMenuItem mi = new JMenuItem("Send to " + t);
-            mi.setFont(Ui.PLAIN);
-            mi.addActionListener(e -> {
+            return () -> {
                 HttpMessage own = message.copy();
                 boolean asRequest = showsRequest(own);
                 ctx.sendTo(t, service, asRequest ? own : null, asRequest ? null : own, null);
-            });
-            return mi;
+            };
         }
         if (service == null || !haveRequest) return null;
-        JMenuItem mi = new JMenuItem("Send to " + t);
-        mi.setFont(Ui.PLAIN);
-        mi.addActionListener(e -> {
+        return () -> {
             HttpMessage own = message.copy();
             boolean asRequest = showsRequest(own);
             HttpMessage req = asRequest ? own : (relatedRequest == null ? null : relatedRequest.copy());
             HttpMessage resp = asRequest ? null : own;
             ctx.sendTo(t, service, req, resp, null);
-        });
-        return mi;
+        };
     }
 
-    private static KeyStroke shortcutFor(String tool) {
-        int mod = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
-        return switch (tool) {
-            case "intruder"  -> KeyStroke.getKeyStroke(KeyEvent.VK_I, mod);
-            case "repeater"  -> KeyStroke.getKeyStroke(KeyEvent.VK_R, mod);
-            case "organizer" -> KeyStroke.getKeyStroke(KeyEvent.VK_O, mod);
-            default -> null;
-        };
+    /** The Send to shortcuts act on the shown message without opening the menu. */
+    private void installSendKeys() {
+        java.util.Map<String, Runnable> keys = new java.util.LinkedHashMap<>();
+        for (String t : Hotkeys.SEND_TO) keys.put(Hotkeys.sendTo(t), () -> {
+            if (ctx == null || !ctx.sinkNames().contains(t)) return;
+            Runnable send = sendAction(t);
+            if (send != null) send.run();
+        });
+        Hotkeys.install(this, WHEN_ANCESTOR_OF_FOCUSED_COMPONENT, () -> ctx == null ? null : ctx.settings(), keys);
     }
 
     private void openResponseInBrowser() {

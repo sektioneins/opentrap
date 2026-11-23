@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 /**
- * The command palette behind the {@code >_} icon (and Ctrl+K): a search box
+ * The command palette behind the {@code >_} icon (and Ctrl+K, Cmd+K on macOS): a search box
  * over every place in the suite. Rows are "Go to <tool>" and "Go to <tool> >
  * <sub-tab>" navigation entries, and one entry per Settings page that opens
  * Settings there. Typing filters; Enter or a click runs the row; Escape closes.
@@ -32,7 +32,7 @@ public final class CommandPalette {
         List<Entry> entries = new ArrayList<>();
         for (var e : tools.entrySet()) {
             String tool = capitalise(e.getKey());
-            entries.add(new Entry("Go to " + tool, false, () -> goTo.accept(e.getKey(), null), hotkeyFor(e.getKey())));
+            entries.add(new Entry("Go to " + tool, false, () -> goTo.accept(e.getKey(), null), hotkeyFor(ctx, e.getKey())));
             for (String sub : e.getValue())
                 entries.add(new Entry("Go to " + tool + " > " + sub, false, () -> goTo.accept(e.getKey(), sub), null));
         }
@@ -124,15 +124,10 @@ public final class CommandPalette {
                 + muted + "'>" + (hotkey == null ? "" : Advisory.esc(hotkey)) + "</td></tr></table></html>";
     }
 
-    private static String hotkeyFor(String tool) {
-        return switch (tool) {
-            case "proxy" -> "Ctrl+Shift+P";
-            case "intruder" -> "Ctrl+Shift+I";
-            case "repeater" -> "Ctrl+Shift+R";
-            case "logger" -> "Ctrl+Shift+L";
-            case "organizer" -> "Ctrl+Shift+O";
-            default -> null;
-        };
+    /** The Go to shortcut of a tool as this system writes it, or null when it has none. */
+    private static String hotkeyFor(SuiteContext ctx, String tool) {
+        KeyStroke ks = Hotkeys.get(ctx == null ? null : ctx.settings(), Hotkeys.goTo(tool));
+        return ks == null ? null : Hotkeys.text(ks);
     }
 
     private static String capitalise(String s) {

@@ -514,7 +514,7 @@ public class SuiteFrame extends JFrame {
         // The order honours Settings > User interface > Display > Title bar actions; the gear is always last.
         java.util.Map<String, JButton> actions = new java.util.LinkedHashMap<>();
         actions.put("Open browser", iconButton(ToolIcons.browser(), "Open browser", this::launchBrowser));
-        JButton palette = iconButton(ToolIcons.console(), "Command palette (Ctrl+K)", null);
+        JButton palette = iconButton(ToolIcons.console(), "Command palette", null);
         palette.addActionListener(e -> openPalette(palette));
         actions.put("Open command palette", palette);
         actions.put("Open search window", iconButton(ToolIcons.search(), "Search", () -> new SearchWindow(ctx).setVisible(true)));
@@ -522,12 +522,18 @@ public class SuiteFrame extends JFrame {
         java.util.List<String> names = order.isEmpty() ? new java.util.ArrayList<>(actions.keySet()) : java.util.Arrays.asList(order.split("\\|"));
         for (String n : names) if (actions.containsKey(n)) tools.add(actions.get(n));
         tools.add(iconButton(ToolIcons.gear(), "Settings", () -> SettingsDialog.open(this, ctx)));
-        // Ctrl+K opens the palette from anywhere in the window.
-        getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(
-                KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_K, java.awt.event.InputEvent.CTRL_DOWN_MASK), "opentrap.palette");
-        getRootPane().getActionMap().put("opentrap.palette", new AbstractAction() {
-            @Override public void actionPerformed(java.awt.event.ActionEvent e) { openPalette(palette); }
-        });
+        // The palette and the Go to shortcuts work from anywhere in the window;
+        // the tooltip follows a shortcut changed in Settings.
+        java.util.Map<String, Runnable> keys = new java.util.LinkedHashMap<>();
+        keys.put("palette", () -> openPalette(palette));
+        for (String t : Hotkeys.GO_TO) keys.put(Hotkeys.goTo(t), () -> selectTool(t));
+        Hotkeys.install(getRootPane(), JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT, ctx::settings, keys);
+        Runnable tip = () -> {
+            KeyStroke ks = Hotkeys.get(ctx.settings(), "palette");
+            palette.setToolTipText(ks == null ? "Command palette" : "Command palette (" + Hotkeys.text(ks) + ")");
+        };
+        tip.run();
+        ctx.settings().addListener(k -> { if (k.startsWith(Hotkeys.PREFIX)) SwingUtilities.invokeLater(tip); });
 
         final JLayeredPane layer = new JLayeredPane();
         layer.setLayout(null);
