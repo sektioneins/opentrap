@@ -3,13 +3,17 @@ package opentrap.session;
 import opentrap.core.HttpMessage;
 import opentrap.core.HttpService;
 import opentrap.core.LogEntry;
+import opentrap.core.SaveFilter;
 import opentrap.core.SessionHook;
 import opentrap.core.SuiteContext;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
@@ -105,6 +109,46 @@ public final class SessionManager implements SessionHook {
         s.rules = new ArrayList<>(rules);
         s.macros = new ArrayList<>(macros);
         return s;
+    }
+
+    /**
+     * The state a project copy may hold. Unfiltered it is {@link #snapshot()}.
+     * Narrowed, a cookie stays only when it would be sent with a request in
+     * {@code history} that the filter keeps (a cookie with no domain has no known
+     * target and goes), and a macro stays only when every request in it is aimed
+     * at the filter's scope; half a login flow is useless and the other half
+     * leaks. Session rules are configuration, so they are kept whole.
+     */
+    public State snapshot(SaveFilter filter, Iterable<LogEntry> history) {
+        if (filter.keepsAll()) return snapshot();
+        Map<HttpService, Set<String>> targets = new HashMap<>();
+        for (LogEntry e : history) {
+            HttpService svc = e.service();
+            String path = e.request() == null ? "/" : e.request().path();
+            if (filter.keeps(svc, path)) targets.computeIfAbsent(svc, _ -> new HashSet<>()).add(path);
+        }
+        State s = new State();
+        s.jar = new ArrayList<>();
+        for (Cookie c : jar.all()) if (!c.domain.isEmpty() && reachesAny(c, targets)) s.jar.add(c);
+        s.rules = new ArrayList<>(rules);
+        s.macros = new ArrayList<>();
+        for (Macro m : macros) if (macroInScope(m, filter)) s.macros.add(m);
+        return s;
+    }
+
+    private static boolean reachesAny(Cookie c, Map<HttpService, Set<String>> targets) {
+        for (Map.Entry<HttpService, Set<String>> t : targets.entrySet())
+            for (String path : t.getValue()) if (c.matches(t.getKey(), path)) return true;
+        return false;
+    }
+
+    private static boolean macroInScope(Macro m, SaveFilter filter) {
+        for (Macro.Item it : m.items) {
+            String path;
+            try { path = it.request().path(); } catch (RuntimeException _) { return false; }
+            if (path == null || !filter.keeps(it.service(), path)) return false;
+        }
+        return true;
     }
 
     public void restore(State s) {

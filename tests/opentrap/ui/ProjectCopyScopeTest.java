@@ -124,5 +124,34 @@ public final class ProjectCopyScopeTest {
                 Expect.equal(m.host, "a.test", "host");
             } catch (Exception e) { throw new RuntimeException(e); }
         });
+
+        Harness.test("an in-scope copy holds neither a WebSocket frame nor a cookie of an out-of-scope host", () -> {
+            try {
+                SuiteContext ctx = new SuiteContext();
+                ctx.scope().includeUrl(IN, "/", true);
+                ctx.store().add(new LogEntry("proxy", IN, new HttpMessage(Bytes.bytes("GET / HTTP/1.1\r\nHost: a.test\r\n\r\n"))));
+                ctx.store().add(new LogEntry("proxy", OUT, new HttpMessage(Bytes.bytes("GET / HTTP/1.1\r\nHost: b.test\r\n\r\n"))));
+                ctx.wsStore().add(new WebSocketMessage(2, OUT, "/ws", WebSocketMessage.Direction.C2S,
+                        WebSocketMessage.Op.TEXT, "out".getBytes(), false));
+                ctx.sessions().jar().set(new opentrap.session.Cookie("sid", "s3cr3t", "b.test", "/", false, 0));
+                ctx.sessions().jar().set(new opentrap.session.Cookie("sid", "mine", "a.test", "/", false, 0));
+                StateIO.SaveOptions o = new StateIO.SaveOptions();
+                o.inScopeOnly = true;
+                File f = Files.createTempFile("opentrap-copyscope", ".otrap").toFile();
+                try {
+                    StateIO.save(ctx, f, o);
+                    SuiteContext back = new SuiteContext();
+                    StateIO.restore(back, f);
+                    Expect.equal(back.wsStore().all().size(), 0, "no frames");
+                    var cookies = back.sessions().jar().all();
+                    Expect.equal(cookies.size(), 1, "one cookie");
+                    Expect.equal(cookies.get(0).domain, "a.test", "the in-scope cookie");
+                    String bytes = new String(Files.readAllBytes(f.toPath()), java.nio.charset.StandardCharsets.ISO_8859_1);
+                    Expect.isFalse(bytes.contains("s3cr3t"), "the secret is not in the file");
+                } finally {
+                    f.delete();
+                }
+            } catch (Exception e) { throw new RuntimeException(e); }
+        });
     }
 }

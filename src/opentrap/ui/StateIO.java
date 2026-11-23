@@ -254,7 +254,7 @@ public final class StateIO {
         ObjectOutputStream oos = new ObjectOutputStream(baos);
         oos.writeObject(ctx.scope());
         oos.writeObject(ctx.settings().projectSnapshot());
-        oos.writeObject(ctx.sessions().snapshot());
+        oos.writeObject(ctx.sessions().snapshot(f, ctx.store().all()));
         oos.writeObject(ctx.organizer().snapshot());
         List<opentrap.core.Issue> issues = new ArrayList<>();
         for (opentrap.core.Issue i : ctx.issues()) {
