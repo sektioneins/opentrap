@@ -60,7 +60,7 @@ public final class ZapScanner {
         if (id == null || id.isBlank()) throw new Exception("the engine did not create the scope context");
         int inc = 0, exc = 0;
         for (opentrap.core.Scope.Rule r : ctx.scope().include()) {
-            String re = r.urlRegex();
+            String re = r.includeRegex();
             if (re != null) { api.includeInContext(SCOPE_CONTEXT, re); inc++; }
         }
         if (inc == 0) {
@@ -68,12 +68,12 @@ public final class ZapScanner {
             for (Seed seed : seeds) {
                 opentrap.core.Scope.Rule r = new opentrap.core.Scope.Rule();
                 r.prefix = seed.service().host().toLowerCase(java.util.Locale.ROOT);
-                String re = r.urlRegex();
+                String re = r.includeRegex();
                 if (re != null) { api.includeInContext(SCOPE_CONTEXT, re); inc++; }
             }
         }
         for (opentrap.core.Scope.Rule r : ctx.scope().exclude()) {
-            String re = r.urlRegex();
+            String re = r.excludeRegex();
             if (re != null) { api.excludeFromContext(SCOPE_CONTEXT, re); exc++; }
         }
         api.setContextInScope(SCOPE_CONTEXT, true);
