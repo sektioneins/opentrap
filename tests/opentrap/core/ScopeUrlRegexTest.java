@@ -245,6 +245,13 @@ public final class ScopeUrlRegexTest {
             Expect.isFalse(hits(r, "http://h.test/x//y/admin"), "after a double slash in the path");
         });
 
+        Harness.test("a path anchor ignores a case flag in the file pattern when it looks back to the scheme", () -> {
+            Scope.Rule r = new Scope.Rule("any", "", "", "(?-i)^/x");
+            Expect.isTrue(excludeHits(r, "HTTP://h/x"), "an exclude, the scheme in capitals");
+            Expect.isTrue(hits(r, "HTTP://h/x"), "an include, the scheme in capitals");
+            Expect.isFalse(hits(r, "http://h/X"), "the path keeps the rule's case");
+        });
+
         Harness.test("a quantifier after a quoted run applies to its last character only", () -> {
             Scope.Rule h = host("\\Qa/\\E*");
             Scope.Rule p = new Scope.Rule("any", "", "\\Q8a\\E?", "");

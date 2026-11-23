@@ -119,12 +119,13 @@ final class ScopeRegex {
         // the scheme; host plus port never exceed 300 characters, and the
         // bound is there because a Java lookbehind needs a maximum length.
         // Looking back only to "//" would also hold after a "//" inside the
-        // path.
+        // path. The scheme carries its own (?i), as the pattern may have
+        // turned the flag off before the anchor.
         private String start() {
             return switch (seg) {
                 case HOST -> "(?<=://)";
                 case PORT -> "(?<=:)";
-                case PATH -> "(?<=^https?://[^/]{1,300})";
+                case PATH -> "(?<=^(?i:https?)://[^/]{1,300})";
             };
         }
 
