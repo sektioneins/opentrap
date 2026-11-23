@@ -180,14 +180,8 @@ public final class ScriptLibraryPanel extends JPanel {
         neu.addActionListener(e -> newScript());
         JPanel btns = Ui.row(learn, neu);
         btns.setAlignmentX(Component.CENTER_ALIGNMENT);
-        JLabel gh = new JLabel("<html><u>View GitHub repository</u></html>");
-        gh.setFont(Ui.PLAIN);
-        gh.setForeground(new Color(0x1A, 0x5F, 0xB4));
-        gh.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        JLabel gh = Ui.link("View GitHub repository", () -> opentrap.ui.Unbuilt.openProject(ScriptLibraryPanel.this));
         gh.setAlignmentX(Component.CENTER_ALIGNMENT);
-        gh.addMouseListener(new java.awt.event.MouseAdapter() {
-            @Override public void mouseClicked(java.awt.event.MouseEvent e) { opentrap.ui.Unbuilt.openProject(ScriptLibraryPanel.this); }
-        });
         col.add(Box.createVerticalGlue());
         col.add(icon); col.add(Box.createVerticalStrut(18));
         col.add(h); col.add(Box.createVerticalStrut(14));

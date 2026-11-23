@@ -184,7 +184,8 @@ public final class LiveTaskDialog extends JDialog {
         ButtonGroup g = new ButtonGroup();
         for (int i = 0; i < STEPS.length; i++) {
             final int idx = i;
-            JToggleButton b = new JToggleButton("<html><div style='text-align:center'>" + STEPS[i].replace(" ", "<br>") + "</div></html>");
+            JToggleButton b = opentrap.ui.theme.HtmlGuard.allowHtml(new JToggleButton(
+                    "<html><div style='text-align:center'>" + STEPS[i].replace(" ", "<br>") + "</div></html>"));
             b.setFont(Ui.PLAIN); b.setFocusable(false); b.setContentAreaFilled(false); b.setOpaque(true);
             b.setBackground(Theme.SURFACE);
             b.setHorizontalTextPosition(SwingConstants.CENTER); b.setVerticalTextPosition(SwingConstants.BOTTOM);

@@ -48,23 +48,12 @@ public final class CustomScopePanel extends JPanel {
 
         JPanel links = new JPanel(new FlowLayout(FlowLayout.LEFT, 14, 0));
         links.setOpaque(false);
-        links.add(link("Select from library", this::selectFromLibrary));
-        links.add(link("Save to library", this::saveToLibrary));
+        links.add(Ui.link("Select from library", this::selectFromLibrary));
+        links.add(Ui.link("Save to library", this::saveToLibrary));
 
         add(advanced, BorderLayout.NORTH);
         add(body, BorderLayout.CENTER);
         add(links, BorderLayout.SOUTH);
-    }
-
-    private static JComponent link(String text, Runnable action) {
-        JLabel l = new JLabel("<html><u>" + text + "</u></html>");
-        l.setFont(Ui.PLAIN);
-        l.setForeground(new Color(0x1A, 0x5F, 0xB4));
-        l.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        l.addMouseListener(new java.awt.event.MouseAdapter() {
-            @Override public void mouseClicked(java.awt.event.MouseEvent e) { action.run(); }
-        });
-        return l;
     }
 
     /** Build the scope: prefixes in simple mode, rules in advanced mode. */

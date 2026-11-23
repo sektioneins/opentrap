@@ -37,6 +37,8 @@ public final class Theme {
     public static Color BORDER     = new Color(0xD4, 0xD4, 0xD4);
     public static Color TEXT       = new Color(0x1A, 0x1A, 0x1A);
     public static Color MUTED      = new Color(0x6B, 0x6B, 0x6B);
+    /** Link text: underlined labels that open something. */
+    public static Color LINK       = new Color(0x1A, 0x5F, 0xB4);
     /** The accent: orange, used on primary buttons and the active tab. */
     public static Color ACCENT       = new Color(0xDB, 0x61, 0x2F);
     public static Color ACCENT_DARK  = new Color(0xC0, 0x4E, 0x20);
@@ -102,6 +104,11 @@ public final class Theme {
         catch (Exception e) { return false; }
     }
 
+    /** A colour as CSS hex ({@code #RRGGBB}), for the HTML that follows the theme. */
+    public static String css(Color c) {
+        return String.format("#%02X%02X%02X", c.getRed(), c.getGreen(), c.getBlue());
+    }
+
     /** Point the palette at the light or dark colours. Call before install(). */
     public static void configure(boolean darkMode) {
         dark = darkMode;
@@ -116,6 +123,7 @@ public final class Theme {
             BORDER       = new Color(0x40, 0x40, 0x40);
             TEXT         = new Color(0xDE, 0xDE, 0xDE);
             MUTED        = new Color(0x9C, 0x9C, 0x9C);
+            LINK         = new Color(0x6C, 0xA6, 0xF0);
             ACCENT       = new Color(0xDB, 0x61, 0x2F);
             ACCENT_DARK  = new Color(0xC0, 0x4E, 0x20);
             ACCENT_LIGHT = new Color(0x2F, 0x3E, 0x55);
@@ -151,6 +159,7 @@ public final class Theme {
             BORDER       = new Color(0xD4, 0xD4, 0xD4);
             TEXT         = new Color(0x1A, 0x1A, 0x1A);
             MUTED        = new Color(0x6B, 0x6B, 0x6B);
+            LINK         = new Color(0x1A, 0x5F, 0xB4);
             ACCENT       = new Color(0xDB, 0x61, 0x2F);
             ACCENT_DARK  = new Color(0xC0, 0x4E, 0x20);
             ACCENT_LIGHT = new Color(0xCA, 0xDA, 0xF0);

@@ -56,11 +56,12 @@ public class DiscoverTool implements ToolModule {
         JPanel heroText = new JPanel();
         heroText.setLayout(new BoxLayout(heroText, BoxLayout.Y_AXIS));
         heroText.setOpaque(false);
-        JLabel headline = new JLabel("<html>OpenTRAP, <span style='color:#DB612F'>open.</span></html>");
+        JLabel headline = opentrap.ui.theme.HtmlGuard.allowHtml(new JLabel("<html>OpenTRAP, <span style='color:"
+                + opentrap.ui.Theme.css(opentrap.ui.Theme.ACCENT) + "'>open.</span></html>"));
         headline.setFont(new Font("Dialog", Font.BOLD, 36));
         headline.setForeground(Color.WHITE);
-        JLabel blurb = new JLabel("<html><div style='width:560px'>A free, open-source web security testing suite: proxy, crawler, scanner, "
-                + "Intruder, Repeater and the rest, built on the OWASP ZAP engine and shaped by its community.</div></html>");
+        JLabel blurb = opentrap.ui.theme.HtmlGuard.allowHtml(new JLabel("<html><div style='width:560px'>A free, open-source web security testing suite: proxy, crawler, scanner, "
+                + "Intruder, Repeater and the rest, built on the OWASP ZAP engine and shaped by its community.</div></html>"));
         blurb.setFont(new Font("Dialog", Font.PLAIN, 16));
         blurb.setForeground(new Color(0xE6, 0xE6, 0xEA));
         JLabel small = new JLabel("Free under the AGPL. No accounts, no licence keys.");

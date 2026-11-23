@@ -1495,20 +1495,27 @@ public class DashboardTool implements ToolModule {
 
     /** Numbered phase badges: blue for done, grey for pending (the trailing space marks "all done"). */
     private static final class PhaseRenderer extends javax.swing.table.DefaultTableCellRenderer {
+        PhaseRenderer() { opentrap.ui.theme.HtmlGuard.allowHtml(this); }
+
         @Override public Component getTableCellRendererComponent(JTable t, Object v, boolean sel, boolean f, int r, int c) {
             super.getTableCellRendererComponent(t, "", sel, f, r, c);
-            String s = v == null ? "" : v.toString();
-            boolean done = s.endsWith(" ");
-            String[] nums = s.strip().split(" ");
-            StringBuilder html = new StringBuilder("<html>");
-            for (int i = 0; i < nums.length; i++) {
-                boolean on = done || i < nums.length - 1;
-                html.append("<span style='background:").append(on ? "#5C9ACF" : "#CCCCCC")
-                    .append(";color:white;padding:1px 5px;margin-right:3px;border-radius:3px'>").append(nums[i]).append("</span> ");
-            }
-            setText(html + "</html>");
+            setText(phaseHtml(v == null ? "" : v.toString()));
             return this;
         }
+    }
+
+    /** The badges for a phase value; each number is escaped, as it comes from the engine. */
+    static String phaseHtml(String s) {
+        boolean done = s.endsWith(" ");
+        String[] nums = s.strip().split(" ");
+        StringBuilder html = new StringBuilder("<html>");
+        for (int i = 0; i < nums.length; i++) {
+            boolean on = done || i < nums.length - 1;
+            html.append("<span style='background:").append(Theme.css(on ? Ui.SEV_LOW : Theme.TOGGLE_OFF))
+                .append(";color:white;padding:1px 5px;margin-right:3px;border-radius:3px'>")
+                .append(opentrap.ui.Advisory.esc(nums[i])).append("</span> ");
+        }
+        return html + "</html>";
     }
 
     /** Logger: the task's own traffic, the same table and viewer as the crawl window. */

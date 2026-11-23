@@ -294,16 +294,9 @@ public final class StorePanel extends JPanel {
     }
 
     private static JComponent link(String text, String url) {
-        JLabel l = new JLabel("<html><u>" + text + "</u></html>");
-        l.setFont(Ui.PLAIN);
-        l.setForeground(new Color(0x1A, 0x5F, 0xB4));
-        l.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        l.addMouseListener(new java.awt.event.MouseAdapter() {
-            @Override public void mouseClicked(java.awt.event.MouseEvent e) {
-                try { Desktop.getDesktop().browse(java.net.URI.create(url)); } catch (Exception _) { }
-            }
+        return Ui.link(text, () -> {
+            try { Desktop.getDesktop().browse(java.net.URI.create(url)); } catch (Exception _) { }
         });
-        return l;
     }
 
     private final class ListModel extends AbstractTableModel {

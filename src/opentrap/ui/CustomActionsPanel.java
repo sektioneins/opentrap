@@ -39,13 +39,7 @@ public final class CustomActionsPanel extends JPanel {
         JButton neu = Ui.button("New", "write a new custom action");
         neu.setIcon(Glyphs.plus(14, Theme.ICON));
         neu.addActionListener(e -> goToLibrary());
-        JLabel learn = new JLabel("<html><u>Learn more</u></html>");
-        learn.setFont(Ui.PLAIN);
-        learn.setForeground(new Color(0x1A, 0x5F, 0xB4));
-        learn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        learn.addMouseListener(new java.awt.event.MouseAdapter() {
-            @Override public void mouseClicked(java.awt.event.MouseEvent e) { Unbuilt.openProject(CustomActionsPanel.this); }
-        });
+        JLabel learn = Ui.link("Learn more", () -> Unbuilt.openProject(CustomActionsPanel.this));
         for (JComponent c : new JComponent[]{icon, h, t, samples, Ui.row(load, neu), learn}) {
             c.setAlignmentX(Component.CENTER_ALIGNMENT);
             col.add(c);

@@ -194,6 +194,19 @@ public final class Ui {
         return l;
     }
 
+    /** An underlined label in the link colour that runs {@code onClick}. Plain text, never HTML. */
+    public static JLabel link(String text, Runnable onClick) {
+        JLabel l = new JLabel(text);
+        l.setFont(PLAIN.deriveFont(java.util.Map.of(java.awt.font.TextAttribute.UNDERLINE,
+                java.awt.font.TextAttribute.UNDERLINE_ON)));
+        l.setForeground(Theme.LINK);
+        l.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        l.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override public void mouseClicked(java.awt.event.MouseEvent e) { onClick.run(); }
+        });
+        return l;
+    }
+
     public static JLabel label(String text) {
         JLabel l = new JLabel(sentence(text));
         l.setFont(PLAIN);

@@ -82,6 +82,8 @@ public final class RunTests {
         new opentrap.repeater.RepeaterSaveStateTest().run();
         new opentrap.ui.ScopeEditorTest().run();
         new opentrap.ui.HtmlGuardTest().run();
+        new opentrap.ui.HtmlSitesTest().run();
+        new opentrap.dashboard.PhaseHtmlTest().run();
         new opentrap.ui.QuitRequestTest().run();
 
         System.exit(Harness.report());

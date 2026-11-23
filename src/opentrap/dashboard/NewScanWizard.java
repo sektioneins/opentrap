@@ -137,8 +137,8 @@ public class NewScanWizard extends JDialog {
         ButtonGroup g = new ButtonGroup();
         for (int i = 0; i < steps.length; i++) {
             final int idx = i;
-            JToggleButton b = new JToggleButton(
-                    "<html><div style='text-align:center'>" + steps[i].replace(" ", "<br>") + "</div></html>");
+            JToggleButton b = opentrap.ui.theme.HtmlGuard.allowHtml(new JToggleButton(
+                    "<html><div style='text-align:center'>" + steps[i].replace(" ", "<br>") + "</div></html>"));
             b.setFont(Ui.PLAIN);
             b.setFocusable(false);
             b.setContentAreaFilled(false);

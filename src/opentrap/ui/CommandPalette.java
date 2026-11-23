@@ -47,22 +47,17 @@ public final class CommandPalette {
         JList<Entry> list = new JList<>(model);
         list.setFont(Ui.PLAIN);
         list.setFixedCellHeight(30);
-        list.setCellRenderer(new DefaultListCellRenderer() {
+        list.setCellRenderer(opentrap.ui.theme.HtmlGuard.allowHtml(new DefaultListCellRenderer() {
             @Override public Component getListCellRendererComponent(JList<?> l, Object v, int i, boolean sel, boolean f) {
                 super.getListCellRendererComponent(l, "", i, sel, f);
                 Entry en = (Entry) v;
                 setIcon(en.settings() ? Glyphs.gear(16, sel ? Color.WHITE : Theme.ICON) : Glyphs.arrow(16, sel ? Color.WHITE : Theme.ICON, 0));
                 setIconTextGap(10);
-                String bold = en.text();
-                int gt = bold.indexOf(" > ");
-                String html = gt < 0 ? bold : bold.substring(0, gt) + " <span style='color:" + (sel ? "#ffffff" : "#6b6b6b") + "'>&gt; " + bold.substring(gt + 3) + "</span>";
-                if (!en.settings() && bold.startsWith("Go to ")) html = "Go to <b>" + html.substring(6) + "</b>";
-                setText("<html><table width='100%' cellpadding='0'><tr><td>" + html + "</td><td align='right' style='color:"
-                        + (sel ? "#ffffff" : "#6b6b6b") + "'>" + (en.hotkey() == null ? "" : en.hotkey()) + "</td></tr></table></html>");
+                setText(rowHtml(en.text(), en.hotkey(), sel));
                 setBorder(Ui.pad(2, 10, 2, 10));
                 return this;
             }
-        });
+        }));
         Consumer<String> filter = q -> {
             model.clear();
             String n = q == null ? "" : q.strip().toLowerCase();
@@ -115,6 +110,18 @@ public final class CommandPalette {
         });
         w.setVisible(true);
         search.requestFocusInWindow();
+    }
+
+    /** The HTML of one palette row; the action name and hotkey are escaped. */
+    static String rowHtml(String text, String hotkey, boolean selected) {
+        String muted = selected ? "#FFFFFF" : Theme.css(Theme.MUTED);
+        int gt = text.indexOf(" > ");
+        String html = gt < 0 ? Advisory.esc(text)
+                : Advisory.esc(text.substring(0, gt)) + " <span style='color:" + muted + "'>&gt; "
+                        + Advisory.esc(text.substring(gt + 3)) + "</span>";
+        if (text.startsWith("Go to ")) html = "Go to <b>" + html.substring(6) + "</b>";
+        return "<html><table width='100%' cellpadding='0'><tr><td>" + html + "</td><td align='right' style='color:"
+                + muted + "'>" + (hotkey == null ? "" : Advisory.esc(hotkey)) + "</td></tr></table></html>";
     }
 
     private static String hotkeyFor(String tool) {

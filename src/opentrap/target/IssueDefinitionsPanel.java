@@ -80,7 +80,7 @@ public class IssueDefinitionsPanel extends JPanel {
             } catch (Exception ex) {
                 SwingUtilities.invokeLater(() -> detail.setText(
                         "<html><body style='font-family:sans-serif'><i>Could not load issue definitions: "
-                        + ex.getMessage() + "</i></body></html>"));
+                        + opentrap.ui.Advisory.esc(ex.getMessage()) + "</i></body></html>"));
             }
         }, "issue-defs-load").start();
     }
@@ -91,7 +91,7 @@ public class IssueDefinitionsPanel extends JPanel {
         Def d = model.at(table.convertRowIndexToModel(r));
         if (d == null) return;
         detail.setText("<html><body style='font-family:sans-serif;margin:8px'>"
-                + "<h2 style='color:#DB612F'>" + esc(d.name) + "</h2>"
+                + "<h2 style='color:" + opentrap.ui.Theme.css(opentrap.ui.Theme.ACCENT) + "'>" + esc(d.name) + "</h2>"
                 + "<p><b>Scan rule type:</b> " + d.type + "</p>"
                 + "<p><b>Type index:</b> " + esc(d.id) + "</p>"
                 + "<p>Detected by the " + d.type + " scanner. Run a scan to find instances in a target.</p>"

@@ -88,9 +88,9 @@ public final class MessageActions {
         body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
         body.setBorder(BorderFactory.createEmptyBorder(14, 16, 12, 16));
 
-        JLabel msg = new JLabel("<html>To show this response in your browser, copy the URL below and"
+        JLabel msg = opentrap.ui.theme.HtmlGuard.allowHtml(new JLabel("<html>To show this response in your browser, copy the URL below and"
                 + " paste it into a browser that is proxied through OpenTRAP (the OpenTRAP browser,"
-                + " opened from the Proxy tab).</html>");
+                + " opened from the Proxy tab).</html>"));
         msg.setAlignmentX(Component.LEFT_ALIGNMENT);
         body.add(msg);
         body.add(Box.createVerticalStrut(10));
