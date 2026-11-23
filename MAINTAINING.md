@@ -99,8 +99,9 @@ a full module set: the engine is a second JVM, not a library call.
 
 **The engine is bound to the suite scope through a context.** Before each scan
 job, `opentrap.engine.ZapScanner.applyScope` rebuilds one engine context
-("OpenTRAP scope") from the current `Scope` rules, each rule turned into a
-whole-URL regex by `Scope.Rule.urlRegex`, flags it as the engine's scope, and
+("OpenTRAP scope") from the current `Scope` rules, each include turned into a
+whole-URL regex by `Scope.Rule.includeRegex` and each exclude by
+`Scope.Rule.excludeRegex`, flags it as the engine's scope, and
 starts the crawler, the AJAX crawler and the active scan inside it. The engine
 refuses a seed outside the context and never requests or attacks anything the
 context does not cover, so the excludes (logout pages and the like) and the

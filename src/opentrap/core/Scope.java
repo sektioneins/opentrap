@@ -29,6 +29,21 @@ import java.util.regex.PatternSyntaxException;
 public class Scope implements Serializable {
     private static final long serialVersionUID = 1L;
 
+    /** Characters that end the host in a URL, as a regex class body. */
+    static final String HOST_DELIMITERS = "/:?#@\\\\";
+    /** One character of a host segment. */
+    static final String HOST_CHAR = "[^" + HOST_DELIMITERS + "]";
+    /**
+     * An IPv6-literal host. The engine writes one in brackets, which
+     * {@link #HOST_CHAR} cannot match because of the colons. Every form that
+     * stands for any host takes it as an alternative, and so does an exclude's
+     * host pattern, since an exclude must never be narrower than the app.
+     * Letters, "_" and "%" admit a zone ID, as in {@code [fe80::1%25en0]};
+     * java.net.URI takes "_" there but rejects "-" and "~", so no target
+     * has those. The class holds none of the host delimiters.
+     */
+    static final String HOST_IP_LITERAL = "\\[[0-9A-Za-z:.%_]+\\]";
+
     public static class Rule implements Serializable {
         private static final long serialVersionUID = 1L;
         public boolean enabled = true;
@@ -174,64 +189,119 @@ public class Scope implements Serializable {
         @Override public String toString() { return describe(); }
 
         /**
-         * The rule as one regex over a whole URL ({@code scheme://host:port/path}),
-         * which is how the scan engine takes a scope. A prefix rule converts
-         * exactly. An advanced rule's three patterns are matched by search
-         * against the host, port and path, so each is embedded between
-         * wildcards; a leading {@code ^} or trailing {@code $} on the file
-         * pattern keeps its anchoring. Null when the rule is disabled or has no
-         * usable host.
+         * The exact whole-URL regex. Null when the rule is disabled, is a
+         * prefix rule with no usable host, or has a part that cannot be
+         * translated.
          */
-        public synchronized String urlRegex() {
+        public String includeRegex() { return urlRegex(false); }
+
+        /**
+         * The whole-URL regex, exact where it can be, otherwise with the part
+         * that cannot be translated matching anything in its segment. Null when
+         * the rule is disabled or is a prefix rule with no usable host.
+         */
+        public String excludeRegex() { return urlRegex(true); }
+
+        /** Whether the scan engine can match this rule exactly. */
+        public boolean engineExact() { return includeRegex() != null; }
+
+        /**
+         * The rule as one regex over a whole URL ({@code scheme://host:port/path}),
+         * which is how the scan engine takes a scope. The engine cuts the URL
+         * at the first {@code ?}, leaves a default port out and matches the
+         * regex against all of it.
+         *
+         * <p>A prefix rule converts exactly. An advanced rule's three patterns
+         * are searched for in the host, port and path alone, so each is
+         * rewritten by {@link ScopeRegex#confine} to match only inside its own
+         * segment, between wildcards of that segment. A pattern that does not
+         * compile stands for itself as a literal, as in {@link #apply}. A part
+         * cannot be confined when it uses syntax the rewrite does not follow,
+         * among them a lookbehind in the file pattern, which in the URL would
+         * see the host, and a backreference or named group, which stops
+         * meaning the same once the fragment is repeated per scheme or follows
+         * the groups of another part.
+         *
+         * <p>The include form ({@code widen} false) matches exactly the URLs
+         * {@link #matches} accepts, and is null when a part cannot be
+         * confined, so the engine never scans more than the rule covers. The
+         * exclude form puts "anything in this segment" in place of such a part,
+         * so it matches every URL the rule does and possibly more, and the
+         * engine never scans what the rule excludes. For the same reason an
+         * exclude's host pattern also admits every IPv6-literal host, which an
+         * include's host pattern never does. No include regex matches
+         * a URL with userinfo, since {@code @} ends the host, so an exclude
+         * does not have to match one either. Null when the rule is disabled or
+         * is a prefix rule with no usable host.
+         */
+        private synchronized String urlRegex(boolean widen) {
             if (!enabled) return null;
             if (prefix != null) {
                 if (!prefix.equals(parsedFor)) parsePrefix();
                 if (pHost == null) return null;
                 String scheme = pScheme == null ? "https?" : Pattern.quote(pScheme);
-                String hostPart = (subdomains ? "(?:[^/:]+\\.)?" : "") + Pattern.quote(pHost);
-                String portPart = pPort > 0 ? "(?::" + pPort + ")?" : "(?::\\d+)?";
+                String hostPart = (subdomains ? "(?:" + HOST_CHAR + "+\\.)?" : "") + Pattern.quote(pHost);
+                // The engine writes a URL without its default port, so only
+                // that port may be left out; any other must be spelled.
+                int dflt = "https".equals(pScheme) ? 443 : "http".equals(pScheme) ? 80 : -1;
+                String portPart = pPort <= 0 ? "(?::\\d+)?"
+                        : pPort == dflt ? "(?::" + pPort + ")?" : ":" + pPort;
+                // The app compares the path case-sensitively, while the
+                // engine matches the whole regex case-insensitively, so the
+                // path turns the flag off for itself.
                 String pathPart = (pPath.isEmpty() || pPath.equals("/"))
-                        ? "(?:/.*)?" : Pattern.quote(pPath) + ".*";
+                        ? "(?:/.*)?" : "(?-i:" + Pattern.quote(pPath) + ").*";
                 return "(?i)^" + scheme + "://" + hostPart + portPart + pathPart + "$";
             }
-            String scheme = "any".equalsIgnoreCase(protocol) ? "https?" : protocol.toLowerCase(Locale.ROOT);
-            String hostPart;
-            if (host == null || host.isBlank()) {
-                hostPart = "[^/:]+";
-            } else {
-                boolean head = host.startsWith("^");
-                boolean tail = host.endsWith("$") && !host.endsWith("\\$");
-                hostPart = (head ? "" : "[^/:]*") + "(?:" + unanchored(host) + ")" + (tail ? "" : "[^/:]*");
+            String hostPart = "(?:" + HOST_CHAR + "+|" + HOST_IP_LITERAL + ")";
+            if (!blank(host)) {
+                String c = confined(host, ScopeRegex.Segment.HOST);
+                // An include's host pattern never matches an IPv6 literal,
+                // which is narrower; an exclude's matches every one, wider.
+                if (c != null) hostPart = "(?:" + HOST_CHAR + "*(?:" + c + ")" + HOST_CHAR + "*"
+                        + (widen ? "|" + HOST_IP_LITERAL : "") + ")";
+                else if (!widen) return null;
             }
-            String portPart;
-            if (port == null || port.isBlank()) {
-                portPart = "(?::\\d+)?";
-            } else {
-                // A port pattern that admits a default port must also accept a
-                // URL that leaves the port out, as the engine writes them.
-                boolean dflt = matchPort("80") || matchPort("443");
-                portPart = "(?::\\d*(?:" + unanchored(port) + ")\\d*)" + (dflt ? "?" : "");
+            String portRe = null;
+            if (!blank(port)) {
+                portRe = confined(port, ScopeRegex.Segment.PORT);
+                if (portRe == null && !widen) return null;
             }
-            String pathPart;
-            if (file == null || file.isBlank()) {
-                pathPart = "(?:/.*)?";
-            } else {
-                String f = file;
-                boolean head = f.startsWith("^");
-                boolean tail = f.endsWith("$") && !f.endsWith("\\$");
-                if (head) f = f.substring(1);
-                if (tail) f = f.substring(0, f.length() - 1);
-                pathPart = "(?=/)" + (head ? "" : ".*") + "(?:" + f + ")" + (tail ? "" : ".*");
+            String pathPart = "(?:/.*)?";
+            if (!blank(file)) {
+                String c = confined(file, ScopeRegex.Segment.PATH);
+                // A URL with no path at all is the root, as the app sees it.
+                if (c != null) pathPart = "(?:(?=/).*(?:" + c + ").*" + (matchFile("/") ? "|" : "") + ")";
+                else if (!widen) return null;
             }
-            return "(?i)^" + scheme + "://" + hostPart + portPart + pathPart + "$";
+            // One alternative per scheme the rule admits, as a pattern that
+            // admits the scheme's default port must also accept a URL that
+            // leaves the port out.
+            List<String> schemes = "any".equalsIgnoreCase(protocol) ? List.of("http", "https")
+                    : List.of("https".equalsIgnoreCase(protocol) ? "https" : "http");
+            StringBuilder alts = new StringBuilder();
+            for (String scheme : schemes) {
+                boolean dflt = matchPort(scheme.equals("https") ? "443" : "80");
+                String portPart = portRe == null ? "(?::\\d+)?"
+                        : "(?::\\d*(?:" + portRe + ")\\d*)" + (dflt ? "?" : "");
+                if (!alts.isEmpty()) alts.append('|');
+                alts.append(scheme).append("://").append(hostPart).append(portPart);
+            }
+            return "(?i)^(?:" + alts + ")" + pathPart + "$";
         }
 
-        /** A search pattern without its outer anchors, ready to sit inside a group. */
-        private static String unanchored(String re) {
-            String s = re;
-            if (s.startsWith("^")) s = s.substring(1);
-            if (s.endsWith("$") && !s.endsWith("\\$")) s = s.substring(0, s.length() - 1);
-            return s;
+        private static boolean blank(String s) { return s == null || s.isBlank(); }
+
+        /**
+         * A pattern confined to its segment, or null when it cannot be. A
+         * pattern that refers to groups is left out too: the host fragment
+         * appears once per scheme, and each fragment follows the groups of the
+         * ones before it.
+         */
+        private static String confined(String pattern, ScopeRegex.Segment seg) {
+            String p = compile(pattern) == null ? Pattern.quote(pattern) : pattern;
+            String c = ScopeRegex.confine(p, seg);
+            return c == null || ScopeRegex.refersToGroups(p, seg) ? null : c;
         }
     }
 
