@@ -86,6 +86,12 @@ public final class ScopeUrlRegexTest {
             Expect.isTrue(hits(r, "https://api.example.com/app/x"), "a subdomain");
             Expect.isFalse(hits(r, "https://example.com/admin"), "another path");
             Expect.isFalse(hits(r, "https://example.com/"), "the root");
+            Expect.isFalse(hits(r, "https://example.com/App"), "the path in another case");
+            Expect.isFalse(hits(r, "https://example.com/APP/x"), "below the path in another case");
+            Expect.isFalse(inApp(r, "https://example.com/App"), "the app checks the path case-sensitively");
+            Expect.isTrue(excludeHits(r, "https://example.com/app/login"), "an exclude below it");
+            Expect.isFalse(excludeHits(r, "https://example.com/App"), "an exclude, the path in another case");
+            Expect.isFalse(excludeHits(r, "https://example.com/APP/x"), "an exclude, below it in another case");
         });
 
         Harness.test("a scheme-less host prefix takes any scheme and port", () -> {

@@ -241,8 +241,11 @@ public class Scope implements Serializable {
                 int dflt = "https".equals(pScheme) ? 443 : "http".equals(pScheme) ? 80 : -1;
                 String portPart = pPort <= 0 ? "(?::\\d+)?"
                         : pPort == dflt ? "(?::" + pPort + ")?" : ":" + pPort;
+                // The app compares the path case-sensitively, while the
+                // engine matches the whole regex case-insensitively, so the
+                // path turns the flag off for itself.
                 String pathPart = (pPath.isEmpty() || pPath.equals("/"))
-                        ? "(?:/.*)?" : Pattern.quote(pPath) + ".*";
+                        ? "(?:/.*)?" : "(?-i:" + Pattern.quote(pPath) + ").*";
                 return "(?i)^" + scheme + "://" + hostPart + portPart + pathPart + "$";
             }
             String hostPart = "(?:" + HOST_CHAR + "+|" + HOST_IP_LITERAL + ")";
