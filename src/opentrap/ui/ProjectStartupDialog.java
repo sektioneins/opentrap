@@ -182,12 +182,15 @@ public final class ProjectStartupDialog extends JDialog {
         welcome.setFont(Ui.PLAIN);
         leftSide.add(welcome);
         p.add(leftSide, BorderLayout.WEST);
-        JLabel logo = new JLabel(Main.NAME, AppIcon.icon(32), SwingConstants.RIGHT);
-        logo.setFont(Fonts.ui(Font.BOLD, 18));
-        logo.setForeground(Theme.ACCENT);
-        logo.setIconTextGap(8);
-        p.add(logo, BorderLayout.EAST);
+        p.add(wordmark(), BorderLayout.EAST);
         return p;
+    }
+
+    /** The S1 wordmark for the header, named for screen readers since it carries no text. */
+    static JLabel wordmark() {
+        JLabel logo = new JLabel(new Wordmark(36));
+        logo.getAccessibleContext().setAccessibleName(Main.NAME);
+        return logo;
     }
 
     private JComponent newFields() {
