@@ -277,7 +277,8 @@ public final class StateIO {
      * Write every live entry (filtered by scope and tool, bodies slimmed) and a
      * session-state snapshot into {@code target}. The live entries are copied,
      * not moved, so the running session is never disturbed. WebSocket frames
-     * are copied whole, like the history.
+     * are not subject to the tool selection; an in-scope copy keeps those of
+     * in-scope connections only.
      */
     static void writeAllTo(SuiteContext ctx, ProjectStore target, SaveOptions o) throws IOException {
         for (LogEntry e : ctx.store().all()) {
@@ -287,7 +288,9 @@ public final class StateIO {
             LogEntry rec = e.writtenTo(target, drop, o.bodyCapBytes);
             target.append(ProjectStore.ENTRY, rec.indexBytes());
         }
+        SaveFilter f = o.filter(ctx.scope());
         for (WebSocketMessage m : ctx.wsStore().all()) {
+            if (!f.keeps(m.service, m.path)) continue;
             WebSocketMessage rec = m.writtenTo(target);
             target.append(ProjectStore.WS, rec.indexBytes());
         }

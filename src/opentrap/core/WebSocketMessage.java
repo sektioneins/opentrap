@@ -16,6 +16,9 @@ public final class WebSocketMessage implements Serializable {
 
     public final int connectionId;
     public final String host;
+    /** The handshake's target and path; null in a frame read from an older file or made with no known target. */
+    public final HttpService service;
+    public final String path;
     public final Direction direction;
     public final Op op;
     public final long time;
@@ -38,9 +41,29 @@ public final class WebSocketMessage implements Serializable {
     // the history table never loads a payload back from disk to paint a row.
     private String mPreview = "";
 
+    /**
+     * A frame with no known connection target (the store's wake marker, tests).
+     * It carries no service or path, so a scope-filtered project copy leaves it out.
+     */
     public WebSocketMessage(int connectionId, String host, Direction direction, Op op, byte[] payload, boolean edited) {
         this.connectionId = connectionId;
         this.host = host == null ? "" : host;
+        this.service = null;
+        this.path = null;
+        this.direction = direction;
+        this.op = op;
+        this.payload = payload == null ? new byte[0] : payload;
+        this.edited = edited;
+        this.time = System.currentTimeMillis();
+    }
+
+    /** A frame of the connection whose handshake went to {@code service} with request path {@code path}. */
+    public WebSocketMessage(int connectionId, HttpService service, String path, Direction direction, Op op,
+                            byte[] payload, boolean edited) {
+        this.connectionId = connectionId;
+        this.host = service == null ? "" : service.host();
+        this.service = service;
+        this.path = path;
         this.direction = direction;
         this.op = op;
         this.payload = payload == null ? new byte[0] : payload;
@@ -52,6 +75,8 @@ public final class WebSocketMessage implements Serializable {
     private WebSocketMessage(WebSocketMessage src, byte[] payload) {
         this.connectionId = src.connectionId;
         this.host = src.host;
+        this.service = src.service;
+        this.path = src.path;
         this.direction = src.direction;
         this.op = src.op;
         this.time = src.time;

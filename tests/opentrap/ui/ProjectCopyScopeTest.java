@@ -51,6 +51,18 @@ public final class ProjectCopyScopeTest {
         }
     }
 
+    private static SuiteContext copyAndReopen(SuiteContext ctx, StateIO.SaveOptions o) throws Exception {
+        File f = Files.createTempFile("opentrap-copyscope", ".otrap").toFile();
+        try {
+            StateIO.save(ctx, f, o);
+            SuiteContext back = new SuiteContext();
+            StateIO.restore(back, f);
+            return back;
+        } finally {
+            f.delete();
+        }
+    }
+
     public void run() {
         Harness.suite("in-scope project copies");
 
@@ -81,6 +93,36 @@ public final class ProjectCopyScopeTest {
             Expect.isTrue(f.keeps(IN, null), "null path");
             Expect.isFalse(f.keeps(OUT, "/"), "other host");
             Expect.isTrue(SaveFilter.ALL.keeps(null, null), "ALL keeps everything");
+        });
+
+        Harness.test("an in-scope copy keeps the WebSocket frames of in-scope connections only", () -> {
+            try {
+                SuiteContext ctx = new SuiteContext();
+                ctx.scope().includeUrl(IN, "/", true);
+                WebSocketMessage.Direction d = WebSocketMessage.Direction.C2S;
+                ctx.wsStore().add(new WebSocketMessage(1, IN, "/ws", d, WebSocketMessage.Op.TEXT, "in".getBytes(), false));
+                ctx.wsStore().add(new WebSocketMessage(2, OUT, "/ws", d, WebSocketMessage.Op.TEXT, "out".getBytes(), false));
+                ctx.wsStore().add(new WebSocketMessage(3, "a.test", d, WebSocketMessage.Op.TEXT, "unknown".getBytes(), false));
+                StateIO.SaveOptions o = new StateIO.SaveOptions();
+                o.inScopeOnly = true;
+                SuiteContext back = copyAndReopen(ctx, o);
+                var frames = back.wsStore().all();
+                Expect.equal(frames.size(), 1, "one frame");
+                Expect.equal(frames.get(0).connectionId, 1, "the in-scope frame");
+            } catch (Exception e) { throw new RuntimeException(e); }
+        });
+
+        Harness.test("a WebSocket frame keeps its connection's target through a save and reopen", () -> {
+            try {
+                SuiteContext ctx = new SuiteContext();
+                ctx.wsStore().add(new WebSocketMessage(1, IN, "/ws", WebSocketMessage.Direction.S2C,
+                        WebSocketMessage.Op.TEXT, "x".getBytes(), false));
+                SuiteContext back = copyAndReopen(ctx, new StateIO.SaveOptions());
+                WebSocketMessage m = back.wsStore().all().get(0);
+                Expect.equal(m.service, IN, "service");
+                Expect.equal(m.path, "/ws", "path");
+                Expect.equal(m.host, "a.test", "host");
+            } catch (Exception e) { throw new RuntimeException(e); }
         });
     }
 }
