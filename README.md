@@ -40,7 +40,9 @@ For everything else, the original project is the place to go:
 - **macOS as well as Linux.** The build, the tests and the app run on both, with
   `just` as the only entry point; the shell scripts are gone. On macOS the
   menus sit in the system menu bar at the top of the screen, and the
-  application menu's About and Settings open the suite's own. The interface
+  application menu's About and Settings open the suite's own. Shortcuts use
+  Command: Cmd+C, Cmd+V and the rest in text fields, lists and tables, Option
+  to move by word, and Cmd with the arrows to the line and text ends. The interface
   scale items are left out on macOS, where Java cannot apply them. The browser
   button starts an installed Chromium and, when there is none, says to install
   it with `brew install ungoogled-chromium`. The testing browser opens
@@ -76,6 +78,9 @@ For everything else, the original project is the place to go:
 - **Fonts.** The interface uses the system's own UI font, and both the UI font
   and the monospace font can be changed in Settings, with a reset to the
   default.
+- **Working hotkeys.** The palette's Go to shortcuts and the Send to shortcuts
+  in the history and message editor work without opening a menu, and the
+  Hotkeys settings page lists the suite's real shortcuts and rebinds them.
 - **No roadmap.** The in-app roadmap, the "not yet implemented" dialog and
   `ROADMAP.md` are gone; the Discover tab keeps the getting-started page.
 - **Smaller things.** Quitting with Cmd-Q asks to save like closing the window
