@@ -38,7 +38,7 @@ public final class ApisPanel extends JPanel {
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         right.setOpaque(false);
         JButton starter = Ui.primaryButton("Download starter project", "open the project page with the module contract and a skeleton");
-        starter.addActionListener(e -> opentrap.ui.Unbuilt.openProject(this));
+        starter.addActionListener(e -> opentrap.ui.Upstream.open(this));
         right.add(starter);
         right.add(Glyphs.button(Glyphs.help(), "About the extension APIs", () -> JOptionPane.showMessageDialog(this,
                 "Implement opentrap.core.ToolModule in a jar and load it from Extensions > Installed.\n"

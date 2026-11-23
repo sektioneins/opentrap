@@ -16,8 +16,6 @@ public final class AboutDialog {
     /** This fork's repository; releases are published here. */
     private static final String FORK_REPO = "https://github.com/sektioneins/opentrap";
     private static final String SEKTIONEINS = "https://sektioneins.de";
-    /** The original project, for installation, help, the roadmap and contributing. */
-    private static final String REPO = "https://github.com/opentrap/opentrap";
     private static final String SITE = "https://opentrap.github.io/opentrap/";
 
     public static void show(Component parent) {
@@ -66,9 +64,9 @@ public final class AboutDialog {
         link(sb, accent, FORK_REPO + "/releases", "Releases");
         sb.append("</p>");
         sb.append("<p><b>Original OpenTRAP</b><br>");
-        link(sb, accent, REPO, "Source and issues on GitHub");
+        link(sb, accent, Upstream.URL, "Source and issues on GitHub");
         link(sb, accent, SITE, "Project site");
-        link(sb, accent, REPO + "/blob/main/CONTRIBUTING.md", "How to contribute");
+        link(sb, accent, Upstream.URL + "/blob/main/CONTRIBUTING.md", "How to contribute");
         sb.append("</p>");
         sb.append("</body></html>");
         return sb.toString();

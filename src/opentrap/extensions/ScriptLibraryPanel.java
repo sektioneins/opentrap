@@ -87,7 +87,7 @@ public final class ScriptLibraryPanel extends JPanel {
         head.add(Ui.vbox(Ui.heading(title), Ui.note(blurb)), BorderLayout.CENTER);
         JPanel hr = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
         hr.setOpaque(false);
-        hr.add(Glyphs.button(Glyphs.github(18, Theme.ICON), "Ready-to-use scripts on GitHub", () -> opentrap.ui.Unbuilt.openProject(this)));
+        hr.add(Glyphs.button(Glyphs.github(18, Theme.ICON), "Ready-to-use scripts on GitHub", () -> opentrap.ui.Upstream.open(this)));
         hr.add(Glyphs.button(Glyphs.help(), "About scripts", () -> JOptionPane.showMessageDialog(this,
                 "Scripts are small Java methods that tools run at a defined point.\n"
               + "Each function has a fixed signature; the editor shows it.\n"
@@ -175,13 +175,13 @@ public final class ScriptLibraryPanel extends JPanel {
         Ui.sizeNote(t, 420);
         t.setAlignmentX(Component.CENTER_ALIGNMENT);
         JButton learn = Ui.button("Learn more");
-        learn.addActionListener(e -> opentrap.ui.Unbuilt.openProject(this));
+        learn.addActionListener(e -> opentrap.ui.Upstream.open(this));
         JButton neu = Ui.primaryButton("New script", "create a script");
         neu.setIcon(Glyphs.plusRing(14, Color.WHITE));
         neu.addActionListener(e -> newScript());
         JPanel btns = Ui.row(learn, neu);
         btns.setAlignmentX(Component.CENTER_ALIGNMENT);
-        JLabel gh = Ui.link("View GitHub repository", () -> opentrap.ui.Unbuilt.openProject(ScriptLibraryPanel.this));
+        JLabel gh = Ui.link("View GitHub repository", () -> opentrap.ui.Upstream.open(ScriptLibraryPanel.this));
         gh.setAlignmentX(Component.CENTER_ALIGNMENT);
         col.add(Box.createVerticalGlue());
         col.add(icon); col.add(Box.createVerticalStrut(18));

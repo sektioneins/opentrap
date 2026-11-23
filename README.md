@@ -55,6 +55,8 @@ For everything else, the original project is the place to go:
 - **Fonts.** The interface uses the system's own UI font, and both the UI font
   and the monospace font can be changed in Settings, with a reset to the
   default.
+- **No roadmap.** The in-app roadmap, the "not yet implemented" dialog and
+  `ROADMAP.md` are gone; the Discover tab keeps the getting-started page.
 - **Smaller things.** Quitting with Cmd-Q asks to save like closing the window
   does, the scan engine starts on systems without `setsid`, and the test suite
   runs in about 3 seconds instead of 24.

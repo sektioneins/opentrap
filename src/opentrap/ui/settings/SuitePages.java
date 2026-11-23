@@ -40,7 +40,7 @@ public final class SuitePages {
         SettingsPage p = new SettingsPage();
         JButton check = Ui.primaryButton("Check for updates", "open the project's releases page");
         check.addActionListener(e -> {
-            try { Desktop.getDesktop().browse(java.net.URI.create(opentrap.ui.Unbuilt.PROJECT_URL + "/releases")); } catch (Exception _) { }
+            try { Desktop.getDesktop().browse(java.net.URI.create(opentrap.ui.Upstream.URL + "/releases")); } catch (Exception _) { }
         });
         p.block("Updates [installer version only]", SettingsPage.Kind.USER,
                 "Whether OpenTRAP checks for a newer release when it starts, and from which channel.",
@@ -61,7 +61,7 @@ public final class SuitePages {
         JButton copy = Ui.button("Copy");
         copy.addActionListener(e -> Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new java.awt.datatransfer.StringSelection(debugId.getText()), null));
         JButton email = Ui.button("Email support to report a bug");
-        email.addActionListener(e -> opentrap.ui.Unbuilt.openProject(email));
+        email.addActionListener(e -> opentrap.ui.Upstream.open(email));
         p.block("Performance feedback", SettingsPage.Kind.USER,
                 "Help improve OpenTRAP by sharing anonymous performance data, or log it locally to attach to a bug report.",
                 () -> { s.setBool("perf.submit", false); s.setBool("perf.logLocal", false); },

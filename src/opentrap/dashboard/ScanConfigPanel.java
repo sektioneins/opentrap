@@ -692,7 +692,7 @@ public final class ScanConfigPanel extends JPanel {
             JTextArea t = Ui.note("Write a check once and the scanner runs it against every audit item. Custom checks live in the Script library under Extensions.");
             Ui.sizeNote(t, 420);
             JButton learn = Ui.button("Learn more");
-            learn.addActionListener(e -> opentrap.ui.Unbuilt.openProject(this));
+            learn.addActionListener(e -> opentrap.ui.Upstream.open(this));
             JButton go = Ui.primaryButton("Go to custom scan checks", "open Extensions > Custom scan checks");
             go.addActionListener(e -> {
                 java.awt.Window w = SwingUtilities.getWindowAncestor(this);

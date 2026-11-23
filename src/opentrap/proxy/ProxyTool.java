@@ -383,7 +383,7 @@ public class ProxyTool implements ToolModule {
             lights.setAlignmentX(Component.CENTER_ALIGNMENT);
             JButton learn = Ui.button("Learn more", "open the project documentation");
             learn.setFont(Ui.BOLD);
-            learn.addActionListener(ev -> opentrap.ui.Unbuilt.openProject(this));
+            learn.addActionListener(ev -> opentrap.ui.Upstream.open(this));
             idleBrowser.setFont(Ui.BOLD);
             JPanel idleButtons = new JPanel(new FlowLayout(FlowLayout.CENTER, 14, 0));
             idleButtons.setOpaque(false);

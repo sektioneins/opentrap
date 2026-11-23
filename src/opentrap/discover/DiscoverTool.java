@@ -6,19 +6,14 @@ import opentrap.ui.Fonts;
 import opentrap.ui.Glyphs;
 import opentrap.ui.Theme;
 import opentrap.ui.Ui;
-import opentrap.ui.Unbuilt;
+import opentrap.ui.Upstream;
 
 import javax.swing.*;
-import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 
 /**
  * The Discover tool: a landing page with a hero band, resource links and a
- * gallery of features, then the getting-started guide and the roadmap.
- *
- * <p>The roadmap is generated from {@link Unbuilt#all()} - every planned but
- * unbuilt feature with its location and reference code - so the list stays in
- * step with the placeholders in the interface.
+ * gallery of features, then the getting-started guide.
  */
 public class DiscoverTool implements ToolModule {
 
@@ -29,7 +24,6 @@ public class DiscoverTool implements ToolModule {
     @Override public Tab[] tabs() {
         return new Tab[]{
                 new Tab("Getting started", Ui.scroll(landing())),
-                new Tab("Roadmap", roadmap()),
         };
     }
 
@@ -76,7 +70,7 @@ public class DiscoverTool implements ToolModule {
         });
         JButton learn = Ui.button("Learn more", "open the project page");
         learn.setIcon(Glyphs.help(14, Theme.ICON));
-        learn.addActionListener(e -> Unbuilt.openProject(root));
+        learn.addActionListener(e -> Upstream.open(root));
         for (JComponent c : new JComponent[]{headline, blurb, small, Ui.row(start, learn)}) {
             c.setAlignmentX(Component.LEFT_ALIGNMENT);
             heroText.add(c);
@@ -90,14 +84,13 @@ public class DiscoverTool implements ToolModule {
         root.add(hero);
 
         // Resource cards.
-        JPanel cards = new JPanel(new GridLayout(1, 5, 16, 0));
+        JPanel cards = new JPanel(new GridLayout(1, 4, 16, 0));
         cards.setOpaque(false);
         cards.setBorder(Ui.pad(16, 24, 16, 24));
-        cards.add(resource("Documentation", "README and guides", Glyphs.book(28, Theme.ICON), Unbuilt.PROJECT_URL + "#readme"));
-        cards.add(resource("Roadmap", "what is next", Glyphs.arrow(28, Theme.ICON, 0), Unbuilt.PROJECT_URL + "/blob/main/ROADMAP.md"));
-        cards.add(resource("Issues", "report a bug, ask for a feature", Glyphs.help(28, Theme.ICON), Unbuilt.PROJECT_URL + "/issues"));
-        cards.add(resource("Releases", "download the latest build", Glyphs.export(28, Theme.ICON), Unbuilt.PROJECT_URL + "/releases"));
-        cards.add(resource("Contributing", "how to send a pull request", Glyphs.github(28, Theme.ICON), Unbuilt.PROJECT_URL + "/blob/main/CONTRIBUTING.md"));
+        cards.add(resource("Documentation", "README and guides", Glyphs.book(28, Theme.ICON), Upstream.URL + "#readme"));
+        cards.add(resource("Issues", "report a bug, ask for a feature", Glyphs.help(28, Theme.ICON), Upstream.URL + "/issues"));
+        cards.add(resource("Releases", "download the latest build", Glyphs.export(28, Theme.ICON), Upstream.URL + "/releases"));
+        cards.add(resource("Contributing", "how to send a pull request", Glyphs.github(28, Theme.ICON), Upstream.URL + "/blob/main/CONTRIBUTING.md"));
         cards.setMaximumSize(new Dimension(Integer.MAX_VALUE, 110));
         root.add(cards);
 
@@ -217,50 +210,5 @@ public class DiscoverTool implements ToolModule {
         p.add(t, BorderLayout.NORTH);
         p.add(d, BorderLayout.CENTER);
         return p;
-    }
-
-    private JComponent roadmap() {
-        JPanel root = new JPanel(new BorderLayout(0, 10));
-        root.setBorder(Ui.pad(16, 16, 16, 16));
-        root.setOpaque(false);
-
-        JPanel head = new JPanel();
-        head.setLayout(new BoxLayout(head, BoxLayout.Y_AXIS));
-        head.setOpaque(false);
-        JLabel h = Ui.heading("Roadmap");
-        h.setAlignmentX(Component.LEFT_ALIGNMENT);
-        JComponent intro = Ui.note("OpenTRAP is built in the open. The features below "
-                + "are planned but not yet implemented, each with a reference code. "
-                + "Pick one and open a pull request on the main project to build it - "
-                + "accepted work is merged with full credit. To discuss a feature or "
-                + "ask for it to be prioritised, open an issue on the project.");
-        intro.setAlignmentX(Component.LEFT_ALIGNMENT);
-        intro.setMaximumSize(new Dimension(900, intro.getPreferredSize().height));
-        JButton gh = Ui.primaryButton("Open project on GitHub", "open the OpenTRAP project page");
-        gh.addActionListener(e -> Unbuilt.openProject(root));
-        JPanel ghRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-        ghRow.setOpaque(false);
-        ghRow.setAlignmentX(Component.LEFT_ALIGNMENT);
-        ghRow.add(gh);
-        head.add(h);
-        head.add(Box.createVerticalStrut(4));
-        head.add(intro);
-        head.add(Box.createVerticalStrut(8));
-        head.add(ghRow);
-        root.add(head, BorderLayout.NORTH);
-
-        DefaultTableModel model = new DefaultTableModel(new Object[]{"Area", "Feature", "Reference"}, 0) {
-            @Override public boolean isCellEditable(int r, int c) { return false; }
-        };
-        for (Unbuilt u : Unbuilt.all()) {
-            String area = u.location().contains(" > ") ? u.group() : "Suite";
-            model.addRow(new Object[]{area, u.feature(), u.code()});
-        }
-        if (Unbuilt.all().isEmpty()) model.addRow(new Object[]{"", "Everything on the roadmap is built. Open an issue to propose what comes next.", ""});
-        JTable table = new JTable(model);
-        Ui.styleTable(table);
-        Ui.distributeWidths(table, 140, 300, 220);
-        root.add(Ui.scroll(table), BorderLayout.CENTER);
-        return root;
     }
 }

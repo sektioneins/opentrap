@@ -364,7 +364,6 @@ public class SuiteFrame extends JFrame {
         JMenu help = new JMenu("Help");
         help.setFont(Ui.PLAIN);
         addItem(help, "proxy setup instructions", e -> showProxyHelp());
-        addItem(help, "roadmap", e -> selectTool("discover"));
         addItem(help, "about", e -> AboutDialog.show(this));
         menuBar.add(help);
     }

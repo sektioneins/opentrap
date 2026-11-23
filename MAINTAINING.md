@@ -36,21 +36,6 @@ just run        # launch the dev jar (auto HiDPI scale; just run 2 to force)
 just test       # run the test suite
 ```
 
-## Roadmap
-
-`ROADMAP.md` is generated, never edited by hand. Its single source is the registry
-of not-yet-implemented features in `src/opentrap/ui/Unbuilt.java`, which also
-drives the Roadmap tab under Discover and the dialog each placeholder opens.
-After changing the registry, rebuild and regenerate the file:
-
-```
-just build
-java -cp build opentrap.ui.Unbuilt ROADMAP.md
-```
-
-Commit the regenerated file with the change, so the repository and the interface
-never disagree about what is open.
-
 ## Release (the AppImage is the only published artefact)
 
 ```

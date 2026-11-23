@@ -105,7 +105,7 @@ public class CollaboratorTool implements ToolModule {
         JTextArea emptyText = Ui.note("Click \"Copy to clipboard\" to generate Collaborator payloads that you can use when testing");
         Ui.sizeNote(emptyText, 420);
         JButton learn = Ui.button("Learn more");
-        learn.addActionListener(e -> opentrap.ui.Unbuilt.openProject(table));
+        learn.addActionListener(e -> opentrap.ui.Upstream.open(table));
         for (JComponent c : new JComponent[]{emptyIcon, emptyTitle, emptyText, learn}) { c.setAlignmentX(Component.CENTER_ALIGNMENT); emptyCol.add(c); emptyCol.add(Box.createVerticalStrut(10)); }
         JPanel empty = new JPanel(new GridBagLayout());
         empty.setOpaque(false);

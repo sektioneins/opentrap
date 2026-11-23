@@ -39,7 +39,7 @@ public final class CustomActionsPanel extends JPanel {
         JButton neu = Ui.button("New", "write a new custom action");
         neu.setIcon(Glyphs.plus(14, Theme.ICON));
         neu.addActionListener(e -> goToLibrary());
-        JLabel learn = Ui.link("Learn more", () -> Unbuilt.openProject(CustomActionsPanel.this));
+        JLabel learn = Ui.link("Learn more", () -> Upstream.open(CustomActionsPanel.this));
         for (JComponent c : new JComponent[]{icon, h, t, samples, Ui.row(load, neu), learn}) {
             c.setAlignmentX(Component.CENTER_ALIGNMENT);
             col.add(c);

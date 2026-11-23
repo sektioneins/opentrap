@@ -195,7 +195,7 @@ public class HistoryContextMenu {
         addI(menu, "Save item", Glyphs.export(14, Theme.ICON), () -> saveItem(first));
         addI(menu, "Add to site map", Glyphs.plus(14, Theme.ICON), () -> { for (LogEntry e : sel) ctx.siteMapChanged(e); });
         menu.addSeparator();
-        addI(menu, "Proxy history documentation", Glyphs.help(14, Theme.ICON), () -> opentrap.ui.Unbuilt.openProject(table));
+        addI(menu, "Proxy history documentation", Glyphs.help(14, Theme.ICON), () -> opentrap.ui.Upstream.open(table));
         return menu;
     }
 
