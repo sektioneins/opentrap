@@ -65,6 +65,31 @@ public final class SessionTest {
             Expect.isTrue(h.contains("theme=dark"), "theme offered");
         });
 
+        Harness.test("a cookie set without Domain goes back only to the host that set it", () -> {
+            CookieJar jar = new CookieJar();
+            jar.updateFrom(A, resp("HTTP/1.1 200 OK\nSet-Cookie: sid=abc; Path=/\nContent-Length: 0\n\n"));
+            Expect.notNull(jar.headerFor(A, get("/", "a.test"), null), "sent to a.test");
+            Expect.isNull(jar.headerFor(new HttpService("x.a.test", 443, true), get("/", "x.a.test"), null),
+                    "not sent to x.a.test");
+        });
+
+        Harness.test("a cookie set with Domain also goes to that domain's subdomains", () -> {
+            CookieJar jar = new CookieJar();
+            jar.updateFrom(A, resp("HTTP/1.1 200 OK\nSet-Cookie: sid=abc; Domain=.a.test\nContent-Length: 0\n\n"));
+            Expect.notNull(jar.headerFor(A, get("/", "a.test"), null), "sent to a.test");
+            Expect.notNull(jar.headerFor(new HttpService("x.a.test", 443, true), get("/", "x.a.test"), null),
+                    "sent to x.a.test");
+        });
+
+        Harness.test("an empty Domain attribute leaves the cookie host-only", () -> {
+            CookieJar jar = new CookieJar();
+            jar.updateFrom(A, resp("HTTP/1.1 200 OK\nSet-Cookie: sid=abc; Domain=\nContent-Length: 0\n\n"));
+            Expect.notNull(jar.headerFor(A, get("/", "a.test"), null), "sent to a.test");
+            Expect.isNull(jar.headerFor(B, get("/", "b.test"), null), "not sent to b.test");
+            Expect.isNull(jar.headerFor(new HttpService("x.a.test", 443, true), get("/", "x.a.test"), null),
+                    "not sent to x.a.test");
+        });
+
         Harness.test("secure cookies are withheld from plain http", () -> {
             CookieJar jar = new CookieJar();
             jar.set(new Cookie("sid", "abc", "example.com", "/", true, 0));

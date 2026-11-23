@@ -49,13 +49,18 @@ public final class CookieJar implements Serializable {
         Cookie c = new Cookie();
         c.name = parts[0].substring(0, eq).trim();
         c.value = parts[0].substring(eq + 1).trim();
+        // Without a Domain attribute the cookie belongs to the sending host alone
+        // (RFC 6265 5.3 step 6). An empty Domain value is ignored, as 5.2.3 says.
         c.domain = host == null ? "" : host;
+        c.hostOnly = true;
         c.path = "/";
         for (int i = 1; i < parts.length; i++) {
             String a = parts[i].trim();
             String al = a.toLowerCase(Locale.ROOT);
-            if (al.startsWith("domain=")) c.domain = a.substring(7).trim();
-            else if (al.startsWith("path=")) c.path = a.substring(5).trim();
+            if (al.startsWith("domain=")) {
+                String d = a.substring(7).trim();
+                if (!d.isEmpty()) { c.domain = d; c.hostOnly = false; }
+            } else if (al.startsWith("path=")) c.path = a.substring(5).trim();
             else if (al.equals("secure")) c.secure = true;
             else if (al.startsWith("max-age=")) {
                 try { c.expires = System.currentTimeMillis() + Long.parseLong(a.substring(8).trim()) * 1000L; }

@@ -323,7 +323,7 @@ public class SessionPanel extends JPanel {
     private JComponent buildCookieJar() {
         JTable table = new JTable(cookieModel);
         Ui.styleTable(table);
-        Ui.distributeWidths(table, 160, 120, 220, 90, 60);
+        Ui.distributeWidths(table, 160, 120, 220, 90, 60, 70);
 
         JButton add = Ui.primaryButton("add cookie", "add a cookie to the jar");
         JButton del = Ui.button("delete");
@@ -359,7 +359,9 @@ public class SessionPanel extends JPanel {
         JTextField domain = Ui.field(c.domain);
         JTextField path = Ui.field(c.path);
         JCheckBox secure = Ui.check("secure (https only)", c.secure);
-        JPanel form = Ui.form("name", name, "value", value, "domain", domain, "path", path, "secure", secure);
+        JCheckBox hostOnly = Ui.check("this host only, not its subdomains", c.hostOnly);
+        JPanel form = Ui.form("name", name, "value", value, "domain", domain, "path", path,
+                "secure", secure, "host only", hostOnly);
         int ok = JOptionPane.showConfirmDialog(ctx.frame(), form, "cookie",
                 JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
         if (ok != JOptionPane.OK_OPTION) return false;
@@ -368,6 +370,7 @@ public class SessionPanel extends JPanel {
         c.domain = domain.getText().trim();
         c.path = path.getText().trim().isEmpty() ? "/" : path.getText().trim();
         c.secure = secure.isSelected();
+        c.hostOnly = hostOnly.isSelected();
         return true;
     }
 
@@ -445,16 +448,16 @@ public class SessionPanel extends JPanel {
     }
 
     private final class CookieModel extends AbstractTableModel {
-        private final String[] cols = {"domain", "name", "value", "path", "secure"};
+        private final String[] cols = {"domain", "name", "value", "path", "secure", "host only"};
         private List<Cookie> rows = java.util.List.of();
         void refresh() { rows = sm.jar().all(); fireTableDataChanged(); }
         @Override public int getRowCount() { return rows.size(); }
         @Override public int getColumnCount() { return cols.length; }
         @Override public String getColumnName(int c) { return cols[c]; }
-        @Override public Class<?> getColumnClass(int c) { return c == 4 ? Boolean.class : String.class; }
+        @Override public Class<?> getColumnClass(int c) { return c >= 4 ? Boolean.class : String.class; }
         @Override public Object getValueAt(int r, int c) {
             Cookie k = rows.get(r);
-            return switch (c) { case 0 -> k.domain; case 1 -> k.name; case 2 -> k.value; case 3 -> k.path; default -> k.secure; };
+            return switch (c) { case 0 -> k.domain; case 1 -> k.name; case 2 -> k.value; case 3 -> k.path; case 4 -> k.secure; default -> k.hostOnly; };
         }
     }
 }
