@@ -94,7 +94,10 @@ public class MessageEditor extends JPanel {
     }
 
     private final JTabbedPane views = new JTabbedPane() {
-        @Override public void updateUI() { setUI(new ReserveTabUI()); }
+        @Override public void updateUI() {
+            putClientProperty("html.disable", Boolean.TRUE);   // set directly: this UI bypasses HtmlGuard
+            setUI(new ReserveTabUI());
+        }
     };
     /** Whether the views wrap long lines; driven by the toolbar's wrap toggle. */
     private boolean wrapLines = true;

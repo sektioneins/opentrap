@@ -118,6 +118,16 @@ public final class HtmlGuardTest {
             plain(found);
         });
 
+        Harness.test("the tab pane inside a message editor does not render a tab title as HTML", () -> {
+            MessageEditor ed = new MessageEditor(new SuiteContext(), MessageEditor.RESPONSE, false);
+            List<javax.swing.JTabbedPane> panes = new ArrayList<>();
+            findTabs(ed, panes);
+            Expect.isTrue(!panes.isEmpty(), "found a tab pane");
+            for (javax.swing.JTabbedPane p : panes) {
+                Expect.equal(p.getClientProperty("html.disable"), Boolean.TRUE, "html.disable");
+            }
+        });
+
         Harness.test("a component that allows HTML still renders it", () -> {
             Expect.notNull(HtmlGuard.allowHtml(new JLabel(M)).getClientProperty("html"), "label view");
             Expect.notNull(HtmlGuard.allowHtml(new JToggleButton(M)).getClientProperty("html"), "button view");
@@ -190,6 +200,11 @@ public final class HtmlGuardTest {
     private static void openInspector(Component c) {
         if (c instanceof VerticalTab tab && "Inspector".equals(tab.getText())) { tab.doClick(); return; }
         if (c instanceof Container k) for (Component x : k.getComponents()) openInspector(x);
+    }
+
+    private static void findTabs(java.awt.Component c, List<javax.swing.JTabbedPane> out) {
+        if (c instanceof javax.swing.JTabbedPane p) out.add(p);
+        if (c instanceof java.awt.Container k) for (java.awt.Component ch : k.getComponents()) findTabs(ch, out);
     }
 
     private static void inspectorShowsHeaderLiterally() throws Exception {

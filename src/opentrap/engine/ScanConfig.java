@@ -24,8 +24,8 @@ public record ScanConfig(
         int ajaxMaxDurationMin,  // AJAX crawl time budget (0 = none)
         int ajaxMaxDepth,        // AJAX crawl click-depth (0 = unlimited)
         int ajaxMaxStates,       // AJAX distinct UI states explored (0 = unlimited)
-        String attackStrength,   // LOW, MEDIUM, HIGH, INSANE
-        String alertThreshold,   // OFF, LOW, MEDIUM, HIGH
+        String attackStrength,   // DEFAULT, LOW, MEDIUM, HIGH, INSANE
+        String alertThreshold,   // OFF, DEFAULT, LOW, MEDIUM, HIGH
         int injectableMask,      // where payloads are injected (see INJECT_* bits)
         int rpcMask,             // request-body content types tested (see RPC_* bits)
         int delayMs,             // throttle between active-scan requests (0 = fastest)

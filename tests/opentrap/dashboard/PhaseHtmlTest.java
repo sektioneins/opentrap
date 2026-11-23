@@ -14,5 +14,13 @@ public final class PhaseHtmlTest {
             Expect.isTrue(h.contains("&lt;b&gt;"), "escaped");
             Expect.isFalse(h.contains("<b>"), "no live tag");
         });
+
+        Harness.test("the phase renderer still renders its badges as HTML with the guard installed", () -> {
+            opentrap.ui.theme.HtmlGuard.install();
+            javax.swing.JTable t = new javax.swing.JTable(1, 1);
+            java.awt.Component c = new DashboardTool.PhaseRenderer()
+                    .getTableCellRendererComponent(t, "1 2 ", false, false, 0, 0);
+            Expect.notNull(((javax.swing.JComponent) c).getClientProperty("html"), "html view");
+        });
     }
 }

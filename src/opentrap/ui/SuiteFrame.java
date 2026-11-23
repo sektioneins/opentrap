@@ -29,6 +29,7 @@ public class SuiteFrame extends JFrame {
      */
     private final JTabbedPane tabs = new JTabbedPane() {
         @Override public void updateUI() {
+            putClientProperty("html.disable", Boolean.TRUE);   // set directly: this UI bypasses HtmlGuard
             setUI(new opentrap.ui.theme.FlatTabbedPaneUI() {
                 @Override protected void installDefaults() {
                     super.installDefaults();

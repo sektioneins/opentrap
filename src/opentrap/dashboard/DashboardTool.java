@@ -1494,7 +1494,7 @@ public class DashboardTool implements ToolModule {
     }
 
     /** Numbered phase badges: blue for done, grey for pending (the trailing space marks "all done"). */
-    private static final class PhaseRenderer extends javax.swing.table.DefaultTableCellRenderer {
+    static final class PhaseRenderer extends javax.swing.table.DefaultTableCellRenderer {
         PhaseRenderer() { opentrap.ui.theme.HtmlGuard.allowHtml(this); }
 
         @Override public Component getTableCellRendererComponent(JTable t, Object v, boolean sel, boolean f, int r, int c) {

@@ -25,6 +25,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * property, which {@code BasicHTML} honours, and then builds the real UI. The
  * guard sits above the look and feel, so it holds whichever one is active.
  *
+ * <p>This class is not a {@code ComponentUI}; {@code UIDefaults.getUIClass}
+ * accepts it only through an unchecked cast (JDK 27, UIDefaults lines 718-719).
+ * Re-check that on a JDK bump.
+ *
  * <p>A {@code TitledBorder} paints its title through a label of its own and is
  * not covered; its title must never come from traffic.
  *
@@ -65,6 +69,7 @@ public final class HtmlGuard {
 
     /** Called by {@code UIDefaults} for each guarded component. */
     public static ComponentUI createUI(JComponent c) {
+        // Storing null removes the property, so the component is back to Swing's default.
         c.putClientProperty("html.disable",
                 Boolean.TRUE.equals(c.getClientProperty(ALLOW)) ? null : Boolean.TRUE);
         String id = c.getUIClassID();
