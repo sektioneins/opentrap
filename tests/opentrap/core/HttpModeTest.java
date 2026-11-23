@@ -1,16 +1,13 @@
 package opentrap.core;
 
-import opentrap.proxy.CertificateAuthority;
 import opentrap.testkit.Expect;
 import opentrap.testkit.Harness;
+import opentrap.testkit.TestTls;
 
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;
 import java.net.InetSocketAddress;
 import java.net.http.HttpClient.Version;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.stream.Stream;
 
 /**
  * Tests the HTTP mode plumbing without a network: the default stays the raw
@@ -102,12 +99,10 @@ public final class HttpModeTest {
         });
 
         Harness.test("an HTTP/3 send to an HTTPS server without QUIC is answered over HTTP/1.1", () -> {
-            Path dir = null;
             HttpsServer server = null;
             try {
-                dir = Files.createTempDirectory("http3-fallback");
                 server = HttpsServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-                server.setHttpsConfigurator(new HttpsConfigurator(new CertificateAuthority(dir).contextFor("127.0.0.1")));
+                server.setHttpsConfigurator(new HttpsConfigurator(TestTls.serverContext("127.0.0.1")));
                 server.createContext("/", ex -> {
                     byte[] b = Bytes.bytes("hello");
                     ex.sendResponseHeaders(200, b.length);
@@ -129,11 +124,6 @@ public final class HttpModeTest {
                 throw new RuntimeException(e);
             } finally {
                 if (server != null) server.stop(0);
-                if (dir != null) {
-                    try (Stream<Path> s = Files.walk(dir)) {
-                        s.sorted(java.util.Comparator.reverseOrder()).forEach(p -> p.toFile().delete());
-                    } catch (java.io.IOException _) {}
-                }
             }
         });
     }
