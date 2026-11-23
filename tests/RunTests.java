@@ -66,6 +66,7 @@ public final class RunTests {
         new opentrap.ui.ThemePaletteTest().run();
         new opentrap.ui.AppIconTest().run();
         new opentrap.ui.WordmarkTest().run();
+        new opentrap.ui.MacMenuBarTest().run();
         new opentrap.ui.TabbedPaneListenerTest().run();
         new opentrap.ui.IssueBadgeTest().run();
         new opentrap.ui.FieldUniformityTest().run();

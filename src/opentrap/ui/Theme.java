@@ -350,6 +350,7 @@ public final class Theme {
         d.put("MenuBar.gradient", null);
         d.put("MenuBar.background", bg);
         d.put("MenuBar.border", BorderFactory.createMatteBorder(0, 0, 1, 0, BORDER));
+        MacMenuBar.installDefaults(d);
         d.put("Menu.background", bg);
         d.put("Menu.foreground", text);
         d.put("Menu.selectionBackground", sel);

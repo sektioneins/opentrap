@@ -104,6 +104,7 @@ public class SuiteFrame extends JFrame {
             @Override public void windowClosing(WindowEvent e) { confirmExit(); }
         });
         installQuitHandler();
+        MacMenuBar.installAppMenu(() -> AboutDialog.show(this), () -> SettingsDialog.open(this, ctx));
 
         // A session bound to a project file is written back every 30 seconds
         // when something changed (in the background, atomically), so a crash

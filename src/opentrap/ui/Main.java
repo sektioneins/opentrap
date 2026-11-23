@@ -84,6 +84,7 @@ public class Main {
 
         System.setProperty("awt.useSystemAAFontSettings", "on");
         System.setProperty("swing.aatext", "true");
+        MacMenuBar.request();
         Theme.install();
 
         // Scale the whole interface before any window is built. The factor comes
