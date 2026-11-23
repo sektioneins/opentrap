@@ -77,19 +77,30 @@ public final class ZapScanner {
      * cannot match exactly is left out, so the engine is never wider than the
      * app; an exclude rule it cannot match exactly is widened, which can only
      * exclude more. Throws when include rules exist but none can be handed
-     * over, since the scan would then not be bound to the scope.
+     * over, since the scan would then not be bound to the scope. When a
+     * target is an IPv6 literal, the notes also name every rule with a host
+     * pattern, as such a target gets less coverage from it.
      */
     static EngineScope engineScope(opentrap.core.Scope scope, java.util.List<Seed> seeds) throws Exception {
         java.util.List<String> includes = new java.util.ArrayList<>();
         java.util.List<String> excludes = new java.util.ArrayList<>();
         java.util.List<String> notes = new java.util.ArrayList<>();
         boolean anyEnabled = false;
+        // The engine writes an IPv6-literal host in brackets, which no host
+        // pattern is translated to meet: an include's never matches one and
+        // an exclude's matches every one. Say so when a target is one.
+        boolean ipv6Seed = seeds.stream().anyMatch(s -> s.service().host().contains(":"));
         for (opentrap.core.Scope.Rule r : scope.include()) {
             if (!r.enabled) continue;
             anyEnabled = true;
             String re = r.includeRegex();
-            if (re != null) includes.add(re);
-            else notes.add("left out include rule the engine cannot match exactly: " + r.describe());
+            if (re == null) {
+                notes.add("left out include rule the engine cannot match exactly: " + r.describe());
+                continue;
+            }
+            includes.add(re);
+            if (ipv6Seed && hasHostPattern(r))
+                notes.add("include rule with a host pattern never matches an IPv6-literal host: " + r.describe());
         }
         if (includes.isEmpty()) {
             if (anyEnabled) throw new Exception("none of the scope's include rules can be handed to the engine "
@@ -109,8 +120,15 @@ public final class ZapScanner {
             if (re == null) continue;
             excludes.add(re);
             if (!r.engineExact()) notes.add("widened exclude rule the engine cannot match exactly: " + r.describe());
+            if (ipv6Seed && hasHostPattern(r))
+                notes.add("exclude rule with a host pattern matches every IPv6-literal host: " + r.describe());
         }
         return new EngineScope(includes, excludes, notes);
+    }
+
+    /** Whether an advanced rule constrains the host by a pattern. */
+    private static boolean hasHostPattern(opentrap.core.Scope.Rule r) {
+        return r.prefix == null && r.host != null && !r.host.isBlank();
     }
 
     /** One seed to crawl: the target service and the full seed URL. */

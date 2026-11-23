@@ -172,6 +172,29 @@ public final class EngineMappingTest {
             Expect.isTrue(es.notes().contains(
                     "widened exclude rule the engine cannot match exactly: file matches \\bx"), "note");
         });
+
+        Harness.test("host-pattern rules are named when a target is an IPv6 literal", () -> {
+            opentrap.core.Scope s = new opentrap.core.Scope();
+            s.include().add(new opentrap.core.Scope.Rule("any", "^\\Qexample.com\\E$", "", ""));
+            s.exclude().add(new opentrap.core.Scope.Rule("any", "^\\Qother.test\\E$", "", ""));
+            String url = "http://[::1]:8080/";
+            ZapScanner.Seed seed = new ZapScanner.Seed(opentrap.core.HttpService.parse(url), url);
+            ZapScanner.EngineScope es = scopeOf(s, List.of(seed));
+            Expect.isTrue(es.notes().contains("include rule with a host pattern never matches an IPv6-literal "
+                    + "host: host matches example.com"), "include note");
+            Expect.isTrue(es.notes().contains("exclude rule with a host pattern matches every IPv6-literal "
+                    + "host: host matches other.test"), "exclude note");
+        });
+
+        Harness.test("host-pattern rules are not named when no target is an IPv6 literal", () -> {
+            opentrap.core.Scope s = new opentrap.core.Scope();
+            s.include().add(new opentrap.core.Scope.Rule("any", "^\\Qexample.com\\E$", "", ""));
+            s.exclude().add(new opentrap.core.Scope.Rule("any", "^\\Qother.test\\E$", "", ""));
+            String url = "http://example.com:8080/";
+            ZapScanner.Seed seed = new ZapScanner.Seed(opentrap.core.HttpService.parse(url), url);
+            ZapScanner.EngineScope es = scopeOf(s, List.of(seed));
+            for (String note : es.notes()) Expect.isFalse(note.contains("IPv6"), "note " + note);
+        });
     }
 
     /** Body size for evidence in the sharing tests, large enough that one copy is unmistakable in the file. */
