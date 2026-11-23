@@ -1,8 +1,16 @@
 package opentrap.ui;
 
+import opentrap.core.Settings;
 import opentrap.core.SuiteContext;
 import opentrap.testkit.Expect;
 import opentrap.testkit.Harness;
+import opentrap.ui.settings.InterfacePages;
+
+import javax.swing.*;
+import java.awt.Component;
+import java.awt.Container;
+import java.util.ArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import java.util.List;
 
@@ -39,5 +47,83 @@ public final class SettingsPagesTest {
             Expect.equal(String.join("\n    ", SettingsDialog.buildEveryPage(ctx)), "",
                     "second build");
         });
+
+        Harness.test("choosing a UI font saves family and size and restarts once", () -> {
+            Settings s = new Settings();
+            AtomicInteger n = new AtomicInteger();
+            try {
+                InterfacePages.applyUiFont(s, "Fira Sans", 15, n::incrementAndGet);
+                Expect.equal(s.get(Fonts.KEY_UI_FAMILY, null), "Fira Sans", "family");
+                Expect.equal(s.get(Fonts.KEY_UI_SIZE, null), "15", "size");
+                Expect.equal(n.get(), 1, "restarts");
+            } finally { s.remove(Fonts.KEY_UI_FAMILY); s.remove(Fonts.KEY_UI_SIZE); }
+        });
+
+        Harness.test("resetting the UI font removes both keys and restarts once", () -> {
+            Settings s = new Settings();
+            AtomicInteger n = new AtomicInteger();
+            try {
+                s.set(Fonts.KEY_UI_FAMILY, "Fira Sans"); s.set(Fonts.KEY_UI_SIZE, "15");
+                InterfacePages.resetUiFont(s, n::incrementAndGet);
+                Expect.isTrue(s.get(Fonts.KEY_UI_FAMILY, null) == null, "family removed");
+                Expect.isTrue(s.get(Fonts.KEY_UI_SIZE, null) == null, "size removed");
+                Expect.equal(n.get(), 1, "restarts");
+            } finally { s.remove(Fonts.KEY_UI_FAMILY); s.remove(Fonts.KEY_UI_SIZE); }
+        });
+
+        Harness.test("choosing a monospace font saves it in the editor font format and restarts once", () -> {
+            Settings s = new Settings();
+            AtomicInteger n = new AtomicInteger();
+            try {
+                InterfacePages.applyMonoFont(s, "Fira Code", 14, n::incrementAndGet);
+                Expect.equal(s.get(Fonts.KEY_MONO, null), "Fira Code 14pt", "saved value");
+                Expect.equal(n.get(), 1, "restarts");
+            } finally { s.remove(Fonts.KEY_MONO); }
+        });
+
+        Harness.test("resetting the monospace font removes the key and restarts once", () -> {
+            Settings s = new Settings();
+            AtomicInteger n = new AtomicInteger();
+            try {
+                s.set(Fonts.KEY_MONO, "Fira Code 14pt");
+                InterfacePages.resetMonoFont(s, n::incrementAndGet);
+                Expect.isTrue(s.get(Fonts.KEY_MONO, null) == null, "key removed");
+                Expect.equal(n.get(), 1, "restarts");
+            } finally { s.remove(Fonts.KEY_MONO); }
+        });
+
+        Harness.test("the display page shows the active UI font with change and reset, and no size box", () -> {
+            var all = parts(InterfacePages.display(new SuiteContext(), null));
+            Expect.isTrue(all.stream().anyMatch(c -> c instanceof JLabel l
+                    && Fonts.describe(Fonts.uiFamily(), Fonts.uiSize()).equals(l.getText())), "active font label");
+            Expect.equal(count(all, "Change font ..."), 1, "change buttons");
+            Expect.equal(count(all, "Reset to default"), 1, "reset buttons");
+            Expect.isTrue(all.stream().noneMatch(c -> c instanceof JComboBox<?> b && has(b, "13") && has(b, "20")),
+                    "no size combo");
+        });
+
+        Harness.test("the message editor page shows the active monospace font with change and reset", () -> {
+            var all = parts(InterfacePages.messageEditor(new SuiteContext()));
+            Expect.isTrue(all.stream().anyMatch(c -> c instanceof JLabel l
+                    && Fonts.describe(Fonts.monoFamily(), Fonts.monoSize()).equals(l.getText())), "active font label");
+            Expect.equal(count(all, "Change font ..."), 1, "change buttons");
+            Expect.equal(count(all, "Reset to default"), 1, "reset buttons");
+        });
+    }
+
+    private static java.util.List<Component> parts(Component root) {
+        var out = new ArrayList<Component>();
+        out.add(root);
+        if (root instanceof Container c) for (Component k : c.getComponents()) out.addAll(parts(k));
+        return out;
+    }
+
+    private static int count(java.util.List<Component> all, String text) {
+        return (int) all.stream().filter(c -> c instanceof JButton b && text.equals(b.getText())).count();
+    }
+
+    private static boolean has(JComboBox<?> b, String item) {
+        for (int i = 0; i < b.getItemCount(); i++) if (item.equals(String.valueOf(b.getItemAt(i)))) return true;
+        return false;
     }
 }

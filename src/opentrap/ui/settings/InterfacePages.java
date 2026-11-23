@@ -2,6 +2,7 @@ package opentrap.ui.settings;
 
 import opentrap.core.Settings;
 import opentrap.core.SuiteContext;
+import opentrap.ui.Fonts;
 import opentrap.ui.Glyphs;
 import opentrap.ui.OptionsPage;
 import opentrap.ui.Theme;
@@ -96,24 +97,16 @@ public final class InterfacePages {
                 () -> SettingsPage.clearPrefix(s, "editor.response."),
                 new ViewsTable(s, "editor.response.", new String[]{"Pretty", "Raw", "Hex", "Render", "Headers"},
                         new boolean[]{true, true, true, true, false}));
-        JLabel font = Ui.label(s.get("editor.font", "Monospaced 13pt"));
+        JLabel font = Ui.label(Fonts.describe(Fonts.monoFamily(), Fonts.monoSize()));
         JButton change = Ui.button("Change font ...");
-        change.addActionListener(e -> {
-            String[] families = GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames();
-            JComboBox<String> fam = Ui.combo(families);
-            fam.setSelectedItem(s.get("editor.font", "Monospaced 13pt").replaceAll(" \\d+pt$", ""));
-            JSpinner size = new JSpinner(new SpinnerNumberModel(13, 6, 40, 1));
-            JPanel f = Ui.form("Family:", fam, "Size:", size);
-            f.setBorder(Ui.pad(10, 10, 10, 10));
-            if (JOptionPane.showConfirmDialog(change, f, "Message editor font", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) == JOptionPane.OK_OPTION) {
-                String v = fam.getSelectedItem() + " " + size.getValue() + "pt";
-                s.set("editor.font", v); font.setText(v);
-            }
-        });
+        change.addActionListener(e -> chooseFont(change, "Message editor font", Fonts.monoFamily(), Fonts.monoSize(),
+                (fam, sz) -> applyMonoFont(s, fam, sz, InterfacePages::restartApp)));
+        JButton resetFont = Ui.button("Reset to default");
+        resetFont.addActionListener(e -> resetMonoFont(s, InterfacePages::restartApp));
         p.block("HTTP message display", SettingsPage.Kind.USER,
-                "How requests and responses are rendered in every message editor.",
+                "How requests and responses are rendered in every message editor. Changing the font restarts the app.",
                 () -> SettingsPage.clearPrefix(s, "editor.display."),
-                Ui.row(Ui.label("Font:"), font, change),
+                SettingsPage.labelled("Font:", font, change, resetFont),
                 SettingsPage.check(s, "editor.display.highlightRequest", true, "Highlight request syntax"),
                 SettingsPage.check(s, "editor.display.highlightResponse", true, "Highlight response syntax"),
                 SettingsPage.check(s, "editor.display.prettyByDefault", true, "Pretty print by default"),
@@ -472,10 +465,57 @@ public final class InterfacePages {
         }
     }
 
+    /** Saves the interface font and restarts through {@code restart}. */
+    public static void applyUiFont(Settings s, String family, int size, Runnable restart) {
+        s.set(Fonts.KEY_UI_FAMILY, family);
+        s.set(Fonts.KEY_UI_SIZE, String.valueOf(size));
+        restart.run();
+    }
+
+    /** Drops the saved interface font, so the system default applies after the restart. */
+    public static void resetUiFont(Settings s, Runnable restart) {
+        s.remove(Fonts.KEY_UI_FAMILY);
+        s.remove(Fonts.KEY_UI_SIZE);
+        restart.run();
+    }
+
+    /** Saves the monospace font in the {@code <Family> <N>pt} format and restarts through {@code restart}. */
+    public static void applyMonoFont(Settings s, String family, int size, Runnable restart) {
+        s.set(Fonts.KEY_MONO, Fonts.describe(family, size));
+        restart.run();
+    }
+
+    /** Drops the saved monospace font, so the system default applies after the restart. */
+    public static void resetMonoFont(Settings s, Runnable restart) {
+        s.remove(Fonts.KEY_MONO);
+        restart.run();
+    }
+
+    /** Relaunches the app so a changed font or theme is picked up everywhere. */
+    public static void restartApp() {
+        if (opentrap.ui.UiScale.relaunchWith(opentrap.ui.UiScale.desired(), opentrap.ui.Main.launchArgs)) System.exit(0);
+    }
+
+    /** Family and size dialog; calls {@code onOk} only when confirmed. */
+    private static void chooseFont(Component parent, String title, String family, int size, java.util.function.BiConsumer<String, Integer> onOk) {
+        JComboBox<String> fam = Ui.combo(GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames());
+        fam.setSelectedItem(family);
+        JSpinner sz = new JSpinner(new SpinnerNumberModel(Math.clamp(size, 6, 40), 6, 40, 1));
+        JPanel f = Ui.form("Family:", fam, "Size:", sz);
+        f.setBorder(Ui.pad(10, 10, 10, 10));
+        if (JOptionPane.showConfirmDialog(parent, f, title, JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) == JOptionPane.OK_OPTION)
+            onOk.accept(String.valueOf(fam.getSelectedItem()), (Integer) sz.getValue());
+    }
+
     public static SettingsPage display(SuiteContext ctx, JComponent existingDisplay) {
         Settings s = ctx.settings();
         SettingsPage p = new SettingsPage();
-        JComboBox<String> fontSize = SettingsPage.combo(s, "ui.fontSize", new String[]{"10", "11", "12", "13", "14", "15", "16", "18", "20"}, "13");
+        JLabel uiFont = Ui.label(Fonts.describe(Fonts.uiFamily(), Fonts.uiSize()));
+        JButton changeUi = Ui.button("Change font ...");
+        changeUi.addActionListener(e -> chooseFont(changeUi, "Interface font", Fonts.uiFamily(), Fonts.uiSize(),
+                (fam, sz) -> applyUiFont(s, fam, sz, InterfacePages::restartApp)));
+        JButton resetUi = Ui.button("Reset to default");
+        resetUi.addActionListener(e -> resetUiFont(s, InterfacePages::restartApp));
         JRadioButton light = Ui.radio("Light", !Theme.darkPreferred());
         JRadioButton dark = Ui.radio("Dark", Theme.darkPreferred());
         ButtonGroup g = new ButtonGroup(); g.add(light); g.add(dark);
@@ -484,13 +524,13 @@ public final class InterfacePages {
             if (wantDark == Theme.dark) return;
             s.set("ui.theme", wantDark ? "dark" : "light");
             try { java.util.prefs.Preferences.userRoot().node("opentrap.v1").put("ui.theme", wantDark ? "dark" : "light"); } catch (Exception _) { }
-            if (opentrap.ui.UiScale.relaunchWith(opentrap.ui.UiScale.desired(), opentrap.ui.Main.launchArgs)) System.exit(0);
+            restartApp();
         };
         light.addItemListener(theme); dark.addItemListener(theme);
         p.block("Appearance", SettingsPage.Kind.USER,
-                "The interface font size and colour theme. Changing the theme restarts the app so every panel comes up consistent.",
-                () -> { s.set("ui.fontSize", "13"); },
-                SettingsPage.labelled("Font size:", fontSize),
+                "The interface font and colour theme. Changing the font or the theme restarts the app so every panel comes up consistent.",
+                () -> { s.remove(Fonts.KEY_UI_FAMILY); s.remove(Fonts.KEY_UI_SIZE); },
+                SettingsPage.labelled("Font:", uiFont, changeUi, resetUi),
                 SettingsPage.labelled("Theme:", light, dark));
         if (existingDisplay != null) p.addSection(existingDisplay);
         JCheckBox configure = SettingsPage.check(s, "ui.scale.configure", true, "Configure scaling settings");
