@@ -196,6 +196,12 @@ public final class ScopeUrlRegexTest {
             Expect.isTrue(excludeHits(logout, "http://[fe80::1%25en0]:8080/logout"), "the logout page");
         });
 
+        Harness.test("the default logout exclude matches a zone ID with an underscore, which a prefix include admits", () -> {
+            String url = "http://[fe80::1%25br_1]:8080/logout";
+            Expect.isTrue(hits(Scope.Rule.prefix("http://[fe80::1%25br_1]:8080", false), url), "the prefix include");
+            Expect.isTrue(excludeHits(new Scope().exclude().get(0), url), "the logout exclude");
+        });
+
         Harness.test("an exclude with an anchored file matches an IPv6-literal host", () -> {
             Scope.Rule r = new Scope.Rule("any", "", "", "^/logout");
             Expect.isTrue(excludeHits(r, "http://[::1]:8080/logout"), "the logout page");
