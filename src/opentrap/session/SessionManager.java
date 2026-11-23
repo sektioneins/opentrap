@@ -124,7 +124,8 @@ public final class SessionManager implements SessionHook {
         Map<HttpService, Set<String>> targets = new HashMap<>();
         for (LogEntry e : history) {
             HttpService svc = e.service();
-            String path = e.request() == null ? "/" : e.request().path();
+            String path = e.requestPath(); // not request(): that reloads an offloaded body from disk
+            if (path == null || path.isEmpty()) path = "/";
             if (filter.keeps(svc, path)) targets.computeIfAbsent(svc, _ -> new HashSet<>()).add(path);
         }
         State s = new State();
