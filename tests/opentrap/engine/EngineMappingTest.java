@@ -209,13 +209,13 @@ public final class EngineMappingTest {
         });
     }
 
-    /** Body size for evidence in the sharing tests, large enough that one copy is unmistakable in the file. */
     private static ZapScanner.EngineScope scopeOf(opentrap.core.Scope s, List<ZapScanner.Seed> seeds) {
         try { return ZapScanner.engineScope(s, seeds); }
         catch (RuntimeException e) { throw e; }
         catch (Exception e) { throw new IllegalStateException(e.getMessage(), e); }
     }
 
+    /** Body size for evidence in the sharing tests, large enough that one copy is unmistakable in the file. */
     private static final int EVIDENCE_BODY_BYTES = 64 * 1024;
 
     /** One engine message record: a request and a response with a sizeable body. */

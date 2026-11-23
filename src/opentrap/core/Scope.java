@@ -187,7 +187,11 @@ public class Scope implements Serializable {
 
         @Override public String toString() { return describe(); }
 
-        /** The exact whole-URL regex, or null when the rule is disabled or a part cannot be translated. */
+        /**
+         * The exact whole-URL regex. Null when the rule is disabled, is a
+         * prefix rule with no usable host, or has a part that cannot be
+         * translated.
+         */
         public String includeRegex() { return urlRegex(false); }
 
         /**
