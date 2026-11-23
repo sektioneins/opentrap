@@ -382,6 +382,9 @@ public final class Theme {
         d.put("OptionPane.errorIcon", new DialogIcon(DialogIcon.Kind.ERROR));
         d.put("TitledBorder.titleColor", text);
         d.put("TabbedPane.focus", new Color(0, 0, 0, 0));
+
+        // Last, so it wraps the UIs registered above rather than being replaced by them.
+        HtmlGuard.install();
     }
 
     /**

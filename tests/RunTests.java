@@ -86,6 +86,10 @@ public final class RunTests {
         new opentrap.dashboard.PhaseHtmlTest().run();
         new opentrap.ui.QuitRequestTest().run();
 
+        // Last: it installs the full theme, which changes UI defaults for the
+        // rest of the JVM.
+        new opentrap.ui.ThemeHtmlTest().run();
+
         System.exit(Harness.report());
     }
 }
