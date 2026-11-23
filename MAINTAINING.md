@@ -145,7 +145,11 @@ the running JVM, relaunches a fresh JVM with the factor applied via
 `JAVA_TOOL_OPTIONS`. Inside the AppImage that relaunch is avoided: `AppRun` calls
 `OpenTRAP --print-scale` (a headless probe that prints the factor and exits) and
 sets the scale up front, because relaunching would tear down the AppImage mount and
-kill the app.
+kill the app. macOS has no interface scaling: Java there rounds the factor to a whole
+number and takes it only as the Retina pixel density, while windows are laid out in
+points, so it changes sharpness and never size. `UiScale.supported()` is false there,
+the factor is always 1.0, and the scale items in View and Settings are left out (`just
+run 2` has no effect on macOS either). Text size there is the interface font size.
 
 **A project file is one serialised object graph in a zip, and it is slimmed on the
 way out.** `opentrap.ui.StateIO` writes format version 6: the history, scope,

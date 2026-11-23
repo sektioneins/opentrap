@@ -20,10 +20,31 @@ public final class UiScale {
     public static final double MIN = 0.75, MAX = 3.0;
 
     /**
+     * Whether this system can scale the interface. On macOS it cannot: Java
+     * there rounds {@code sun.java2d.uiScale} to a whole number and takes it
+     * only as the Retina pixel density, while windows are laid out in points,
+     * so a scale changes how sharp the interface is and never its size. The
+     * scale controls are left out there and a saved scale is ignored.
+     */
+    public static boolean supported() {
+        return supported(System.getProperty("os.name"));
+    }
+
+    static boolean supported(String osName) {
+        return osName == null || !osName.toLowerCase(java.util.Locale.ROOT).startsWith("mac");
+    }
+
+    /**
      * The scale to use: the launch flag, else the saved preference, else a
-     * default detected from the screen.
+     * default detected from the screen; always 1.0 where scaling is not
+     * {@linkplain #supported() supported}.
      */
     public static double desired() {
+        return desired(System.getProperty("os.name"));
+    }
+
+    static double desired(String osName) {
+        if (!supported(osName)) return 1.0;
         String flag = System.getProperty("opentrap.scale");
         if (flag != null) {
             try { return clamp(Double.parseDouble(flag.trim())); } catch (Exception _) {}
@@ -126,6 +147,7 @@ public final class UiScale {
 
     /** Save a new scale and relaunch to apply it. */
     public static void changeTo(double scale, String[] args) {
+        if (!supported()) return;
         double s = clamp(scale);
         save(s);
         if (relaunchWith(s, args)) System.exit(0);

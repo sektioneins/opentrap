@@ -325,6 +325,33 @@ public class SuiteFrame extends JFrame {
 
         JMenu view = new JMenu("View");
         view.setFont(Ui.PLAIN);
+        // Scaling is a relaunch with a JVM scale that macOS does not apply as a
+        // size (see UiScale.supported), so the items are left out there.
+        if (UiScale.supported()) {
+            addScaleItems(view);
+            view.addSeparator();
+        }
+        menuBar.add(view);
+
+        JMenuItem restoreLayout = new JMenuItem("Restore default tab layout");
+        restoreLayout.setFont(Ui.PLAIN);
+        restoreLayout.addActionListener(e -> { if (bottomShowing != null) toggleBottom(bottomShowing, null); tabs.setSelectedIndex(0); });
+        view.add(restoreLayout);
+        view.addSeparator();
+        for (int i = 0; i < tabs.getTabCount(); i++) {
+            final int idx = i;
+            addItem(view, capitalise(plainTitle(tabs.getTitleAt(i))), e -> tabs.setSelectedIndex(idx));
+        }
+
+        JMenu help = new JMenu("Help");
+        help.setFont(Ui.PLAIN);
+        addItem(help, "proxy setup instructions", e -> showProxyHelp());
+        addItem(help, "about", e -> AboutDialog.show(this));
+        menuBar.add(help);
+    }
+
+    /** The text-size and percent items of the View menu; each relaunches at a new scale. */
+    private void addScaleItems(JMenu view) {
         // Changing scale relaunches the JVM; the session is written to its
         // project file on the way past, exactly as on exit.
         JMenuItem bigger = new JMenuItem("Increase text size");
@@ -349,24 +376,6 @@ public class SuiteFrame extends JFrame {
             mi.addActionListener(e -> relaunchScaled(ff));
             view.add(mi);
         }
-        menuBar.add(view);
-
-        view.addSeparator();
-        JMenuItem restoreLayout = new JMenuItem("Restore default tab layout");
-        restoreLayout.setFont(Ui.PLAIN);
-        restoreLayout.addActionListener(e -> { if (bottomShowing != null) toggleBottom(bottomShowing, null); tabs.setSelectedIndex(0); });
-        view.add(restoreLayout);
-        view.addSeparator();
-        for (int i = 0; i < tabs.getTabCount(); i++) {
-            final int idx = i;
-            addItem(view, capitalise(plainTitle(tabs.getTitleAt(i))), e -> tabs.setSelectedIndex(idx));
-        }
-
-        JMenu help = new JMenu("Help");
-        help.setFont(Ui.PLAIN);
-        addItem(help, "proxy setup instructions", e -> showProxyHelp());
-        addItem(help, "about", e -> AboutDialog.show(this));
-        menuBar.add(help);
     }
 
     /** Rename the project file this session is bound to, keeping its contents. */

@@ -573,10 +573,12 @@ public final class InterfacePages {
         factor.addActionListener(e -> {
             try { opentrap.ui.UiScale.changeTo(Double.parseDouble(String.valueOf(factor.getSelectedItem())), opentrap.ui.Main.launchArgs); } catch (Exception _) { }
         });
-        p.block("Scaling", SettingsPage.Kind.USER,
-                "Scale the whole interface for high-density screens. Changing the scale factor restarts the app.",
-                () -> SettingsPage.clearPrefix(s, "ui.scale."),
-                configure, systemDpi, SettingsPage.labelled("Scale factor:", factor), Ui.note("Requires a restart to take effect."));
+        // Not on macOS, where a scale changes nothing but sharpness (UiScale.supported).
+        if (opentrap.ui.UiScale.supported())
+            p.block("Scaling", SettingsPage.Kind.USER,
+                    "Scale the whole interface for high-density screens. Changing the scale factor restarts the app.",
+                    () -> SettingsPage.clearPrefix(s, "ui.scale."),
+                    configure, systemDpi, SettingsPage.labelled("Scale factor:", factor), Ui.note("Requires a restart to take effect."));
         p.block("Title bar appearance", SettingsPage.Kind.USER,
                 "Draw the top-level menu inside the window's title bar, where the window manager allows it.",
                 () -> s.setBool("ui.mergeTitleBar", true),

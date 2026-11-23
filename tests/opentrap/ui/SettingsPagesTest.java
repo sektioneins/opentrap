@@ -162,6 +162,11 @@ public final class SettingsPagesTest {
                     "no size combo");
         });
 
+        Harness.test("the display page offers scaling only where the system can scale", () -> {
+            var titles = InterfacePages.display(new SuiteContext(), null).blockTitles();
+            Expect.equal(titles.contains("Scaling"), opentrap.ui.UiScale.supported(), "Scaling block");
+        });
+
         Harness.test("the message editor page shows the active monospace font with change and reset", () -> {
             var all = parts(InterfacePages.messageEditor(new SuiteContext()));
             Expect.isTrue(all.stream().anyMatch(c -> c instanceof JLabel l

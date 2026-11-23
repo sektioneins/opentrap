@@ -40,7 +40,8 @@ For everything else, the original project is the place to go:
 - **macOS as well as Linux.** The build, the tests and the app run on both, with
   `just` as the only entry point; the shell scripts are gone. On macOS the
   menus sit in the system menu bar at the top of the screen, and the
-  application menu's About and Settings open the suite's own. The browser
+  application menu's About and Settings open the suite's own. The interface
+  scale items are left out on macOS, where Java cannot apply them. The browser
   button starts an installed Chromium and, when there is none, says to install
   it with `brew install ungoogled-chromium`. The testing browser opens
   without a start page, so a profile chooser shows when its profile folder holds
