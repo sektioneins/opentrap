@@ -94,7 +94,7 @@ public class SettingsPage extends OptionsPage {
 
     private static JLabel pill(String text) {
         JLabel l = new JLabel(text);
-        l.setFont(Ui.PLAIN.deriveFont(11f));
+        l.setFont(Fonts.ui(Font.PLAIN, 11));
         l.setForeground(Theme.TEXT);
         l.setOpaque(true);
         l.setBackground(Theme.SURFACE_2);

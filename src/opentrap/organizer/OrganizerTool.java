@@ -191,7 +191,7 @@ public class OrganizerTool implements ToolModule {
     /** The chosen collection's icon and name above its contents. */
     private JComponent buildCollectionHeader() {
         titleLabel = new JLabel(INBOX, Glyphs.inbox(18, Theme.ICON), SwingConstants.LEFT);
-        titleLabel.setFont(Ui.HEADING.deriveFont(15f));
+        titleLabel.setFont(Fonts.ui(Font.BOLD, 15));
         titleLabel.setIconTextGap(8);
         titleLabel.setBorder(Ui.pad(8, 10, 6, 10));
         JPanel p = new JPanel(new BorderLayout());
@@ -298,7 +298,7 @@ public class OrganizerTool implements ToolModule {
         JLabel mark = new JLabel(Glyphs.inbox(44, Theme.BORDER));
         mark.setAlignmentX(Component.CENTER_ALIGNMENT);
         JLabel title = new JLabel("This collection is empty");
-        title.setFont(Ui.HEADING.deriveFont(16f));
+        title.setFont(Fonts.ui(Font.BOLD, 16));
         title.setForeground(Theme.TEXT);
         title.setAlignmentX(Component.CENTER_ALIGNMENT);
         JLabel hint = new JLabel("To get started, send a message to Organizer from anywhere in OpenTRAP.");

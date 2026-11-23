@@ -166,6 +166,20 @@ public final class FontsTest {
                     || Fonts.uiFamily().equals("Dialog"), true, "ui family kept");
         });
 
+        Harness.test("no text size is set with deriveFont and a number outside icon drawing", () -> {
+            TreeMap<String, Integer> found = new TreeMap<>();
+            java.util.regex.Pattern sized = java.util.regex.Pattern.compile("deriveFont\\((?:[A-Za-z.]+,\\s*)?\\d+(?:\\.\\d+)?f?\\)");
+            try (Stream<Path> files = Files.walk(Path.of("src"))) {
+                for (Path f : (Iterable<Path>) files.filter(x -> x.toString().endsWith(".java"))::iterator) {
+                    var m = sized.matcher(Files.readString(f));
+                    int n = 0;
+                    while (m.find()) n++;
+                    if (n > 0) found.put(f.getFileName().toString(), n);
+                }
+            } catch (IOException e) { throw new RuntimeException(e); }
+            Expect.equal(found.toString(), "{}", "files");
+        });
+
         Harness.test("no text font is built from the Dialog family outside icon drawing", () -> {
             TreeMap<String, Integer> found = new TreeMap<>();
             try (Stream<Path> files = Files.walk(Path.of("src"))) {

@@ -34,7 +34,7 @@ public final class OutOfScopeBanner extends JPanel {
         add(middle, BorderLayout.CENTER);
 
         JButton close = new JButton("×");
-        close.setFont(Ui.PLAIN.deriveFont(Font.BOLD, 15f));
+        close.setFont(Fonts.ui(Font.BOLD, 15));
         close.setBorderPainted(false);
         close.setContentAreaFilled(false);
         close.setFocusable(false);

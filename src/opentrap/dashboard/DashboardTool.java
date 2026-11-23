@@ -1683,7 +1683,7 @@ public class DashboardTool implements ToolModule {
 
             JLabel config = Ui.label(task.configuration());
             config.setForeground(GREY_TEXT);
-            config.setFont(Ui.PLAIN.deriveFont(11f));
+            config.setFont(Fonts.ui(Font.PLAIN, 11));
 
             JPanel head = new JPanel();
             head.setOpaque(false);
@@ -2064,7 +2064,7 @@ public class DashboardTool implements ToolModule {
                 g2.setColor(bg);
                 g2.fillRoundRect(0, 0, w - 1, h - 1, h, h);   // radius = height: a capsule
                 g2.setColor(Color.WHITE);
-                g2.setFont(Ui.BOLD.deriveFont(11f));
+                g2.setFont(Fonts.ui(Font.BOLD, 11));
                 FontMetrics fm = g2.getFontMetrics();
                 int tw = fm.stringWidth(text);
                 int tx = (w - tw) / 2;
@@ -2073,7 +2073,7 @@ public class DashboardTool implements ToolModule {
                 g2.dispose();
             }
             @Override public Dimension getPreferredSize() {
-                FontMetrics fm = getFontMetrics(Ui.BOLD.deriveFont(11f));
+                FontMetrics fm = getFontMetrics(Fonts.ui(Font.BOLD, 11));
                 int w = Math.max(26, fm.stringWidth(text) + 16);
                 return new Dimension(w, 20);
             }

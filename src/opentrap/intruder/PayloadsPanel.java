@@ -1,5 +1,6 @@
 package opentrap.intruder;
 
+import opentrap.ui.Fonts;
 import opentrap.ui.Ui;
 
 import javax.swing.*;
@@ -61,7 +62,7 @@ public class PayloadsPanel extends JPanel {
         heading.setOpaque(false);
         heading.setBorder(Ui.pad(0, 0, 8, 0));
         JLabel title = Ui.bold("Payloads");
-        title.setFont(Ui.HEADING.deriveFont(14f));
+        title.setFont(Fonts.ui(Font.BOLD, 14));
         heading.add(title, BorderLayout.WEST);
         heading.add(Ui.helpButton("Payload sets",
                 "One payload set feeds each payload position. The attack type decides how many "

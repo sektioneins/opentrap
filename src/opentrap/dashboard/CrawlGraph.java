@@ -1,5 +1,6 @@
 package opentrap.dashboard;
 
+import opentrap.ui.Fonts;
 import opentrap.ui.Glyphs;
 import opentrap.ui.Theme;
 import opentrap.ui.Ui;
@@ -100,7 +101,7 @@ public final class CrawlGraph extends JPanel {
             double cx = getWidth() / 2.0, cy = getHeight() / 2.0;
             int depth = depth(root, 0);
             double ring = Math.max(40, Math.min(cx, cy) / Math.max(1, depth + 0.5));
-            g2.setFont(Ui.PLAIN.deriveFont(10f));
+            g2.setFont(Fonts.ui(Font.PLAIN, 10));
             layout(g2, root, cx, cy, 0, 0, Math.PI * 2, ring, cx, cy);
             g2.dispose();
         }

@@ -179,7 +179,7 @@ public final class ProjectStartupDialog extends JDialog {
         leftSide.add(welcome);
         p.add(leftSide, BorderLayout.WEST);
         JLabel logo = new JLabel("OpenTRAP", AppIcon.icon(32), SwingConstants.RIGHT);
-        logo.setFont(Ui.HEADING.deriveFont(18f));
+        logo.setFont(Fonts.ui(Font.BOLD, 18));
         logo.setForeground(Theme.ACCENT);
         logo.setIconTextGap(8);
         p.add(logo, BorderLayout.EAST);
