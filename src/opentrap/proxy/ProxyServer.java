@@ -39,6 +39,13 @@ public class ProxyServer {
     private final List<ProxyListener> listeners = new ArrayList<>();
     private final Map<Integer, ServerSocket> sockets = new ConcurrentHashMap<>();
 
+    /** Refuses a connection that would reach one of this proxy's own listeners. */
+    private final HttpClient.ConnectGuard loopGuard = dest ->
+            LoopGuard.reaches(dest, listening(), LoopGuard::isThisMachine)
+                    ? "loop refused: " + dest.getAddress().getHostAddress() + ":" + dest.getPort()
+                            + " is a listener of this proxy"
+                    : null;
+
     // Settings surfaced in the options tab.
     public volatile boolean interceptRequests = true;
     public volatile boolean interceptResponses = false;
@@ -186,6 +193,16 @@ public class ProxyServer {
     }
 
     public boolean anyRunning() { return !sockets.isEmpty(); }
+
+    /** The local socket address of every open listener. */
+    List<InetSocketAddress> listening() {
+        List<InetSocketAddress> out = new ArrayList<>();
+        for (ServerSocket ss : sockets.values()) {
+            if (ss.isClosed()) continue;
+            if (ss.getLocalSocketAddress() instanceof InetSocketAddress a) out.add(a);
+        }
+        return out;
+    }
 
     private final List<Runnable> listenerHooks = new java.util.concurrent.CopyOnWriteArrayList<>();
 
@@ -474,6 +491,7 @@ public class ProxyServer {
             opt.followRedirects = false;
             opt.session = ctx.sessions();
             opt.sessionTool = "proxy";
+            opt.connectGuard = loopGuard;
             // Live passive scanning: route in-scope traffic through the scan engine.
             if (ctx.liveScanRouter() != null) opt.upstream = ctx.liveScanRouter().apply(svc);
             long t0 = System.currentTimeMillis();
@@ -697,7 +715,7 @@ public class ProxyServer {
     private void handleWebSocket(HttpMessage request, InputStream clientIn, OutputStream clientOut, HttpService svc) {
         java.net.Socket up = null;
         try {
-            up = HttpClient.openSocket(svc, 15000, 0); // no read timeout: WebSockets idle between frames
+            up = HttpClient.openSocket(svc, 15000, 0, loopGuard); // no read timeout: WebSockets idle between frames
             OutputStream upOut = up.getOutputStream();
             InputStream upIn = new BufferedInputStream(up.getInputStream(), 32768);
             upOut.write(request.raw());
