@@ -33,6 +33,13 @@ public class Scope implements Serializable {
     static final String HOST_DELIMITERS = "/:?#@\\\\";
     /** One character of a host segment. */
     static final String HOST_CHAR = "[^" + HOST_DELIMITERS + "]";
+    /**
+     * An IPv6-literal host. The engine writes one in brackets, which
+     * {@link #HOST_CHAR} cannot match because of the colons. Every form that
+     * stands for any host takes it as an alternative, and so does an exclude's
+     * host pattern, since an exclude must never be narrower than the app.
+     */
+    static final String HOST_IP_LITERAL = "\\[[0-9A-Fa-f:.]+\\]";
 
     public static class Rule implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -213,7 +220,9 @@ public class Scope implements Serializable {
          * confined, so the engine never scans more than the rule covers. The
          * exclude form puts "anything in this segment" in place of such a part,
          * so it matches every URL the rule does and possibly more, and the
-         * engine never scans what the rule excludes. No include regex matches
+         * engine never scans what the rule excludes. For the same reason an
+         * exclude's host pattern also admits every IPv6-literal host, which an
+         * include's host pattern never does. No include regex matches
          * a URL with userinfo, since {@code @} ends the host, so an exclude
          * does not have to match one either. Null when the rule is disabled or
          * is a prefix rule with no usable host.
@@ -234,10 +243,13 @@ public class Scope implements Serializable {
                         ? "(?:/.*)?" : Pattern.quote(pPath) + ".*";
                 return "(?i)^" + scheme + "://" + hostPart + portPart + pathPart + "$";
             }
-            String hostPart = HOST_CHAR + "+";
+            String hostPart = "(?:" + HOST_CHAR + "+|" + HOST_IP_LITERAL + ")";
             if (!blank(host)) {
                 String c = confined(host, ScopeRegex.Segment.HOST);
-                if (c != null) hostPart = HOST_CHAR + "*(?:" + c + ")" + HOST_CHAR + "*";
+                // An include's host pattern never matches an IPv6 literal,
+                // which is narrower; an exclude's matches every one, wider.
+                if (c != null) hostPart = "(?:" + HOST_CHAR + "*(?:" + c + ")" + HOST_CHAR + "*"
+                        + (widen ? "|" + HOST_IP_LITERAL : "") + ")";
                 else if (!widen) return null;
             }
             String portRe = null;

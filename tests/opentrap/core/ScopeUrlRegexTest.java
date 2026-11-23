@@ -172,7 +172,42 @@ public final class ScopeUrlRegexTest {
                     Expect.equal(hits(r, u), want, r.describe() + " on " + u);
                     Expect.equal(excludeHits(r, u), want, "exclude " + r.describe() + " on " + u);
                 }
+                // An exclude with a host pattern also covers every bracketed
+                // host, so on an IPv6 literal it is only a superset.
+                String v6 = "http://[::1]:8080/logout";
+                Expect.equal(hits(r, v6), inApp(r, v6), r.describe() + " on " + v6);
+                if (inApp(r, v6)) Expect.isTrue(excludeHits(r, v6), "exclude " + r.describe() + " on " + v6);
             }
+        });
+
+        Harness.test("the default logout exclude matches an IPv6-literal host", () -> {
+            Scope.Rule logout = new Scope().exclude().get(0);
+            Expect.isTrue(excludeHits(logout, "http://[::1]:8080/logout"), "the logout page");
+        });
+
+        Harness.test("an exclude with an anchored file matches an IPv6-literal host", () -> {
+            Scope.Rule r = new Scope.Rule("any", "", "", "^/logout");
+            Expect.isTrue(excludeHits(r, "http://[::1]:8080/logout"), "the logout page");
+        });
+
+        Harness.test("an exclude with a host pattern also matches an IPv6-literal host, as it is wider by design", () -> {
+            Scope.Rule r = new Scope.Rule("any", "^\\Qexample.com\\E$", "", "^/logout");
+            Expect.isTrue(excludeHits(r, "http://[::1]:8080/logout"), "a bracketed host");
+            Expect.isFalse(excludeHits(r, "http://other.test/logout"), "another named host");
+        });
+
+        Harness.test("an include with a blank host matches an IPv6-literal host", () -> {
+            Scope.Rule r = new Scope.Rule("any", "", "", "^/app");
+            Expect.isTrue(hits(r, "http://[::1]:8080/app/x"), "under the path");
+            Expect.isFalse(hits(r, "http://[::1]:8080/other"), "another path");
+        });
+
+        Harness.test("an include with a host pattern does not match an IPv6-literal host", () -> {
+            Expect.isFalse(hits(host("^\\Qexample.com\\E$"), "http://[::1]:8080/"), "a bracketed host");
+        });
+
+        Harness.test("a prefix include on an IPv6-literal host still matches below it", () -> {
+            Expect.isTrue(hits(Scope.Rule.prefix("http://[::1]:8080", false), "http://[::1]:8080/x"), "a page");
         });
 
         Harness.test("a pattern the engine cannot match exactly is left out of includes and widened in excludes", () -> {
