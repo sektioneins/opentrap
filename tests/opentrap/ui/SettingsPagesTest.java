@@ -92,6 +92,66 @@ public final class SettingsPagesTest {
             } finally { s.remove(Fonts.KEY_MONO); }
         });
 
+        Harness.test("choosing the active UI font changes nothing and does not restart", () -> {
+            Settings s = new Settings();
+            AtomicInteger n = new AtomicInteger();
+            try {
+                InterfacePages.applyUiFont(s, Fonts.uiFamily(), Fonts.uiSize(), n::incrementAndGet);
+                Expect.equal(n.get(), 0, "restarts");
+                Expect.isTrue(s.get(Fonts.KEY_UI_FAMILY, null) == null, "family not written");
+                Expect.isTrue(s.get(Fonts.KEY_UI_SIZE, null) == null, "size not written");
+            } finally { s.remove(Fonts.KEY_UI_FAMILY); s.remove(Fonts.KEY_UI_SIZE); }
+        });
+
+        Harness.test("choosing the active monospace font changes nothing and does not restart", () -> {
+            Settings s = new Settings();
+            AtomicInteger n = new AtomicInteger();
+            try {
+                InterfacePages.applyMonoFont(s, Fonts.monoFamily(), Fonts.monoSize(), n::incrementAndGet);
+                Expect.equal(n.get(), 0, "restarts");
+                Expect.isTrue(s.get(Fonts.KEY_MONO, null) == null, "key not written");
+            } finally { s.remove(Fonts.KEY_MONO); }
+        });
+
+        Harness.test("resetting a font that was never saved does not restart", () -> {
+            Settings s = new Settings();
+            AtomicInteger n = new AtomicInteger();
+            s.remove(Fonts.KEY_UI_FAMILY); s.remove(Fonts.KEY_UI_SIZE); s.remove(Fonts.KEY_MONO);
+            InterfacePages.resetUiFont(s, n::incrementAndGet);
+            InterfacePages.resetMonoFont(s, n::incrementAndGet);
+            Expect.equal(n.get(), 0, "restarts");
+        });
+
+        Harness.test("a restart in an AppImage tells the user instead of relaunching", () -> {
+            AtomicInteger relaunch = new AtomicInteger(), told = new AtomicInteger();
+            InterfacePages.restart(new SuiteContext(), true, () -> true,
+                    () -> { relaunch.incrementAndGet(); return true; }, () -> relaunch.incrementAndGet(),
+                    told::incrementAndGet);
+            Expect.equal(relaunch.get(), 0, "relaunches");
+            Expect.equal(told.get(), 1, "messages");
+        });
+
+        Harness.test("a restart that could not relaunch tells the user and keeps running", () -> {
+            AtomicInteger exits = new AtomicInteger(), told = new AtomicInteger();
+            InterfacePages.restart(new SuiteContext(), false, () -> true, () -> false,
+                    exits::incrementAndGet, told::incrementAndGet);
+            Expect.equal(exits.get(), 0, "exits");
+            Expect.equal(told.get(), 1, "messages");
+        });
+
+        Harness.test("a temporary project is only restarted after the user agrees", () -> {
+            AtomicInteger relaunch = new AtomicInteger(), exits = new AtomicInteger(), told = new AtomicInteger();
+            SuiteContext temp = new SuiteContext();
+            InterfacePages.restart(temp, false, () -> false,
+                    () -> { relaunch.incrementAndGet(); return true; }, exits::incrementAndGet, told::incrementAndGet);
+            Expect.equal(relaunch.get(), 0, "relaunched after No");
+            Expect.equal(told.get(), 0, "message after No");
+            InterfacePages.restart(temp, false, () -> true,
+                    () -> { relaunch.incrementAndGet(); return true; }, exits::incrementAndGet, told::incrementAndGet);
+            Expect.equal(relaunch.get(), 1, "relaunched after Yes");
+            Expect.equal(exits.get(), 1, "exits after Yes");
+        });
+
         Harness.test("the display page shows the active UI font with change and reset, and no size box", () -> {
             var all = parts(InterfacePages.display(new SuiteContext(), null));
             Expect.isTrue(all.stream().anyMatch(c -> c instanceof JLabel l

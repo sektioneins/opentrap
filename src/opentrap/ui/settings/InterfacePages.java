@@ -100,12 +100,12 @@ public final class InterfacePages {
         JLabel font = Ui.label(Fonts.describe(Fonts.monoFamily(), Fonts.monoSize()));
         JButton change = Ui.button("Change font ...");
         change.addActionListener(e -> chooseFont(change, "Message editor font", Fonts.monoFamily(), Fonts.monoSize(),
-                (fam, sz) -> applyMonoFont(s, fam, sz, InterfacePages::restartApp)));
+                (fam, sz) -> applyMonoFont(s, fam, sz, () -> restartApp(ctx))));
         JButton resetFont = Ui.button("Reset to default");
-        resetFont.addActionListener(e -> resetMonoFont(s, InterfacePages::restartApp));
+        resetFont.addActionListener(e -> resetMonoFont(s, () -> restartApp(ctx)));
         p.block("HTTP message display", SettingsPage.Kind.USER,
-                "How requests and responses are rendered in every message editor. Changing the font restarts the app.",
-                () -> SettingsPage.clearPrefix(s, "editor.display."),
+                "How requests and responses are rendered in every message editor. Changing the font restarts the app. Restoring this block clears the saved font, which applies at the next start.",
+                () -> { SettingsPage.clearPrefix(s, "editor.display."); s.remove(Fonts.KEY_MONO); },
                 SettingsPage.labelled("Font:", font, change, resetFont),
                 SettingsPage.check(s, "editor.display.highlightRequest", true, "Highlight request syntax"),
                 SettingsPage.check(s, "editor.display.highlightResponse", true, "Highlight response syntax"),
@@ -465,40 +465,74 @@ public final class InterfacePages {
         }
     }
 
-    /** Saves the interface font and restarts through {@code restart}. */
+    /** Saves the interface font and restarts through {@code restart}; choosing the active font does nothing. */
     public static void applyUiFont(Settings s, String family, int size, Runnable restart) {
+        if (family.equals(Fonts.uiFamily()) && size == Fonts.uiSize()) return;
         s.set(Fonts.KEY_UI_FAMILY, family);
         s.set(Fonts.KEY_UI_SIZE, String.valueOf(size));
         restart.run();
     }
 
-    /** Drops the saved interface font, so the system default applies after the restart. */
+    /** Drops the saved interface font, so the system default applies after the restart; nothing saved, nothing to do. */
     public static void resetUiFont(Settings s, Runnable restart) {
+        if (s.get(Fonts.KEY_UI_FAMILY, null) == null && s.get(Fonts.KEY_UI_SIZE, null) == null) return;
         s.remove(Fonts.KEY_UI_FAMILY);
         s.remove(Fonts.KEY_UI_SIZE);
         restart.run();
     }
 
-    /** Saves the monospace font in the {@code <Family> <N>pt} format and restarts through {@code restart}. */
+    /** Saves the monospace font in the {@code <Family> <N>pt} format and restarts through {@code restart}; choosing the active font does nothing. */
     public static void applyMonoFont(Settings s, String family, int size, Runnable restart) {
+        if (family.equals(Fonts.monoFamily()) && size == Fonts.monoSize()) return;
         s.set(Fonts.KEY_MONO, Fonts.describe(family, size));
         restart.run();
     }
 
-    /** Drops the saved monospace font, so the system default applies after the restart. */
+    /** Drops the saved monospace font, so the system default applies after the restart; nothing saved, nothing to do. */
     public static void resetMonoFont(Settings s, Runnable restart) {
+        if (s.get(Fonts.KEY_MONO, null) == null) return;
         s.remove(Fonts.KEY_MONO);
         restart.run();
     }
 
+    private static final String RESTART_BY_HAND = "Restart OpenTRAP to use the new setting.";
+
     /** Relaunches the app so a changed font or theme is picked up everywhere. */
-    public static void restartApp() {
-        if (opentrap.ui.UiScale.relaunchWith(opentrap.ui.UiScale.desired(), opentrap.ui.Main.launchArgs)) System.exit(0);
+    public static void restartApp(SuiteContext ctx) {
+        restart(ctx, System.getenv("APPIMAGE") != null,
+                () -> JOptionPane.showConfirmDialog(null,
+                        "OpenTRAP restarts to apply the change. This temporary project is not saved, so its traffic is lost.\nRestart now?",
+                        "Restart", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE) == JOptionPane.YES_OPTION,
+                () -> opentrap.ui.UiScale.relaunchWith(opentrap.ui.UiScale.desired(), opentrap.ui.Main.launchArgs),
+                () -> System.exit(0),
+                () -> JOptionPane.showMessageDialog(null, RESTART_BY_HAND, "Restart", JOptionPane.INFORMATION_MESSAGE));
+    }
+
+    /**
+     * The restart sequence with its side effects injected. Inside an AppImage a
+     * relaunch tears down the mount and kills the app, so the saved setting is
+     * kept and the user is asked to restart by hand. A temporary project (no
+     * file) is lost by a restart, so that is confirmed first; declining keeps
+     * the saved setting for the next start. A bound project is saved first, as
+     * for a scale change.
+     */
+    public static void restart(SuiteContext ctx, boolean inAppImage, java.util.function.BooleanSupplier confirmTemporary,
+                               java.util.function.BooleanSupplier relaunch, Runnable exit, Runnable tell) {
+        flushPrefs();
+        if (inAppImage) { tell.run(); return; }
+        if (ctx.projectFile() == null && !confirmTemporary.getAsBoolean()) return;
+        opentrap.ui.StateIO.saveBeforeRestart(ctx);
+        if (relaunch.getAsBoolean()) exit.run();
+        else tell.run();
+    }
+
+    private static void flushPrefs() {
+        try { java.util.prefs.Preferences.userRoot().node("opentrap.v1").flush(); } catch (Exception _) { }
     }
 
     /** Family and size dialog; calls {@code onOk} only when confirmed. */
     private static void chooseFont(Component parent, String title, String family, int size, java.util.function.BiConsumer<String, Integer> onOk) {
-        JComboBox<String> fam = Ui.combo(GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames());
+        JComboBox<String> fam = Ui.combo(GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames(java.util.Locale.ROOT));
         fam.setSelectedItem(family);
         JSpinner sz = new JSpinner(new SpinnerNumberModel(Math.clamp(size, 6, 40), 6, 40, 1));
         JPanel f = Ui.form("Family:", fam, "Size:", sz);
@@ -513,9 +547,9 @@ public final class InterfacePages {
         JLabel uiFont = Ui.label(Fonts.describe(Fonts.uiFamily(), Fonts.uiSize()));
         JButton changeUi = Ui.button("Change font ...");
         changeUi.addActionListener(e -> chooseFont(changeUi, "Interface font", Fonts.uiFamily(), Fonts.uiSize(),
-                (fam, sz) -> applyUiFont(s, fam, sz, InterfacePages::restartApp)));
+                (fam, sz) -> applyUiFont(s, fam, sz, () -> restartApp(ctx))));
         JButton resetUi = Ui.button("Reset to default");
-        resetUi.addActionListener(e -> resetUiFont(s, InterfacePages::restartApp));
+        resetUi.addActionListener(e -> resetUiFont(s, () -> restartApp(ctx)));
         JRadioButton light = Ui.radio("Light", !Theme.darkPreferred());
         JRadioButton dark = Ui.radio("Dark", Theme.darkPreferred());
         ButtonGroup g = new ButtonGroup(); g.add(light); g.add(dark);
@@ -523,12 +557,11 @@ public final class InterfacePages {
             boolean wantDark = dark.isSelected();
             if (wantDark == Theme.dark) return;
             s.set("ui.theme", wantDark ? "dark" : "light");
-            try { java.util.prefs.Preferences.userRoot().node("opentrap.v1").put("ui.theme", wantDark ? "dark" : "light"); } catch (Exception _) { }
-            restartApp();
+            restartApp(ctx);
         };
         light.addItemListener(theme); dark.addItemListener(theme);
         p.block("Appearance", SettingsPage.Kind.USER,
-                "The interface font and colour theme. Changing the font or the theme restarts the app so every panel comes up consistent.",
+                "The interface font and colour theme. Changing the font or the theme restarts the app so every panel comes up consistent. Restoring this block clears the saved font, which applies at the next start.",
                 () -> { s.remove(Fonts.KEY_UI_FAMILY); s.remove(Fonts.KEY_UI_SIZE); },
                 SettingsPage.labelled("Font:", uiFont, changeUi, resetUi),
                 SettingsPage.labelled("Theme:", light, dark));
