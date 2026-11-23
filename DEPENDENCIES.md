@@ -66,10 +66,15 @@ each checked against the sha256 in that list. It installs the same add-ons as
 
        just engine     # after changing ZAP_VERSION, and for the latest add-ons
        just browser    # after changing CHROMIUM_REVISION
+       just libs       # after changing a version for a jar in lib/
 
-   For a jar under `lib/`, replace it with the new version from Maven
-   Central and update its version and sha256 pin. The three BouncyCastle
-   jars depend on each other and move together.
+   `just libs` downloads each jar pinned in `tools/versions` from Maven
+   Central, refuses one that does not match its sha256, and removes any
+   other jar from `lib/`; commit the result. Central serves the sha256 next
+   to most jars (`<jar>.sha256`, as for BouncyCastle). Where it serves only a
+   `.sha1` (the Brotli decoder 0.1.2), check the download against that; on a
+   mismatch `just libs` prints the hash it got. The three BouncyCastle jars
+   depend on each other and move together.
 
 4. Build and run the tests, then smoke-test a crawl and a scan:
 

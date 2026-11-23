@@ -10,6 +10,7 @@
 #   just publish 20261019-085441 notes.md   Linux: publish a tested AppImage to GitHub
 #   just clean        remove build/, build-tests/, dist/ and AppDir/
 #
+#   just libs         fetch the jars pinned in tools/versions into lib/ (it is committed)
 #   just jdk          Linux x64: fetch the pinned portable JDK into jdk/
 #   just engine       fetch the pinned OWASP ZAP scan engine, with the latest add-ons, into engine/
 #   just browser      Linux x64: fetch the pinned Chromium and chromedriver into browser/
@@ -345,6 +346,51 @@ jdk:
 jdk: _check-jdk
     @echo "Using $JAVA_HOME: $("$JAVA_HOME/bin/java" -version 2>&1 | grep -v "^Picked up" | head -1)"
 
+# Fetch the jars pinned in tools/versions from Maven Central into lib/, removing any other jar there
+libs:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # lib/ is committed, so no build or CI run needs this. It restores lib/,
+    # or fills it after a version and its sha256 were moved in tools/versions.
+    # Every jar must match its pinned sha256; one that lib/ already holds with
+    # that hash is kept without a download.
+    want=(
+        "org/bouncycastle bcprov-jdk18on $BOUNCYCASTLE_VERSION $BOUNCYCASTLE_PROV_SHA256"
+        "org/bouncycastle bcpkix-jdk18on $BOUNCYCASTLE_VERSION $BOUNCYCASTLE_PKIX_SHA256"
+        "org/bouncycastle bcutil-jdk18on $BOUNCYCASTLE_VERSION $BOUNCYCASTLE_UTIL_SHA256"
+        "org/brotli dec $BROTLI_DEC_VERSION $BROTLI_DEC_SHA256"
+    )
+    # Downloads land next to lib/ so the final move is a rename, and lib/
+    # changes only once every jar is verified.
+    mkdir -p lib
+    tmp="$(mktemp -d lib/.fetch.XXXXXX)"
+    trap 'rm -rf "$tmp"' EXIT
+    pinned=" "
+    for w in "${want[@]}"; do
+        read -r group artifact ver sha <<<"$w"
+        jar="$artifact-$ver.jar"
+        pinned+="$jar "
+        if [ -f "lib/$jar" ] && [ "$({{ hasher }} "lib/$jar" | cut -d' ' -f1)" = "$sha" ]; then
+            echo "  kept     lib/$jar"
+            continue
+        fi
+        url="https://repo1.maven.org/maven2/$group/$artifact/$ver/$jar"
+        echo "Downloading $url ..."
+        curl -fsSL --proto '=https' -o "$tmp/$jar" "$url"
+        {{ just }} _verify "$tmp/$jar" "$sha"
+    done
+    for f in lib/*.jar; do
+        [ -e "$f" ] || continue
+        case "$pinned" in *" ${f#lib/} "*) ;; *) rm -f "$f"; echo "  removed  $f" ;; esac
+    done
+    for f in "$tmp"/*.jar; do
+        [ -e "$f" ] || continue
+        mv -f "$f" lib/
+        echo "  fetched  lib/${f##*/}"
+    done
+    {{ just }} _check-libs
+    echo "lib/ holds the jars pinned in tools/versions."
+
 # Fetch the pinned ZAP engine into engine/; this replaces engine/, dropping add-ons added with 'just addon'
 engine:
     #!/usr/bin/env bash
@@ -621,8 +667,8 @@ check-updates:
     row just "$JUST_VERSION" "${jst:-?}" "$(flag "$JUST_VERSION" "$jst")"
     echo
     echo "To update: edit tools/versions (a version and its sha256 together), then"
-    echo "run the matching recipe (just engine, just browser, just jdk) or replace the"
-    echo "jar in lib/. The add-ons follow the latest for ZAP_VERSION: just addons."
+    echo "run the matching recipe (just engine, just browser, just jdk, just libs)."
+    echo "The add-ons follow the latest for ZAP_VERSION: just addons."
 
 # Install the launcher icon and a menu entry for this checkout; 'system' installs for all users (needs root)
 [linux]
@@ -711,6 +757,7 @@ _check-libs:
         echo "lib/ does not hold the jars pinned in tools/versions." >&2
         echo "  pinned: $(printf '%s' "$names" | LC_ALL=C sort | tr '\n' ' ')" >&2
         echo "  found:  $(printf '%s' "$have" | tr '\n' ' ')" >&2
+        echo "Run 'just libs' to fetch the pinned jars." >&2
         exit 1
     fi
     for w in "${want[@]}"; do {{ just }} _verify "lib/${w%% *}" "${w#* }"; done

@@ -66,11 +66,11 @@ Requirements:
   bash ahead of the system bash 3.2.
 - curl, unzip and zip for the fetch and release recipes.
 
-BouncyCastle and a Brotli decoder are vendored under `lib/`; the ZAP scan
-engine and the Chromium browser are fetched on demand by `just engine` and
-`just browser`. See `DEPENDENCIES.md` for how bundled tools are pinned and
-updated across releases, and run `just check-updates` to see what has a newer
-version.
+BouncyCastle and a Brotli decoder are vendored under `lib/` (`just libs`
+fetches the pinned jars again); the ZAP scan engine and the Chromium browser
+are fetched on demand by `just engine` and `just browser`. See
+`DEPENDENCIES.md` for how bundled tools are pinned and updated across
+releases, and run `just check-updates` to see what has a newer version.
 
 ## How the code is organised
 
