@@ -153,5 +153,25 @@ public final class ProjectCopyScopeTest {
                 }
             } catch (Exception e) { throw new RuntimeException(e); }
         });
+
+        Harness.test("an in-scope copy leaves out the scan cards even when they are asked for", () -> {
+            try {
+                SuiteContext ctx = new SuiteContext();
+                ctx.scope().includeUrl(IN, "/", true);
+                ctx.addTask(new ScanTask(ScanTask.Type.AUDIT, "Audit", ""));
+                StateIO.SaveOptions o = new StateIO.SaveOptions();
+                o.inScopeOnly = true;
+                o.includeTasks = true;
+                File f = Files.createTempFile("opentrap-copyscope", ".otrap").toFile();
+                try {
+                    StateIO.save(ctx, f, o);
+                    SuiteContext back = new SuiteContext();
+                    StateIO.restore(back, f);
+                    Expect.equal(back.tasks().size(), 0, "no scan cards");
+                } finally {
+                    f.delete();
+                }
+            } catch (Exception e) { throw new RuntimeException(e); }
+        });
     }
 }

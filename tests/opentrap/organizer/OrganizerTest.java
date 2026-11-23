@@ -37,6 +37,23 @@ public final class OrganizerTest {
             Expect.equal(store.all().size(), 1, "restored");
         });
 
+        Harness.test("an in-scope snapshot keeps only the organizer items aimed at the scope", () -> {
+            HttpService in = new HttpService("a.test", 443, true);
+            HttpService out = new HttpService("b.test", 443, true);
+            HttpMessage req = new HttpMessage(Bytes.bytes("GET /x HTTP/1.1\r\nHost: a.test\r\n\r\n"));
+            OrganizerStore store = new OrganizerStore();
+            OrganizerItem kept = new OrganizerItem(in, req, null, "in", "proxy");
+            store.add(kept);
+            store.add(new OrganizerItem(out, req, null, "out", "proxy"));
+            store.add(new OrganizerItem(null, req, null, "unknown", "proxy"));
+            opentrap.core.Scope scope = new opentrap.core.Scope();
+            scope.includeUrl(in, "/", true);
+            ArrayList<OrganizerItem> snap = store.snapshot(opentrap.core.SaveFilter.inScope(scope));
+            Expect.equal(snap.size(), 1, "one item");
+            Expect.isTrue(snap.get(0) == kept, "the in-scope one");
+            Expect.equal(store.snapshot(opentrap.core.SaveFilter.ALL).size(), 3, "unfiltered keeps all");
+        });
+
         Harness.test("items survive serialization with their status, notes and messages", () -> {
             OrganizerItem it = new OrganizerItem(new HttpService("app.example", 80, false),
                     new HttpMessage(Bytes.bytes("POST /x HTTP/1.1\r\nHost: app.example\r\n\r\nbody")),

@@ -255,7 +255,7 @@ public final class StateIO {
         oos.writeObject(ctx.scope());
         oos.writeObject(ctx.settings().projectSnapshot());
         oos.writeObject(ctx.sessions().snapshot(f, ctx.store().all()));
-        oos.writeObject(ctx.organizer().snapshot());
+        oos.writeObject(ctx.organizer().snapshot(f));
         List<opentrap.core.Issue> issues = new ArrayList<>();
         for (opentrap.core.Issue i : ctx.issues()) {
             if (!f.keeps(i.service(), i.path())) continue;
@@ -268,7 +268,8 @@ public final class StateIO {
             if (s != null) toolStates.put(t.name(), s);
         }
         oos.writeObject(toolStates);
-        oos.writeObject(o.includeTasks ? new ArrayList<>(ctx.taskSnapshots()) : new ArrayList<>());
+        // A scan card names its target and holds its settings, and cannot be narrowed to the scope.
+        oos.writeObject(o.includeTasks && !o.inScopeOnly ? new ArrayList<>(ctx.taskSnapshots()) : new ArrayList<>());
         oos.flush();
         return baos.toByteArray();
     }

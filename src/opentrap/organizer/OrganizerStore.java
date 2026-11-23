@@ -22,6 +22,15 @@ public final class OrganizerStore {
     private void fire() { for (Listener l : listeners) l.changed(); }
 
     public ArrayList<OrganizerItem> snapshot() { return new ArrayList<>(items); }
+
+    /** The items a save keeps: all of them, or only those aimed at a host and path the filter keeps. */
+    public ArrayList<OrganizerItem> snapshot(opentrap.core.SaveFilter filter) {
+        if (filter.keepsAll()) return snapshot();
+        ArrayList<OrganizerItem> out = new ArrayList<>();
+        for (OrganizerItem i : items) if (filter.keeps(i.service, i.path())) out.add(i);
+        return out;
+    }
+
     public void restore(List<OrganizerItem> list) {
         items.clear();
         if (list != null) items.addAll(list);
