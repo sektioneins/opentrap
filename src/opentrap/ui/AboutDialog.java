@@ -41,7 +41,8 @@ public final class AboutDialog {
         String accent = String.format("#%06x", Theme.ACCENT.getRGB() & 0xFFFFFF);
         String muted = String.format("#%06x", Theme.MUTED.getRGB() & 0xFFFFFF);
         StringBuilder sb = new StringBuilder();
-        sb.append("<html><body style='font-family:Dialog;font-size:12pt;width:380px'>");
+        sb.append("<html><body style='font-family:").append(Fonts.css(Fonts.uiFamily()))
+          .append(";font-size:12pt;width:380px'>");
         sb.append("<div style='font-size:16pt;font-weight:bold'>OpenTRAP</div>");
         sb.append("<div style='color:").append(muted).append("'>Open Traffic Replay and Analysis Proxy</div>");
         sb.append("<p>An open-source web security testing suite built around an intercepting proxy.</p>");

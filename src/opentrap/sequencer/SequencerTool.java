@@ -7,6 +7,7 @@ import opentrap.core.HttpMessage;
 import opentrap.core.HttpService;
 import opentrap.core.SuiteContext;
 import opentrap.core.ToolModule;
+import opentrap.ui.Fonts;
 import opentrap.ui.Ui;
 
 import javax.swing.*;
@@ -370,7 +371,7 @@ public class SequencerTool implements ToolModule {
         p.setOpaque(false);
         p.add(new JLabel(opentrap.ui.Glyphs.help(20, opentrap.ui.Theme.MUTED)));
         JLabel h = Ui.heading(text);
-        h.setFont(new Font("Dialog", Font.BOLD, 15));
+        h.setFont(Fonts.ui(Font.BOLD, 15));
         p.add(h);
         p.setMaximumSize(new Dimension(Integer.MAX_VALUE, p.getPreferredSize().height));
         return p;

@@ -4,7 +4,15 @@ import opentrap.testkit.Expect;
 import opentrap.testkit.Harness;
 
 import java.awt.Font;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.stream.Stream;
+import javax.swing.JEditorPane;
+import javax.swing.text.View;
+import javax.swing.text.html.HTMLDocument;
 
 /** Pins how the UI and monospace fonts are chosen from settings and the system. */
 public final class FontsTest {
@@ -106,5 +114,68 @@ public final class FontsTest {
             Expect.isTrue(live.installed().test(Fonts.monoFamily()), "mono " + Fonts.monoFamily());
             Expect.equal(Fonts.ui(Font.BOLD, 18).getSize(), Fonts.scaled(18, Fonts.uiSize()), "scaled");
         });
+
+        Harness.test("the shared fonts are the resolved UI and monospace fonts", () -> {
+            for (Font f : new Font[] {Ui.PLAIN, Ui.BOLD, Theme.FONT, Theme.FONT_BOLD}) {
+                Expect.equal(f.getName(), Fonts.uiFamily(), "ui family");
+                Expect.equal(f.getSize(), Fonts.uiSize(), "ui size");
+            }
+            Expect.equal(Ui.HEADING.getName(), Fonts.uiFamily(), "heading family");
+            Expect.equal(Ui.HEADING.getSize(), Fonts.scaled(13, Fonts.uiSize()), "heading size");
+            Expect.equal(Ui.MONO.getName(), Fonts.monoFamily(), "mono family");
+            Expect.equal(Ui.MONO.getSize(), Fonts.monoSize(), "mono size");
+        });
+
+        Harness.test("an HTML pane renders a family with spaces or a leading dot", () -> {
+            for (String family : new String[] {"Noto Sans", ".AppleSystemUIFont"}) {
+                Expect.isFalse(Fonts.css(family).contains("'"), "no single quote in " + Fonts.css(family));
+                Expect.equal(renderedFont("<html><body style='font-family:" + Fonts.css(family) + "'>x</body></html>"),
+                        family, "inline " + family);
+            }
+            Expect.equal(renderedFont("<html><body>x</body></html>"), Fonts.uiFamily(), "body rule");
+        });
+
+        Harness.test("the advisory uses the UI family for text and the monospace family for evidence", () -> {
+            String html = Advisory.render(opentrap.core.Issue.builder("Finding").high().certain()
+                    .path("/p").evidence("proof").build());
+            Expect.isTrue(html.contains(Fonts.css(Fonts.uiFamily())), "ui family");
+            Expect.isTrue(html.contains(Fonts.css(Fonts.monoFamily())), "mono family");
+            Expect.isFalse(html.contains("sans-serif"), "no sans-serif");
+            Expect.isFalse(html.contains("font-family:monospace"), "no monospace keyword");
+        });
+
+        Harness.test("no text font is built from the Dialog family outside icon drawing", () -> {
+            TreeMap<String, Integer> found = new TreeMap<>();
+            try (Stream<Path> files = Files.walk(Path.of("src"))) {
+                for (Path f : (Iterable<Path>) files.filter(x -> x.toString().endsWith(".java"))::iterator) {
+                    String text = Files.readString(f);
+                    int n = text.split("new Font\\(\"Dialog\"", -1).length - 1;
+                    if (n > 0) found.put(f.getFileName().toString(), n);
+                }
+            } catch (IOException e) { throw new RuntimeException(e); }
+            Expect.equal(found.toString(),
+                    "{DashboardTool.java=1, DialogIcon.java=1, Glyphs.java=2, MessageEditor.java=1, Ui.java=1}", "files");
+        });
+    }
+
+    /** The font a laid-out pane gives the text "x", from the style the view resolves (page rules included). */
+    private static String renderedFont(String html) {
+        JEditorPane pane = new JEditorPane();
+        pane.setEditorKit(Theme.htmlKit());
+        pane.setSize(300, 300);
+        pane.setText(html);
+        HTMLDocument doc = (HTMLDocument) pane.getDocument();
+        try {
+            View v = pane.getUI().getRootView(pane);
+            int at = doc.getText(0, doc.getLength()).indexOf('x');
+            for (boolean down = true; down; ) {
+                down = false;
+                for (int i = 0; i < v.getViewCount(); i++) {
+                    View c = v.getView(i);
+                    if (c.getStartOffset() <= at && at < c.getEndOffset()) { v = c; down = true; break; }
+                }
+            }
+            return doc.getFont(v.getAttributes()).getName();
+        } catch (javax.swing.text.BadLocationException e) { throw new RuntimeException(e); }
     }
 }

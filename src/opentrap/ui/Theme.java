@@ -190,8 +190,8 @@ public final class Theme {
         }
     }
 
-    public static final Font FONT      = new Font("Dialog", Font.PLAIN, 12);
-    public static final Font FONT_BOLD = new Font("Dialog", Font.BOLD, 12);
+    public static final Font FONT      = Fonts.ui(Font.PLAIN, 12);
+    public static final Font FONT_BOLD = Fonts.ui(Font.BOLD, 12);
 
     /** Corner radius shared by buttons, fields and cards. */
     public static final int RADIUS = 6;
@@ -398,8 +398,8 @@ public final class Theme {
         javax.swing.text.html.HTMLEditorKit kit = new javax.swing.text.html.HTMLEditorKit();
         javax.swing.text.html.StyleSheet ss = new javax.swing.text.html.StyleSheet();
         ss.addStyleSheet(kit.getStyleSheet());
-        ss.addRule(String.format("body { color: #%06X; background-color: #%06X; font-family: sans-serif; }",
-                TEXT.getRGB() & 0xFFFFFF, BG.getRGB() & 0xFFFFFF));
+        ss.addRule(String.format("body { color: #%06X; background-color: #%06X; font-family: %s; }",
+                TEXT.getRGB() & 0xFFFFFF, BG.getRGB() & 0xFFFFFF, Fonts.css(Fonts.uiFamily())));
         ss.addRule(String.format("a { color: #%06X; }", ACCENT.getRGB() & 0xFFFFFF));
         ss.addRule(String.format("pre, code { color: #%06X; }", TEXT.getRGB() & 0xFFFFFF));
         kit.setStyleSheet(ss);

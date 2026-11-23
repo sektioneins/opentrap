@@ -62,7 +62,7 @@ public class IssueDefinitionsPanel extends JPanel {
         loaded = true;
         ZapEngine ze = ZapEngine.shared();
         if (ze == null || !ze.available()) {
-            detail.setText("<html><body style='font-family:sans-serif'><i>Scan engine (ZAP) not installed. "
+            detail.setText("<html><body style='font-family:" + opentrap.ui.Fonts.css(opentrap.ui.Fonts.uiFamily()) + "'><i>Scan engine (ZAP) not installed. "
                     + "Run 'just engine' to add it.</i></body></html>");
             return;
         }
@@ -79,7 +79,7 @@ public class IssueDefinitionsPanel extends JPanel {
                 SwingUtilities.invokeLater(() -> model.set(defs));
             } catch (Exception ex) {
                 SwingUtilities.invokeLater(() -> detail.setText(
-                        "<html><body style='font-family:sans-serif'><i>Could not load issue definitions: "
+                        "<html><body style='font-family:" + opentrap.ui.Fonts.css(opentrap.ui.Fonts.uiFamily()) + "'><i>Could not load issue definitions: "
                         + opentrap.ui.Advisory.esc(ex.getMessage()) + "</i></body></html>"));
             }
         }, "issue-defs-load").start();
@@ -90,7 +90,7 @@ public class IssueDefinitionsPanel extends JPanel {
         if (r < 0) { detail.setText(""); return; }
         Def d = model.at(table.convertRowIndexToModel(r));
         if (d == null) return;
-        detail.setText("<html><body style='font-family:sans-serif;margin:8px'>"
+        detail.setText("<html><body style='font-family:" + opentrap.ui.Fonts.css(opentrap.ui.Fonts.uiFamily()) + ";margin:8px'>"
                 + "<h2 style='color:" + opentrap.ui.Theme.css(opentrap.ui.Theme.ACCENT) + "'>" + esc(d.name) + "</h2>"
                 + "<p><b>Scan rule type:</b> " + d.type + "</p>"
                 + "<p><b>Type index:</b> " + esc(d.id) + "</p>"

@@ -101,7 +101,8 @@ Construct: `new LogEntry(String tool, HttpService svc, HttpMessage request)`.
 
 ## opentrap.ui.Ui  (use these so everything looks consistent)
 ```java
-Ui.PLAIN Ui.BOLD Ui.MONO Ui.HEADING            // fonts
+Ui.PLAIN Ui.BOLD Ui.MONO Ui.HEADING            // fonts, in the family and size of the user's font settings
+Fonts.ui(style, size) Fonts.mono(style, size)    // other sizes (given for the default 12, scaled to the setting)
 Ui.ACCENT Ui.GRID Ui.ERROR_RED Ui.ZEBRA        // colours
 Ui.heading(s) Ui.label(s) Ui.bold(s) Ui.check(s,sel) Ui.radio(s,sel)
 Ui.button(s) Ui.button(s,tooltip) Ui.field(s,cols) Ui.combo(T[]) Ui.note(s)

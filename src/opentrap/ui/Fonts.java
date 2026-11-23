@@ -182,6 +182,11 @@ public final class Fonts {
         return new Font(monoFamily(), style, scaled(baseSize, monoSize()));
     }
 
+    /** A CSS {@code font-family} value naming exactly this family; double quoted, as it sits inside single-quoted attributes. */
+    public static String css(String family) {
+        return "\"" + family.replace("\"", "").replace("'", "") + "\"";
+    }
+
     /** {@code Family Npt}, the {@code editor.font} format and the label text. */
     public static String describe(String family, int size) {
         return family + " " + size + "pt";

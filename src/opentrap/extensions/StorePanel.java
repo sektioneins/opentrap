@@ -1,5 +1,6 @@
 package opentrap.extensions;
 
+import opentrap.ui.Fonts;
 import opentrap.ui.Glyphs;
 import opentrap.ui.Theme;
 import opentrap.ui.Ui;
@@ -127,7 +128,7 @@ public final class StorePanel extends JPanel {
         JPanel title = new JPanel(new BorderLayout(10, 0));
         title.setOpaque(false);
         JLabel name = new JLabel(x.name(), Glyphs.bolt(18, Ui.ACCENT), SwingConstants.LEADING);
-        name.setFont(new Font("Dialog", Font.BOLD, 17));
+        name.setFont(Fonts.ui(Font.BOLD, 17));
         name.setIconTextGap(10);
         title.add(name, BorderLayout.WEST);
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));

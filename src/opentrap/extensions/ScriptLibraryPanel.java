@@ -1,5 +1,6 @@
 package opentrap.extensions;
 
+import opentrap.ui.Fonts;
 import opentrap.ui.Glyphs;
 import opentrap.ui.Theme;
 import opentrap.ui.Ui;
@@ -168,7 +169,7 @@ public final class ScriptLibraryPanel extends JPanel {
         JLabel icon = new JLabel(Glyphs.bolt(64, Ui.ACCENT));
         icon.setAlignmentX(Component.CENTER_ALIGNMENT);
         JLabel h = new JLabel(emptyTitleText);
-        h.setFont(new Font("Dialog", Font.BOLD, 18));
+        h.setFont(Fonts.ui(Font.BOLD, 18));
         h.setAlignmentX(Component.CENTER_ALIGNMENT);
         JTextArea t = Ui.note(emptyBody);
         Ui.sizeNote(t, 420);

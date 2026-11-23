@@ -1,6 +1,7 @@
 package opentrap.ui.settings;
 
 import opentrap.core.Settings;
+import opentrap.ui.Fonts;
 import opentrap.ui.Glyphs;
 import opentrap.ui.OptionsPage;
 import opentrap.ui.Theme;
@@ -48,7 +49,7 @@ public class SettingsPage extends OptionsPage {
         left.setOpaque(false);
         left.add(new JLabel(Glyphs.help(18, Theme.MUTED)));
         JLabel h = Ui.heading(title);
-        h.setFont(new Font("Dialog", Font.BOLD, 14));
+        h.setFont(Fonts.ui(Font.BOLD, 14));
         left.add(h);
         head.add(left, BorderLayout.WEST);
         JPanel pills = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));

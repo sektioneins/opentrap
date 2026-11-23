@@ -39,7 +39,7 @@ public final class Advisory {
     public static String render(Issue i, boolean withLocation) {
         if (i == null) return "<html><body></body></html>";
         StringBuilder b = new StringBuilder(1024);
-        b.append("<html><body style='font-family:sans-serif;font-size:11px;padding:6px;color:")
+        b.append("<html><body style='font-family:").append(Fonts.css(Fonts.uiFamily())).append(";font-size:11px;padding:6px;color:")
          .append(Theme.css(Theme.TEXT)).append("'>");
         b.append("<h2 style='margin:0 0 6px 0'>").append(esc(i.title())).append("</h2>");
 
@@ -70,7 +70,7 @@ public final class Advisory {
         }
 
         if (!i.evidence().isBlank()) {
-            b.append("<h3>Evidence</h3><pre style='font-family:monospace;font-size:11px;")
+            b.append("<h3>Evidence</h3><pre style='font-family:").append(Fonts.css(Fonts.monoFamily())).append(";font-size:11px;")
              .append("background:").append(Theme.css(Theme.SURFACE_2)).append(";padding:4px;white-space:pre-wrap'>")
              .append(esc(trim(i.evidence(), 2000)))
              .append("</pre>");

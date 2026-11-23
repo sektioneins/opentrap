@@ -9,6 +9,7 @@ import opentrap.core.MessageStore;
 import opentrap.core.ScanTask;
 import opentrap.core.SuiteContext;
 import opentrap.core.ToolModule;
+import opentrap.ui.Fonts;
 import opentrap.ui.MessageEditor;
 import opentrap.ui.Theme;
 import opentrap.ui.Ui;
@@ -961,7 +962,7 @@ public class DashboardTool implements ToolModule {
         col.setOpaque(false);
         JLabel ic = new JLabel(icon);
         JLabel h = new JLabel(headline);
-        h.setFont(new Font("Dialog", Font.BOLD, 18));
+        h.setFont(Fonts.ui(Font.BOLD, 18));
         JTextArea t = Ui.note(hint);
         Ui.sizeNote(t, 460);
         for (JComponent c : new JComponent[]{ic, h, t}) { c.setAlignmentX(Component.CENTER_ALIGNMENT); col.add(c); col.add(Box.createVerticalStrut(14)); }

@@ -2,6 +2,7 @@ package opentrap.discover;
 
 import opentrap.core.ToolModule;
 import opentrap.ui.AppIcon;
+import opentrap.ui.Fonts;
 import opentrap.ui.Glyphs;
 import opentrap.ui.Theme;
 import opentrap.ui.Ui;
@@ -58,11 +59,11 @@ public class DiscoverTool implements ToolModule {
         heroText.setOpaque(false);
         JLabel headline = opentrap.ui.theme.HtmlGuard.allowHtml(new JLabel("<html>OpenTRAP, <span style='color:"
                 + opentrap.ui.Theme.css(opentrap.ui.Theme.ACCENT) + "'>open.</span></html>"));
-        headline.setFont(new Font("Dialog", Font.BOLD, 36));
+        headline.setFont(Fonts.ui(Font.BOLD, 36));
         headline.setForeground(Color.WHITE);
         JLabel blurb = opentrap.ui.theme.HtmlGuard.allowHtml(new JLabel("<html><div style='width:560px'>A free, open-source web security testing suite: proxy, crawler, scanner, "
                 + "Intruder, Repeater and the rest, built on the OWASP ZAP engine and shaped by its community.</div></html>"));
-        blurb.setFont(new Font("Dialog", Font.PLAIN, 16));
+        blurb.setFont(Fonts.ui(Font.PLAIN, 16));
         blurb.setForeground(new Color(0xE6, 0xE6, 0xEA));
         JLabel small = new JLabel("Free under the AGPL. No accounts, no licence keys.");
         small.setFont(Ui.PLAIN);
@@ -102,7 +103,7 @@ public class DiscoverTool implements ToolModule {
 
         // Discover more: feature tiles.
         JLabel more = new JLabel("Discover more");
-        more.setFont(new Font("Dialog", Font.BOLD, 22));
+        more.setFont(Fonts.ui(Font.BOLD, 22));
         more.setAlignmentX(Component.CENTER_ALIGNMENT);
         more.setBorder(Ui.pad(16, 0, 8, 0));
         root.add(more);

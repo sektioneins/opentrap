@@ -4,6 +4,7 @@ import opentrap.core.SuiteContext;
 import opentrap.core.ToolModule;
 import opentrap.oast.Collaborator;
 import opentrap.oast.Interaction;
+import opentrap.ui.Fonts;
 import opentrap.ui.OptionsPage;
 import opentrap.ui.Theme;
 import opentrap.ui.Ui;
@@ -100,7 +101,7 @@ public class CollaboratorTool implements ToolModule {
         emptyCol.setOpaque(false);
         JLabel emptyIcon = new JLabel(opentrap.ui.Glyphs.search(64, opentrap.ui.Theme.BORDER));
         JLabel emptyTitle = new JLabel("Your interactions will appear here");
-        emptyTitle.setFont(new Font("Dialog", Font.BOLD, 18));
+        emptyTitle.setFont(Fonts.ui(Font.BOLD, 18));
         JTextArea emptyText = Ui.note("Click \"Copy to clipboard\" to generate Collaborator payloads that you can use when testing");
         Ui.sizeNote(emptyText, 420);
         JButton learn = Ui.button("Learn more");

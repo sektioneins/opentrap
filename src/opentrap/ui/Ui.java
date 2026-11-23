@@ -9,12 +9,12 @@ import java.awt.image.BufferedImage;
 public final class Ui {
     private Ui() {}
 
-    // Base sizes; actual fonts derive from these through UiScale so the whole
-    // interface scales from one factor.
-    public static final Font PLAIN   = new Font("Dialog", Font.PLAIN, 12);
-    public static final Font BOLD    = new Font("Dialog", Font.BOLD, 12);
-    public static final Font MONO    = new Font(Font.MONOSPACED, Font.PLAIN, 12);
-    public static final Font HEADING = new Font("Dialog", Font.BOLD, 13);
+    // Base sizes for the default 12; Fonts scales them to the user's font
+    // settings, and UiScale then scales the whole interface from one factor.
+    public static final Font PLAIN   = Fonts.ui(Font.PLAIN, 12);
+    public static final Font BOLD    = Fonts.ui(Font.BOLD, 12);
+    public static final Font MONO    = Fonts.mono(Font.PLAIN, 12);
+    public static final Font HEADING = Fonts.ui(Font.BOLD, 13);
 
     public static final Color ACCENT      = Theme.ACCENT;
     public static final Color PANEL_BG    = Theme.SURFACE;

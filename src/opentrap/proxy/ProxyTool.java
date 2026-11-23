@@ -369,7 +369,7 @@ public class ProxyTool implements ToolModule {
             JPanel column = new JPanel();
             column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
             column.setOpaque(false);
-            idleTitle.setFont(new Font("Dialog", Font.BOLD, 15));
+            idleTitle.setFont(Fonts.ui(Font.BOLD, 15));
             idleTitle.setAlignmentX(Component.CENTER_ALIGNMENT);
             idleText.setAlignmentX(Component.CENTER_ALIGNMENT);
             idleText.setMaximumSize(new Dimension(520, Integer.MAX_VALUE));
@@ -390,7 +390,7 @@ public class ProxyTool implements ToolModule {
             idleButtons.add(learn);
             idleButtons.add(idleBrowser);
             idleButtons.setAlignmentX(Component.CENTER_ALIGNMENT);
-            idleTitle.setFont(new Font("Dialog", Font.BOLD, 20));
+            idleTitle.setFont(Fonts.ui(Font.BOLD, 20));
             idleListener.setVisible(false);
             column.add(lights);
             column.add(Box.createVerticalStrut(40));
