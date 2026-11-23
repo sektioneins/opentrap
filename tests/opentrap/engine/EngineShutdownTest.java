@@ -64,6 +64,18 @@ public final class EngineShutdownTest {
                 throw new RuntimeException(e);
             }
         });
+
+        Harness.test("an interrupt that arrives while the engine is polled is kept", () -> {
+            // shutdown() interrupts start() to end its readiness wait. When the
+            // interrupt lands inside the API call, the call clears it, and the
+            // poll then slept its full 1.5 s holding the monitor shutdown() waits on.
+            ZapEngine engine = ZapEngine.attach("http://127.0.0.1:1", "key");
+            Thread.currentThread().interrupt();
+            boolean answered = engine.responds();
+            boolean kept = Thread.interrupted();   // also clears it for the next case
+            Expect.isFalse(answered, "nothing answers on port 1");
+            Expect.isTrue(kept, "the interrupt is still set");
+        });
     }
 
     /** A runnable jar whose main class is {@link SilentEngine}. */

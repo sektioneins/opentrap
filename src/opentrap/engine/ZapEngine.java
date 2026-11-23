@@ -291,8 +291,16 @@ public final class ZapEngine {
         if (stopping) throw new IOException("Scan engine start abandoned: the application is shutting down");
     }
 
-    private boolean responds() {
-        try { return api.version() != null; } catch (Exception e) { return false; }
+    /**
+     * Whether the engine answers its API. The API client throws
+     * InterruptedException when shutdown() interrupts the poll, which clears the
+     * interrupt; it is set again so the poll's next sleep ends at once instead
+     * of keeping shutdown() waiting for the monitor.
+     */
+    boolean responds() {
+        try { return api.version() != null; }
+        catch (InterruptedException e) { Thread.currentThread().interrupt(); return false; }
+        catch (Exception e) { return false; }
     }
 
     /** Attach to an already-running engine (used by diagnostics/tests). */
