@@ -175,11 +175,23 @@ public final class Fonts {
     public static int monoSize() { return Active.MONO.size(); }
 
     public static Font ui(int style, float baseSize) {
-        return new Font(uiFamily(), style, scaled(baseSize, uiSize()));
+        return build(uiFamily(), style, scaled(baseSize, uiSize()));
     }
 
     public static Font mono(int style, float baseSize) {
-        return new Font(monoFamily(), style, scaled(baseSize, monoSize()));
+        return build(monoFamily(), style, scaled(baseSize, monoSize()));
+    }
+
+    /**
+     * A font of this family that keeps the Dialog fallback chain. On Linux and
+     * Windows a plain {@code new Font(physicalFamily, ...)} has no fallback, so
+     * CJK, Arabic or emoji text renders as boxes; Swing's style context wraps
+     * such a font in a composite that falls back to Dialog, and the wrapper
+     * survives {@code deriveFont}. The derived copy drops the UIResource marker so a
+     * look-and-feel update never swaps the font out from under a component.
+     */
+    static Font build(String family, int style, int size) {
+        return javax.swing.text.StyleContext.getDefaultStyleContext().getFont(family, style, size).deriveFont((float) size);
     }
 
     /** A CSS {@code font-family} value naming exactly this family; double quoted, as it sits inside single-quoted attributes. */

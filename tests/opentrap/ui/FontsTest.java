@@ -7,6 +7,7 @@ import java.awt.Font;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Locale;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Stream;
@@ -142,6 +143,27 @@ public final class FontsTest {
             Expect.isTrue(html.contains(Fonts.css(Fonts.monoFamily())), "mono family");
             Expect.isFalse(html.contains("sans-serif"), "no sans-serif");
             Expect.isFalse(html.contains("font-family:monospace"), "no monospace keyword");
+        });
+
+        Harness.test("the resolved fonts can draw every character the Dialog font can", () -> {
+            Font dialog = new Font(Font.DIALOG, Font.PLAIN, 12);
+            Font[] fonts = {Fonts.ui(Font.PLAIN, 12), Fonts.mono(Font.PLAIN, 12), Theme.FONT, Ui.MONO,
+                    Fonts.ui(Font.BOLD, 14).deriveFont(20f)};
+            for (char c : new char[]{'\u4e2d', '\u0416', '\u03a9', '\u0628', '\u05d0'}) {
+                if (!dialog.canDisplay(c)) continue;
+                for (Font f : fonts)
+                    Expect.isTrue(f.canDisplay(c), "U+" + Integer.toHexString(c) + " in " + f);
+            }
+        });
+
+        Harness.test("a built font keeps its family and size and is not a UIResource", () -> {
+            Font f = Fonts.build("Menlo", Font.BOLD, 15);
+            Expect.equal(f.getSize(), 15, "size");
+            Expect.equal(f.getStyle(), Font.BOLD, "style");
+            Expect.isFalse(f instanceof javax.swing.plaf.UIResource, "not a UIResource");
+            Expect.isFalse(Fonts.ui(Font.PLAIN, 12) instanceof javax.swing.plaf.UIResource, "ui not a UIResource");
+            Expect.equal(Fonts.ui(Font.PLAIN, 12).getFamily(Locale.ROOT).equalsIgnoreCase(Fonts.uiFamily())
+                    || Fonts.uiFamily().equals("Dialog"), true, "ui family kept");
         });
 
         Harness.test("no text font is built from the Dialog family outside icon drawing", () -> {
