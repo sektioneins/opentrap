@@ -173,5 +173,33 @@ public final class ProjectCopyScopeTest {
                 }
             } catch (Exception e) { throw new RuntimeException(e); }
         });
+
+        Harness.test("an in-scope copy aimed at the open project file is refused and the project keeps everything", () -> {
+            try {
+                SuiteContext ctx = new SuiteContext();
+                ctx.scope().includeUrl(IN, "/", true);
+                File f = Files.createTempFile("opentrap-copyscope", ".otrap").toFile();
+                f.delete();   // bindNew creates it fresh
+                try {
+                    StateIO.bindNew(ctx, f, StateIO.SaveOptions.fromSettings(ctx));
+                    ctx.store().add(new LogEntry("proxy", IN, new HttpMessage(Bytes.bytes("GET / HTTP/1.1\r\nHost: a.test\r\n\r\n"))));
+                    ctx.store().add(new LogEntry("proxy", OUT, new HttpMessage(Bytes.bytes("GET / HTTP/1.1\r\nHost: b.test\r\n\r\n"))));
+                    ctx.sessions().jar().set(new opentrap.session.Cookie("sid", "s3cr3t", "b.test", "/", false, 0));
+                    StateIO.save(ctx, f);   // the project's own snapshot, with the cookie
+                    StateIO.SaveOptions o = new StateIO.SaveOptions();
+                    o.inScopeOnly = true;
+                    boolean refused = false;
+                    try { StateIO.save(ctx, f, o); } catch (java.io.IOException _) { refused = true; }
+                    Expect.isTrue(refused, "the narrowed save is refused");
+                    ctx.store().closeStore();
+                    SuiteContext back = new SuiteContext();
+                    Expect.equal(StateIO.restore(back, f), 2, "both entries are still in the project");
+                    Expect.equal(back.sessions().jar().all().size(), 1, "the out-of-scope cookie is still in the project");
+                    back.store().closeStore();
+                } finally {
+                    f.delete();
+                }
+            } catch (Exception e) { throw new RuntimeException(e); }
+        });
     }
 }

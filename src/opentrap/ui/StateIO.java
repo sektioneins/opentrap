@@ -170,6 +170,10 @@ public final class StateIO {
         synchronized (SAVE_LOCK) {
             ProjectStore live = ctx.store().diskStore();
             if (live != null && sameFile(live.path().toFile(), file)) {
+                // The history on disk cannot be narrowed in place, and the snapshot
+                // below would replace the project's own session state.
+                if (o.inScopeOnly || o.tools != null || !o.includeTasks)
+                    throw new IOException("a narrowed copy cannot replace the open project; choose another file");
                 // Bound v7 project: the entries are already appended as they were
                 // recorded; a save is just the small mutable session state plus fsync.
                 live.append(ProjectStore.SNAPSHOT, sessionStateBytes(ctx, o));
