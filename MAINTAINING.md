@@ -119,7 +119,9 @@ in-app download), one already on the system `PATH`, or on macOS the Chromium app
 in `/Applications`. It launches with an isolated
 profile under `~/.opentrap/browser`, pointed at the proxy
 (`--proxy-server=http://127.0.0.1:<port>`) and trusting the proxy CA, so TLS
-interception works with nothing to configure. It is launched with its own window
+interception works with nothing to configure. It is started with no URL and no
+`--new-window`, so a profile folder that holds more than one profile shows the
+profile chooser. On Linux it is launched with its own window
 class (`--class=opentrap-browser`), and `opentrap.proxy.BrowserDesktopEntry`
 installs a hidden desktop entry plus an icon set under `~/.local/share` that the
 desktop maps to that class. Panels that take the icon a window advertises
@@ -128,7 +130,7 @@ itself (XFCE, Cinnamon, most X11 taskbars) ignore that mapping, so
 the `_NET_WM_ICON` property of every window of that class, through `xprop`, as
 each one opens. Either way the taskbar shows OpenTRAP's own orange globe rather
 than the browser vendor's logo; only windows of that class are ever touched.
-The browser is launched with `--ozone-platform=x11` on purpose: from Chrome 140
+On Linux the browser is launched with `--ozone-platform=x11` on purpose: from Chrome 140
 it picks Wayland automatically on a Wayland desktop, and as a native Wayland
 client it pushes its vendor icon to the compositor itself (Chrome 135+) and does
 not carry the class, so nothing above would attach. Through XWayland it does.

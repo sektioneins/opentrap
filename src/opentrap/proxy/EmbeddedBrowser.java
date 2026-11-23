@@ -138,42 +138,12 @@ public final class EmbeddedBrowser {
     }
 
     /**
-     * Launch (or focus) the browser pointed at the proxy.
-     *
-     * @return null on success, or a human-readable error.
+     * The command line that starts the testing browser. The window class and
+     * the X11 platform flag exist for Linux desktops only, so they are left out
+     * elsewhere.
      */
-    public static synchronized String launch(ProxyServer server, String startUrl) {
-        return launch(server, startUrl, true);
-    }
-
-    /**
-     * Launch the browser, optionally with its own security enforcement relaxed
-     * so that requests it would otherwise refuse to send still reach the proxy.
-     * See {@link BrowserFlags} for exactly what that changes.
-     */
-    public static synchronized String launch(ProxyServer server, String startUrl,
-                                             boolean relaxSecurity) {
-        String binary = findBinary();
-        if (binary == null) {
-            return notFoundMessage(System.getProperty("os.name"));
-        }
-
-        int port = runningPort(server);
-        if (port < 0) {
-            return "No proxy listener is running. Enable one on the proxy options tab first.";
-        }
-
-        String spki;
-        try {
-            spki = server.ca().spkiFingerprint();
-        } catch (Exception e) {
-            return "Could not read the CA fingerprint: " + e.getMessage();
-        }
-
-        Path profile = Path.of(System.getProperty("user.home"), ".opentrap", "browser");
-        profile.toFile().mkdirs();
-        clearCache(profile);
-
+    static List<String> command(String binary, String osName, Path profile, int port,
+                                String spki, boolean relaxSecurity) {
         List<String> cmd = new ArrayList<>();
         cmd.add(binary);
         cmd.add("--user-data-dir=" + profile);
@@ -199,18 +169,66 @@ public final class EmbeddedBrowser {
         // requests. Minimise the disk cache and clear any stale entries below.
         cmd.add("--disk-cache-size=1");
         cmd.addAll(BrowserFlags.forTesting(relaxSecurity));
-        // Its own window class, which the desktop maps to OpenTRAP's own icon
-        // through the entry installed below, so the testing browser is never
-        // mistaken for the user's everyday one in the taskbar.
-        cmd.add("--class=" + BrowserDesktopEntry.WM_CLASS);
-        // Run as an X11 client even on a Wayland desktop (through XWayland):
-        // the browser's native Wayland path pushes its vendor icon straight to
-        // the compositor and does not reliably carry the class, so there would
-        // be nothing for the desktop entry or the icon property to attach to.
-        cmd.add("--ozone-platform=x11");
-        BrowserDesktopEntry.install();
-        cmd.add("--new-window");
-        cmd.add(startUrl == null || startUrl.isBlank() ? "http://opentrap/" : startUrl);
+        if (isLinux(osName)) {
+            // Its own window class, which the desktop maps to OpenTRAP's own icon
+            // through the entry launch() installs, so the testing browser is never
+            // mistaken for the user's everyday one in the taskbar.
+            cmd.add("--class=" + BrowserDesktopEntry.WM_CLASS);
+            // Run as an X11 client even on a Wayland desktop (through XWayland):
+            // the browser's native Wayland path pushes its vendor icon straight to
+            // the compositor and does not reliably carry the class, so there would
+            // be nothing for the desktop entry or the icon property to attach to.
+            cmd.add("--ozone-platform=x11");
+        }
+        // No URL and no --new-window: the browser opens as it would on its own,
+        // so a profile directory that holds more than one profile shows the
+        // profile chooser instead of opening a page in the last profile used.
+        return cmd;
+    }
+
+    private static boolean isLinux(String osName) {
+        return osName.toLowerCase(java.util.Locale.ROOT).startsWith("linux");
+    }
+
+    /**
+     * Launch (or focus) the browser pointed at the proxy.
+     *
+     * @return null on success, or a human-readable error.
+     */
+    public static synchronized String launch(ProxyServer server) {
+        return launch(server, true);
+    }
+
+    /**
+     * Launch the browser, optionally with its own security enforcement relaxed
+     * so that requests it would otherwise refuse to send still reach the proxy.
+     * See {@link BrowserFlags} for exactly what that changes.
+     */
+    public static synchronized String launch(ProxyServer server, boolean relaxSecurity) {
+        String binary = findBinary();
+        if (binary == null) {
+            return notFoundMessage(System.getProperty("os.name"));
+        }
+
+        int port = runningPort(server);
+        if (port < 0) {
+            return "No proxy listener is running. Enable one on the proxy options tab first.";
+        }
+
+        String spki;
+        try {
+            spki = server.ca().spkiFingerprint();
+        } catch (Exception e) {
+            return "Could not read the CA fingerprint: " + e.getMessage();
+        }
+
+        Path profile = Path.of(System.getProperty("user.home"), ".opentrap", "browser");
+        profile.toFile().mkdirs();
+        clearCache(profile);
+
+        String osName = System.getProperty("os.name");
+        List<String> cmd = command(binary, osName, profile, port, spki, relaxSecurity);
+        if (isLinux(osName)) BrowserDesktopEntry.install();
 
         try {
             running = new ProcessBuilder(cmd)

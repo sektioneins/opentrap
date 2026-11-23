@@ -40,7 +40,9 @@ For everything else, the original project is the place to go:
 - **macOS as well as Linux.** The build, the tests and the app run on both, with
   `just` as the only entry point; the shell scripts are gone. On macOS the
   browser button starts an installed Chromium and, when there is none, says to
-  install it with `brew install ungoogled-chromium`.
+  install it with `brew install ungoogled-chromium`. The testing browser opens
+  without a start page, so a profile chooser shows when its profile folder holds
+  more than one profile.
 - **Java 27.** The suite builds and ships on Java 27, with the version pinned
   once in `tools/versions`. Proxy connections run on virtual threads.
 - **Newer protocols.** The proxy uses the post-quantum hybrid key exchange on

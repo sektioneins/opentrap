@@ -284,7 +284,7 @@ public class ProxyTool implements ToolModule {
 
             Runnable launchBrowser = () -> {
                 boolean relax = ctx.settings().getBool(BrowserFlags.RELAX_KEY, true);
-                String err = EmbeddedBrowser.launch(server, "http://opentrap/", relax);
+                String err = EmbeddedBrowser.launch(server, relax);
                 if (err != null) {
                     JOptionPane.showMessageDialog(this, err, "Open browser",
                             JOptionPane.WARNING_MESSAGE);

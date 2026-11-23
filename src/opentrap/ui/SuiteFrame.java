@@ -556,7 +556,7 @@ public class SuiteFrame extends JFrame {
             return;
         }
         boolean relax = ctx.settings().getBool(opentrap.proxy.BrowserFlags.RELAX_KEY, true);
-        String err = opentrap.proxy.EmbeddedBrowser.launch(server, "http://opentrap/", relax);
+        String err = opentrap.proxy.EmbeddedBrowser.launch(server, relax);
         if (err != null) {
             JOptionPane.showMessageDialog(this, err, "Open browser", JOptionPane.WARNING_MESSAGE);
         } else {
