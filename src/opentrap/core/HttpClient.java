@@ -110,12 +110,12 @@ public class HttpClient {
      * Connect to a service, routing through an upstream HTTP (CONNECT) or SOCKS
      * proxy when one is configured for the destination, and layering TLS (with
      * SNI) on top when the service is secure.
-     */
-    /**
+     * <p>
      * Connect, optionally through an override upstream (used for live passive
      * scanning through the ZAP engine). If the override cannot be reached the
      * connection falls back to direct, so the scan engine being down never breaks
-     * the user's traffic.
+     * the user's traffic. The guard, when not null, is asked with the address the
+     * base socket connects to before it connects.
      */
     private static Socket connect(HttpService svc, int ct, int rt, UpstreamProxy override, ConnectGuard guard) throws Exception {
         if (override != null) {

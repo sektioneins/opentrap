@@ -18,9 +18,10 @@ final class LoopGuard {
 
     /**
      * True when connecting to {@code dest} reaches one of {@code listening}. Only
-     * listeners on the same port count. The any-address is sent to this machine by
-     * every OS; a listener bound to all interfaces is reached at any address that
-     * {@code thisMachine} accepts; a listener bound to one address only at that one.
+     * listeners on the same port count. Linux and macOS send a connect to the
+     * any-address to this machine; a listener bound to all interfaces is reached
+     * at any address that {@code thisMachine} accepts; a listener bound to one
+     * address only at that one.
      */
     static boolean reaches(InetSocketAddress dest, Collection<InetSocketAddress> listening,
                            Predicate<InetAddress> thisMachine) {
