@@ -26,17 +26,19 @@ public final class CurlCommand {
         String body = Bytes.str(request.body());
         boolean nul = body.indexOf('\u0000') >= 0;
         StringBuilder b = new StringBuilder();
-        if (nul) b.append("printf ").append(printfFormat(body)).append(" | ");
+        if (nul) b.append("printf ").append(quote(printfFormat(body))).append(" | ");
         b.append("curl -i -s -k -g --path-as-is ");
         if (request.method().equals("HEAD")) b.append("--head ");
         else b.append("-X ").append(quote(request.method())).append(' ');
         for (String line : request.headerLines()) {
             int c = line.indexOf(':');
-            if (c <= 0 || line.charAt(0) == '@') continue;
+            if (c <= 0) continue;
             String name = line.substring(0, c).trim();
             if (name.equalsIgnoreCase("content-length")) continue;
             String value = line.substring(c + 1).trim();
-            b.append("-H ").append(quote(value.isEmpty() ? name + ";" : line)).append(' ');
+            String header = value.isEmpty() ? name + ";" : line;
+            if (header.startsWith("@")) continue;
+            b.append("-H ").append(quote(header)).append(' ');
         }
         if (nul) b.append("--data-binary @- ");
         else if (!body.isEmpty()) b.append("--data-raw ").append(quote(body)).append(' ');
@@ -82,17 +84,16 @@ public final class CurlCommand {
         return c >= 0x20 && c <= 0x7e;
     }
 
-    /** A single-quoted printf format that prints {@code body} byte for byte. */
+    /** A printf format that prints {@code body} byte for byte; it still needs quoting. */
     private static String printfFormat(String body) {
-        StringBuilder b = new StringBuilder("'");
+        StringBuilder b = new StringBuilder();
         for (int i = 0; i < body.length(); i++) {
             char c = body.charAt(i);
-            if (c == '\'') b.append("'\\''");
-            else if (c == '%') b.append("%%");
+            if (c == '%') b.append("%%");
             else if (c == '\\') b.append("\\\\");
             else if (printable(c)) b.append(c);
             else b.append('\\').append((char) ('0' + ((c >> 6) & 7))).append((char) ('0' + ((c >> 3) & 7))).append((char) ('0' + (c & 7)));
         }
-        return b.append('\'').toString();
+        return b.toString();
     }
 }

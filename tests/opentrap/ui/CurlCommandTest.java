@@ -47,7 +47,7 @@ public final class CurlCommandTest {
         try (InputStream in = p.getInputStream()) {
             in.transferTo(out);
         }
-        if (!p.waitFor(10, TimeUnit.SECONDS)) {
+        if (!p.waitFor(5, TimeUnit.SECONDS)) {
             p.destroyForcibly();
             throw new IOException(shell + " did not finish");
         }
@@ -155,6 +155,12 @@ public final class CurlCommandTest {
             List<String> a = args("bash", CurlCommand.of(SVC, req("POST /x HTTP/1.1\r\nHost: t.example\r\n"
                     + "Content-Length: 3\r\n@/etc/passwd: x\r\n: odd\r\njunk\r\nX-Z: 1\r\n\r\nabc")));
             Expect.equal(headerValues(a), List.of("Host: t.example", "X-Z: 1"), "headers");
+        });
+
+        Harness.test("a header that only starts with @ after trimming is left out too", () -> {
+            List<String> a = args("bash", CurlCommand.of(SVC, req("GET / HTTP/1.1\r\n @/etc/passwd:\r\n"
+                    + "\t@/etc/passwd:   \r\nX-Z: 1\r\n\r\n")));
+            Expect.equal(headerValues(a), List.of("X-Z: 1"), "headers");
         });
 
         Harness.test("a header with an empty value is sent as Name; so that curl keeps it", () -> {
