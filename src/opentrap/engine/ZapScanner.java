@@ -95,7 +95,10 @@ public final class ZapScanner {
             anyEnabled = true;
             String re = r.includeRegex();
             if (re == null) {
-                notes.add("left out include rule the engine cannot match exactly: " + r.describe());
+                // A prefix rule only lacks a regex when its host cannot be
+                // read, and then it matches nothing in the app either.
+                notes.add((r.prefix != null ? "left out include rule with no usable host: "
+                        : "left out include rule the engine cannot match exactly: ") + r.describe());
                 continue;
             }
             includes.add(re);

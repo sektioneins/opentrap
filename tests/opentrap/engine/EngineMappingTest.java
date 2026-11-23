@@ -139,6 +139,18 @@ public final class EngineMappingTest {
                     "left out include rule the engine cannot match exactly: host matches (?x) a"), "note");
         });
 
+        Harness.test("a prefix include with no usable host is left out and named as such", () -> {
+            opentrap.core.Scope s = new opentrap.core.Scope();
+            s.include().add(opentrap.core.Scope.Rule.prefix("https://example.com", false));
+            // As a project file or the scope editor may hold it: a prefix no URI parser takes.
+            opentrap.core.Scope.Rule broken = new opentrap.core.Scope.Rule();
+            broken.prefix = "http://exa mple.com";
+            s.include().add(broken);
+            ZapScanner.EngineScope es = scopeOf(s, List.of());
+            Expect.equal(es.includes().size(), 1, "includes");
+            Expect.equal(es.notes(), List.of("left out include rule with no usable host: http://exa mple.com"), "notes");
+        });
+
         Harness.test("a scope whose include rules all cannot be bound refuses the scan", () -> {
             opentrap.core.Scope s = new opentrap.core.Scope();
             s.include().add(new opentrap.core.Scope.Rule("any", "(?x) a", "", ""));
