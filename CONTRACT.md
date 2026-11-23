@@ -108,6 +108,7 @@ Ui.button(s) Ui.button(s,tooltip) Ui.field(s,cols) Ui.combo(T[]) Ui.note(s)
 Ui.pad(t,l,b,r) Ui.row(comps...) Ui.vbox(comps...)
 Ui.form("label:", field, "label:", field, ...)   // aligned form; see the rules below
 Ui.filterBar(JButton, comps...)                  // shared-height filter or search strip
+Ui.link(text, Runnable)                          // underlined clickable label, plain text (no HTML)
 Ui.styleTable(JTable) Ui.setWidths(JTable,int...) Ui.scroll(Component) Ui.truncate(s,max)
 ```
 
@@ -141,4 +142,4 @@ OptionsPage.indent(component, px);
 - Register a sink in `init` if your tool can receive messages: `ctx.registerSink("decoder", (svc,req,resp,cap) -> {...})`.
 - British spelling in user-visible text. Lower-case tab and control labels, as the original used.
 - Lay out cleanly and align. Whenever a panel has more than one labelled input, build it with `Ui.form("label:", field, "label:", field, ...)` so the labels are right-aligned in one column and every field shares a left edge. For a filter or search strip use `Ui.filterBar(...)` so the controls share one height. Do not hand-place labelled fields with FlowLayout or padded-string labels; they never line up. Neat alignment is a requirement, not a nicety.
-- HTML is off in every label, cell, tooltip, button, menu and tab: text that starts with `<html>` is shown literally, because data from the traffic must never render as markup. An extension that wants markup in a component calls `opentrap.ui.theme.HtmlGuard.allowHtml(component)` and must escape everything it interpolates into that markup. For a clickable link use `Ui.link(text, action)`, which draws it without HTML.
+- HTML is off in every label, cell, tooltip, button, menu and tab: text that starts with `<html>` is shown literally, because data from the traffic must never render as markup. An extension that wants markup in a component calls `opentrap.ui.theme.HtmlGuard.allowHtml(component)` and must escape everything it interpolates into that markup with `opentrap.ui.Advisory.esc`. A tooltip opts in by overriding `createToolTip()` to return `HtmlGuard.allowHtml(new JToolTip())`. `TitledBorder` titles are not covered by the guard (they copy `html.disable` from the bordered component), so never put data text in a title. For a clickable link use `Ui.link(text, action)`, which draws it without HTML.
