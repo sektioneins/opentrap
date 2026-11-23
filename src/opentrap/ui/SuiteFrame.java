@@ -404,6 +404,10 @@ public class SuiteFrame extends JFrame {
      * it. First a small dialog chooses what the copy keeps: in-scope items only,
      * which tools' history, the scan cards and the audit bodies; it is also the
      * way to shrink a project, since a copy drops what the filters leave out.
+     * The scope filter applies to every section (history, findings, WebSocket
+     * frames, cookies, macros, organizer items, Repeater tabs) and drops the scan
+     * cards and other tools' saved state; the tool boxes narrow the HTTP history
+     * only.
      */
     private void saveProjectCopy() {
         StateIO.SaveOptions opts = StateIO.SaveOptions.fromSettings(ctx);
@@ -428,6 +432,22 @@ public class SuiteFrame extends JFrame {
         inScope.setAlignmentX(Component.LEFT_ALIGNMENT); body.add(inScope);
         tasks.setAlignmentX(Component.LEFT_ALIGNMENT); body.add(tasks);
         audit.setAlignmentX(Component.LEFT_ALIGNMENT); body.add(audit);
+        JTextArea scopeNote = Ui.note("History, findings, WebSocket frames, cookies, macros, organizer items and "
+                + "Repeater tabs are kept for in-scope targets only. Scan cards and other tools' saved state are left out.");
+        scopeNote.setBorder(Ui.pad(2, 16, 0, 0));
+        scopeNote.setAlignmentX(Component.LEFT_ALIGNMENT);
+        body.add(scopeNote);
+        boolean[] tasksBefore = {tasks.isSelected()};
+        inScope.addItemListener(ev -> {
+            if (inScope.isSelected()) {
+                tasksBefore[0] = tasks.isSelected();
+                tasks.setSelected(false);
+                tasks.setEnabled(false);
+            } else {
+                tasks.setEnabled(true);
+                tasks.setSelected(tasksBefore[0]);
+            }
+        });
         if (!tools.isEmpty()) {
             body.add(Box.createVerticalStrut(10));
             JLabel th = Ui.label("History from these tools:");
