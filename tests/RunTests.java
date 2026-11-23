@@ -55,6 +55,7 @@ public final class RunTests {
         new opentrap.engine.ScanConfigStoreTest().run();
         new opentrap.engine.EngineShutdownTest().run();
         new opentrap.ui.SendToComparerTest().run();
+        new opentrap.ui.CurlCommandTest().run();
         new opentrap.ui.ThemePaletteTest().run();
         new opentrap.ui.TabbedPaneListenerTest().run();
         new opentrap.ui.IssueBadgeTest().run();
