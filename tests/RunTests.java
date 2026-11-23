@@ -17,6 +17,10 @@ public final class RunTests {
         }
         System.out.println("OpenTRAP tests");
         System.out.println();
+        // The JDK loads the system font list on the first font lookup of the
+        // process, about 0.6 s on macOS. Paid inside a case, it is billed to
+        // whichever case measures text first and makes it look slow.
+        java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames();
 
         new opentrap.testkit.MemoryPreferencesTest().run();
         new opentrap.core.ParameterParsingTest().run();
