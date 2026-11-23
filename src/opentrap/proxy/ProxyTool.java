@@ -108,6 +108,9 @@ public class ProxyTool implements ToolModule {
         return historyPanel == null ? null : historyPanel.filter.copy();
     }
 
+    /** A history filter is view settings, not captured traffic. */
+    @Override public java.io.Serializable saveState(opentrap.core.SaveFilter filter) { return saveState(); }
+
     @Override public void restoreState(java.io.Serializable state) {
         if (historyPanel == null || !(state instanceof HistoryFilter f)) return;
         f.scope = ctx.scope();

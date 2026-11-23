@@ -87,6 +87,11 @@ public final class StateIO {
         /** Largest response body kept, in bytes; 0 for no cap. */
         public int bodyCapBytes;
 
+        /** What this save may keep: everything, or what {@code scope} covers. */
+        public opentrap.core.SaveFilter filter(opentrap.core.Scope scope) {
+            return inScopeOnly ? opentrap.core.SaveFilter.inScope(scope) : opentrap.core.SaveFilter.ALL;
+        }
+
         /** The options the project's settings ask for. */
         public static SaveOptions fromSettings(SuiteContext ctx) {
             SaveOptions o = new SaveOptions();
@@ -244,6 +249,7 @@ public final class StateIO {
 
     /** The small mutable session state a snapshot record holds (everything but the history). */
     static byte[] sessionStateBytes(SuiteContext ctx, SaveOptions o) throws IOException {
+        opentrap.core.SaveFilter f = o.filter(ctx.scope());
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         ObjectOutputStream oos = new ObjectOutputStream(baos);
         oos.writeObject(ctx.scope());
@@ -252,13 +258,13 @@ public final class StateIO {
         oos.writeObject(ctx.organizer().snapshot());
         List<opentrap.core.Issue> issues = new ArrayList<>();
         for (opentrap.core.Issue i : ctx.issues()) {
-            if (o.inScopeOnly && !ctx.scope().isInScope(i.service(), i.path())) continue;
+            if (!f.keeps(i.service(), i.path())) continue;
             issues.add(i);
         }
         oos.writeObject(issues);
         java.util.LinkedHashMap<String, java.io.Serializable> toolStates = new java.util.LinkedHashMap<>();
         for (opentrap.core.ToolModule t : ctx.tools()) {
-            java.io.Serializable s = t.saveState();
+            java.io.Serializable s = t.saveState(f);
             if (s != null) toolStates.put(t.name(), s);
         }
         oos.writeObject(toolStates);

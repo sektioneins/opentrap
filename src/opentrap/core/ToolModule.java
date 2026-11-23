@@ -39,6 +39,17 @@ public interface ToolModule {
      */
     default java.io.Serializable saveState() { return null; }
 
+    /**
+     * The snapshot for a project copy narrowed to the scope, which calls this
+     * instead of {@link #saveState()}. A tool whose state names request targets
+     * overrides it and keeps only what {@code filter.keeps}; a tool whose state
+     * holds no captured traffic returns {@link #saveState()}. The default leaves
+     * the state out, because the suite cannot tell what it holds.
+     */
+    default java.io.Serializable saveState(SaveFilter filter) {
+        return filter.keepsAll() ? saveState() : null;
+    }
+
     /** Restore a snapshot previously produced by {@link #saveState()}. */
     default void restoreState(java.io.Serializable state) {}
 

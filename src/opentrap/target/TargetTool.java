@@ -663,6 +663,9 @@ public class TargetTool implements ToolModule {
     /** The filter travels with the project. */
     @Override public java.io.Serializable saveState() { return itemsFilter.copy(); }
 
+    /** A filter is view settings, not captured traffic. */
+    @Override public java.io.Serializable saveState(opentrap.core.SaveFilter filter) { return saveState(); }
+
     @Override public void restoreState(java.io.Serializable state) {
         if (!(state instanceof opentrap.proxy.HistoryFilter f)) return;
         f.scope = ctx.scope();

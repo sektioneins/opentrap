@@ -228,6 +228,9 @@ public final class ApisPanel extends JPanel {
                 /** A serialisable snapshot of this tool's working state, saved with the project. Only the classes ProjectSerial allows can be restored: strings, boxed primitives, Date, primitive arrays, ArrayList, LinkedList, HashMap, LinkedHashMap, TreeMap, HashSet, LinkedHashSet, TreeSet, CopyOnWriteArrayList, List.of/Set.of/Map.of, and the suite's own model types. Any other class (Collections.emptyList, Arrays.asList, Vector, BigInteger, UUID, ...) fails the whole project open. */
                 default java.io.Serializable saveState() { return null; }
 
+                /** The snapshot for a project copy narrowed to the scope: keep only what filter.keeps(service, path). The default leaves the state out. */
+                default java.io.Serializable saveState(SaveFilter filter) { return filter.keepsAll() ? saveState() : null; }
+
                 /** Restore a snapshot previously produced by saveState(). */
                 default void restoreState(java.io.Serializable state) {}
 

@@ -18,6 +18,9 @@ public interface ToolModule {
     default boolean alwaysTabbed() { return false; }
     default void init(SuiteContext ctx) {}
     default void shutdown() {}
+    default java.io.Serializable saveState() { return null; }   // snapshot saved with the project
+    default java.io.Serializable saveState(SaveFilter f) { return f.keepsAll() ? saveState() : null; }   // copy narrowed to the scope: keep only what f.keeps(service, path)
+    default void restoreState(java.io.Serializable state) {}
     record Tab(String title, javax.swing.JComponent component) {}
 }
 ```
