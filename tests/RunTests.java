@@ -24,6 +24,7 @@ public final class RunTests {
         new opentrap.core.TlsGroupsTest().run();
         new opentrap.core.UpstreamProxyTest().run();
         new opentrap.core.HttpClientGuardTest().run();
+        new opentrap.core.HttpClientRedirectTest().run();
         new opentrap.core.ProjectSettingsTest().run();
         new opentrap.core.ScopeDisplayTest().run();
         new opentrap.core.ScopePrefixTest().run();

@@ -66,6 +66,9 @@ List<Param> parameters();  boolean hasParameters();
 HttpClient.Options o = new HttpClient.Options();
   // connectTimeoutMs readTimeoutMs updateContentLength unpackGzip followRedirects maxRedirects connectGuard
   // connectGuard: optional HttpClient.ConnectGuard, refusal(InetSocketAddress) returns a reason or null; HTTP/1 only
+  // followRedirects: a hop to another origin drops Cookie, Authorization, Proxy-Authorization and
+  //   a 307/308 body, then asks the session hook for the new origin; https to http and non-http
+  //   schemes are not followed, and the 3xx is returned
 HttpClient.Result r = new HttpClient().send(svc, requestMessage, o);
   // r.ok() r.response (HttpMessage) r.error (String) r.millis r.remoteIp r.redirectsFollowed
 ```

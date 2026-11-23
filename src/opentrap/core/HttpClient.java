@@ -247,36 +247,84 @@ public class HttpClient {
             if (!one.ok()) break;
 
             if (!opt.followRedirects || hop >= opt.maxRedirects) break;
-            int sc = one.response.statusCode();
-            String loc = one.response.header("Location");
-            if (sc < 300 || sc > 399 || loc == null || loc.isBlank()) break;
-
-            try {
-                URI base = URI.create(cur.url() + req.path());
-                URI next = base.resolve(loc.trim());
-                boolean sec = "https".equalsIgnoreCase(next.getScheme());
-                int port = next.getPort() == -1 ? (sec ? 443 : 80) : next.getPort();
-                if (next.getHost() == null) break;
-                cur = new HttpService(next.getHost(), port, sec);
-                String target = (next.getRawPath() == null || next.getRawPath().isEmpty()) ? "/" : next.getRawPath();
-                if (next.getRawQuery() != null) target += "?" + next.getRawQuery();
-                HttpMessage nr = req.copy();
-                if (sc == 303 || ((sc == 301 || sc == 302) && !nr.method().equalsIgnoreCase("GET"))) {
-                    nr.setMethod("GET");
-                    nr.setBody(new byte[0]);
-                    nr.removeHeader("Content-Length");
-                    nr.removeHeader("Content-Type");
+            Hop next = nextHop(cur, req, one.response);
+            if (next == null) break;
+            if (next.crossOrigin() && opt.session != null) {
+                // The credentials of the old origin were stripped; let session
+                // handling add whatever the jar holds for the new one.
+                try { opt.session.beforeSend(opt.sessionTool, next.service(), next.request()); }
+                catch (Exception e) {
+                    Debug.error("session rule " + opt.sessionTool
+                            + " beforeSend failed on a redirect; following it without session handling", e);
                 }
-                nr.setRequestTarget(target);
-                nr.setHeader("Host", cur.defaultPort() ? cur.host() : cur.host() + ":" + cur.port());
-                req = nr;
-                r.redirectsFollowed++;
-            } catch (Exception e) {
-                break;
             }
+            cur = next.service();
+            req = next.request();
+            r.redirectsFollowed++;
         }
         r.millis = System.currentTimeMillis() - start;
         return r;
+    }
+
+    /** The next request of a redirect chain, and whether it leaves the origin. */
+    record Hop(HttpService service, HttpMessage request, boolean crossOrigin) {}
+
+    /** Headers that carry the current origin's credentials and must not follow a redirect off it. */
+    private static final String[] CREDENTIAL_HEADERS = { "Cookie", "Authorization", "Proxy-Authorization" };
+
+    /**
+     * The request that follows a 3xx response, or null to stop and return the
+     * response as it is. The target is the server's choice, so a hop to another
+     * origin (scheme, host or port) loses the cookies, credentials and body the
+     * user wrote for the first one, and a hop from https to plain http is not
+     * followed at all, so nothing set over TLS goes out in cleartext.
+     */
+    static Hop nextHop(HttpService cur, HttpMessage req, HttpMessage resp) {
+        int sc = resp.statusCode();
+        String loc = resp.header("Location");
+        if (sc < 300 || sc > 399 || loc == null || loc.isBlank()) return null;
+        URI next;
+        try { next = URI.create(cur.url() + req.path()).resolve(loc.trim()); }
+        catch (Exception e) { return null; }
+        String scheme = next.getScheme() == null ? "" : next.getScheme().toLowerCase(Locale.ROOT);
+        if (!scheme.equals("http") && !scheme.equals("https")) return null;
+        if (next.getHost() == null) return null;
+        boolean sec = scheme.equals("https");
+        if (cur.secure() && !sec) {
+            Debug.log("not following a redirect from " + cur.url() + " to plain http " + next.getHost());
+            return null;
+        }
+        int port = next.getPort() == -1 ? (sec ? 443 : 80) : next.getPort();
+        HttpService svc = new HttpService(next.getHost(), port, sec);
+        boolean cross = !svc.equals(cur);
+        String target = (next.getRawPath() == null || next.getRawPath().isEmpty()) ? "/" : next.getRawPath();
+        if (next.getRawQuery() != null) target += "?" + next.getRawQuery();
+
+        HttpMessage nr = req.copy();
+        if (sc == 303 || ((sc == 301 || sc == 302) && !nr.method().equalsIgnoreCase("GET"))) {
+            nr.setMethod("GET");
+            dropBody(nr);
+        } else if (cross && (sc == 307 || sc == 308) && (nr.body().length > 0 || hasBodyFraming(nr))) {
+            // 307 and 308 keep the method, but a body written for one origin
+            // (a login form, say) is not resent to another.
+            dropBody(nr);
+            nr.setHeader("Content-Length", "0");
+        }
+        if (cross) for (String h : CREDENTIAL_HEADERS) nr.removeHeader(h);
+        nr.setRequestTarget(target);
+        nr.setHeader("Host", svc.defaultPort() ? svc.host() : svc.host() + ":" + svc.port());
+        return new Hop(svc, nr, cross);
+    }
+
+    private static boolean hasBodyFraming(HttpMessage m) {
+        return m.hasHeader("Content-Length") || m.hasHeader("Transfer-Encoding");
+    }
+
+    private static void dropBody(HttpMessage m) {
+        m.setBody(new byte[0]);
+        m.removeHeader("Content-Length");
+        m.removeHeader("Transfer-Encoding");
+        m.removeHeader("Content-Type");
     }
 
     private Result sendOnce(HttpService svc, HttpMessage request, Options opt) {
