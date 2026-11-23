@@ -61,10 +61,11 @@ For everything else, the original project is the place to go:
 - **Scan engine scope.** The engine's crawl and scan are bound to no more than
   the URLs the app's scope covers. An advanced host, port or file pattern can no
   longer reach into the path or the userinfo, a prefix with a non-default port no
-  longer admits the default one, and excludes also hold for IPv6-literal hosts. A
-  rule the engine cannot match exactly is left out of the includes, widened in the
-  excludes and named in the task log; a scope with no include it can bind refuses
-  the scan.
+  longer admits the default one, a prefix's path keeps its case, and excludes also
+  hold for IPv6-literal hosts. A rule the engine cannot match exactly is left out of
+  the includes, widened in the excludes and named in the task log; a scope with no
+  include it can bind refuses the scan. When a target is an IPv6 literal, the task
+  log also names the host-pattern rules that cannot meet it.
 - **Fonts.** The interface uses the system's own UI font, and both the UI font
   and the monospace font can be changed in Settings, with a reset to the
   default.
