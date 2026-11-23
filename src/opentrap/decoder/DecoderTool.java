@@ -129,9 +129,18 @@ public class DecoderTool implements ToolModule {
         while (stages.size() > index + 1) stages.remove(stages.size() - 1);
     }
 
+    /**
+     * Bring the column in line with the chain, touching only the stages that
+     * changed. Swing moves the focus on from a component taken out of its
+     * container, so rebuilding the column on every keystroke would take the
+     * focus out of the top editor while the user types.
+     */
     private void relayout() {
-        column.removeAll();
-        for (Stage s : stages) column.add(s.panel);
+        int keep = 0;
+        while (keep < stages.size() && keep < column.getComponentCount()
+                && column.getComponent(keep) == stages.get(keep).panel) keep++;
+        while (column.getComponentCount() > keep) column.remove(column.getComponentCount() - 1);
+        for (int i = keep; i < stages.size(); i++) column.add(stages.get(i).panel);
         column.revalidate();
         column.repaint();
     }
