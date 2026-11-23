@@ -29,6 +29,11 @@ import java.util.regex.PatternSyntaxException;
 public class Scope implements Serializable {
     private static final long serialVersionUID = 1L;
 
+    /** Characters that end the host in a URL, as a regex class body. */
+    static final String HOST_DELIMITERS = "/:?#@\\\\";
+    /** One character of a host segment. */
+    static final String HOST_CHAR = "[^" + HOST_DELIMITERS + "]";
+
     public static class Rule implements Serializable {
         private static final long serialVersionUID = 1L;
         public boolean enabled = true;
@@ -188,8 +193,12 @@ public class Scope implements Serializable {
                 if (!prefix.equals(parsedFor)) parsePrefix();
                 if (pHost == null) return null;
                 String scheme = pScheme == null ? "https?" : Pattern.quote(pScheme);
-                String hostPart = (subdomains ? "(?:[^/:]+\\.)?" : "") + Pattern.quote(pHost);
-                String portPart = pPort > 0 ? "(?::" + pPort + ")?" : "(?::\\d+)?";
+                String hostPart = (subdomains ? "(?:" + HOST_CHAR + "+\\.)?" : "") + Pattern.quote(pHost);
+                // The engine writes a URL without its default port, so only
+                // that port may be left out; any other must be spelled.
+                int dflt = "https".equals(pScheme) ? 443 : "http".equals(pScheme) ? 80 : -1;
+                String portPart = pPort <= 0 ? "(?::\\d+)?"
+                        : pPort == dflt ? "(?::" + pPort + ")?" : ":" + pPort;
                 String pathPart = (pPath.isEmpty() || pPath.equals("/"))
                         ? "(?:/.*)?" : Pattern.quote(pPath) + ".*";
                 return "(?i)^" + scheme + "://" + hostPart + portPart + pathPart + "$";

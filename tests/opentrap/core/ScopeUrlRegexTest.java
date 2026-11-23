@@ -68,6 +68,20 @@ public final class ScopeUrlRegexTest {
             Expect.isFalse(hits(r, "https://other.example/admin"), "another host");
         });
 
+        Harness.test("a prefix with a non-default port does not admit the default port", () -> {
+            Scope.Rule r = Scope.Rule.prefix("https://example.com:8443", false);
+            Expect.isTrue(hits(r, "https://example.com:8443/x"), "the port itself");
+            Expect.isFalse(hits(r, "https://example.com/x"), "the default port, left out");
+            Expect.isFalse(hits(r, "https://example.com:443/x"), "the default port, spelled out");
+        });
+
+        Harness.test("a subdomain prefix cannot be satisfied by a fragment or a backslash", () -> {
+            Scope.Rule r = Scope.Rule.prefix("https://example.com", true);
+            Expect.isFalse(hits(r, "https://evil.test#.example.com/"), "a fragment");
+            Expect.isFalse(hits(r, "https://evil.test\\.example.com/"), "a backslash");
+            Expect.isTrue(hits(r, "https://a.b.example.com/"), "a real subdomain");
+        });
+
         Harness.test("a disabled rule yields nothing", () -> {
             Scope.Rule r = Scope.Rule.prefix("https://example.com", false);
             r.enabled = false;
