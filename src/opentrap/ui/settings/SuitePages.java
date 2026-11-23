@@ -99,9 +99,12 @@ public final class SuitePages {
                 () -> s.setBool("startup.pauseTasks", true),
                 SettingsPage.check(s, "startup.pauseTasks", true, "Select \"Pause automated tasks\" by default"));
         p.block("Unrecognized project files", SettingsPage.Kind.USER,
-                "Project files can carry extension state. Trusting them loads that state without asking.",
-                () -> s.setBool("startup.trustProjects", true),
-                SettingsPage.check(s, "startup.trustProjects", true, "Always trust project files"));
+                "A project file this installation did not create, save or open with trust is opened only after "
+                + "you confirm. Its session handling rules, macros, cookies and project settings act on the "
+                + "requests you send, so without trust they are left out. Always trusting project files "
+                + "loads them without asking.",
+                () -> s.setBool(opentrap.ui.ProjectTrust.ALWAYS, false),
+                SettingsPage.check(s, opentrap.ui.ProjectTrust.ALWAYS, false, "Always trust project files"));
         return p;
     }
 

@@ -80,6 +80,7 @@ public final class RunTests {
         new opentrap.ui.ProjectFileTest().run();
         new opentrap.ui.ProjectFilterTest().run();
         new opentrap.ui.ProjectSettingsFileTest().run();
+        new opentrap.ui.ProjectTrustTest().run();
         new opentrap.ui.ProjectCopyScopeTest().run();
         new opentrap.repeater.RepeaterSaveStateTest().run();
         new opentrap.ui.ScopeEditorTest().run();

@@ -45,6 +45,9 @@ public final class StateIO {
         try {
             saveOrBind(ctx, f, SaveOptions.fromSettings(ctx));
             ctx.setProjectFile(f);   // bind the session, so later saves reuse it
+            // Written from this session, so it holds nothing foreign unless an
+            // untrusted file's parts were held back and written along.
+            if (ctx.heldBack() == null) ProjectTrust.trust(f);
             ctx.alert("suite", "state saved to " + f.getName());
         } catch (Exception e) {
             JOptionPane.showMessageDialog(parent, "An error occurred: " + e.getMessage(),
@@ -57,7 +60,12 @@ public final class StateIO {
         fc.setDialogTitle("restore state");
         if (fc.showOpenDialog(parent) != JFileChooser.APPROVE_OPTION) return;
         final File file = fc.getSelectedFile();
-        restoreAsync(ctx, parent, file, n -> {
+        ProjectTrust.Choice choice = ProjectTrust.ask(parent, ctx.settings(), file);
+        if (choice == ProjectTrust.Choice.CANCEL) return;
+        boolean trusted = choice == ProjectTrust.Choice.TRUST;
+        restoreAsync(ctx, parent, file, trusted, n -> {
+            if (trusted) ProjectTrust.trust(file);
+            else ctx.alert("suite", ProjectTrust.heldBackNote(file));
             ctx.alert("suite", "restored " + n + " items from " + file.getName());
             JOptionPane.showMessageDialog(parent,
                     "Restore completed. " + n + " history items loaded.",
@@ -257,8 +265,9 @@ public final class StateIO {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         ObjectOutputStream oos = new ObjectOutputStream(baos);
         oos.writeObject(ctx.scope());
-        oos.writeObject(ctx.settings().projectSnapshot());
-        oos.writeObject(ctx.sessions().snapshot(f, ctx.store().all()));
+        SuiteContext.HeldBack held = ctx.heldBack();
+        oos.writeObject(held == null ? ctx.settings().projectSnapshot() : withHeldSettings(ctx, held));
+        oos.writeObject(held == null ? ctx.sessions().snapshot(f, ctx.store().all()) : withHeldSession(ctx, held, f));
         oos.writeObject(ctx.organizer().snapshot(f));
         List<opentrap.core.Issue> issues = new ArrayList<>();
         for (opentrap.core.Issue i : ctx.issues()) {
@@ -302,13 +311,64 @@ public final class StateIO {
         target.append(ProjectStore.SNAPSHOT, sessionStateBytes(ctx, o));
     }
 
+    /** The project settings to save: the held-back ones, overlaid by those set in this session. */
+    private static java.util.Map<String, String> withHeldSettings(SuiteContext ctx, SuiteContext.HeldBack held) {
+        java.util.Map<String, String> out = new java.util.LinkedHashMap<>();
+        if (held.settings() != null) out.putAll(held.settings());
+        out.putAll(ctx.settings().projectSnapshot());
+        return out;
+    }
+
+    /**
+     * The session state to save: the held-back state first, then this
+     * session's own. The held-back part goes through the same filter, so an
+     * in-scope copy narrows it like the rest.
+     */
+    private static opentrap.session.SessionManager.State withHeldSession(
+            SuiteContext ctx, SuiteContext.HeldBack held, opentrap.core.SaveFilter f) {
+        List<LogEntry> history = ctx.store().all();
+        opentrap.session.SessionManager.State mine = ctx.sessions().snapshot(f, history);
+        if (held.session() == null) return mine;
+        opentrap.session.SessionManager parked = new opentrap.session.SessionManager(ctx);
+        parked.restore(held.session());
+        opentrap.session.SessionManager.State theirs = parked.snapshot(f, history);
+        opentrap.session.SessionManager.State out = new opentrap.session.SessionManager.State();
+        out.jar = new ArrayList<>(theirs.jar);     out.jar.addAll(mine.jar);
+        out.rules = new ArrayList<>(theirs.rules); out.rules.addAll(mine.rules);
+        out.macros = new ArrayList<>(theirs.macros); out.macros.addAll(mine.macros);
+        return out;
+    }
+
+    /**
+     * Record what an untrusted open did not apply, or clear it after a trusted
+     * one. Only project keys are kept, as {@link opentrap.core.Settings#restoreProject} would.
+     */
+    private static void holdBack(SuiteContext ctx, boolean trusted,
+                                 opentrap.session.SessionManager.State session, java.util.Map<?, ?> settings) {
+        if (trusted) { ctx.setHeldBack(null); return; }
+        java.util.Map<String, String> keys = new java.util.LinkedHashMap<>();
+        if (settings != null) {
+            for (java.util.Map.Entry<?, ?> e : settings.entrySet())
+                if (e.getKey() instanceof String k && e.getValue() instanceof String v
+                        && opentrap.core.ProjectOptions.isProjectKey(k)) keys.put(k, v);
+        }
+        ctx.setHeldBack(session == null && keys.isEmpty() ? null : new SuiteContext.HeldBack(session, keys));
+    }
+
+    /** Open a project in full, as a trusted file. */
+    public static int restore(SuiteContext ctx, File file) throws Exception {
+        return restore(ctx, file, true);
+    }
+
     /**
      * Open a project, routing to the single-file store format or, for a file
-     * saved by an older build, the previous zip format.
+     * saved by an older build, the previous zip format. Without {@code trusted}
+     * the file's session handling rules, macros, cookies and project settings
+     * are left out (see {@link ProjectTrust}).
      */
-    public static int restore(SuiteContext ctx, File file) throws Exception {
-        if (ProjectStore.looksLikeStore(file)) return openV7(ctx, file);
-        int n = restoreV6(ctx, file);
+    public static int restore(SuiteContext ctx, File file, boolean trusted) throws Exception {
+        if (ProjectStore.looksLikeStore(file)) return openV7(ctx, file, trusted);
+        int n = restoreV6(ctx, file, trusted);
         // Migrate the old zip format to the single-file store in place and bind
         // the session to it, so the project opens disk-backed from now on and its
         // saves are the cheap incremental kind.
@@ -322,7 +382,7 @@ public final class StateIO {
      * index (reading only the small index records, seeking over the bodies) and
      * the latest session-state snapshot, then keep recording into the same file.
      */
-    static int openV7(SuiteContext ctx, File file) throws Exception {
+    static int openV7(SuiteContext ctx, File file, boolean trusted) throws Exception {
         ProjectStore store = new ProjectStore(file.toPath(), 32L * 1024 * 1024);
         java.util.LinkedHashMap<Integer, LogEntry> byNumber = new java.util.LinkedHashMap<>();
         List<WebSocketMessage> frames = new ArrayList<>();
@@ -352,7 +412,7 @@ public final class StateIO {
         try {
             ctx.store().replaceAll(entries);
             ctx.wsStore().replaceAll(frames);
-            if (snapshot[0] != null) applySessionState(ctx, snapshot[0]);
+            if (snapshot[0] != null) applySessionState(ctx, snapshot[0], trusted);
             int max = 0;
             for (LogEntry le : entries) max = Math.max(max, le.number());
             LogEntry.setCounter(max);
@@ -381,8 +441,16 @@ public final class StateIO {
     }
 
     /** Apply a session-state snapshot (everything but the history) to the context. */
-    @SuppressWarnings("unchecked")
     static void applySessionState(SuiteContext ctx, byte[] block) throws Exception {
+        applySessionState(ctx, block, true);
+    }
+
+    /**
+     * Apply a session-state snapshot. Without {@code trusted} the session
+     * handling state and the project settings are read but not applied.
+     */
+    @SuppressWarnings("unchecked")
+    static void applySessionState(SuiteContext ctx, byte[] block, boolean trusted) throws Exception {
         ObjectInputStream ois = opentrap.core.ProjectSerial.recordReader(block);
         Scope scope = (Scope) ois.readObject();
         java.util.Map<?, ?> settings = (java.util.Map<?, ?>) ois.readObject();
@@ -400,8 +468,11 @@ public final class StateIO {
             ctx.scope().exclude().clear();
             ctx.scope().exclude().addAll(scope.exclude());
         }
-        ctx.settings().restoreProject(settings);
-        if (session != null) ctx.sessions().restore(session);
+        if (trusted) {
+            ctx.settings().restoreProject(settings);
+            if (session != null) ctx.sessions().restore(session);
+        }
+        holdBack(ctx, trusted, session, settings);
         if (organizer != null) ctx.organizer().restore(organizer);
         if (issues != null) ctx.restoreIssues(issues);
         if (tasks != null) ctx.restoreTasks(tasks);
@@ -419,7 +490,7 @@ public final class StateIO {
     }
 
     @SuppressWarnings("unchecked")
-    static int restoreV6(SuiteContext ctx, File file) throws Exception {
+    static int restoreV6(SuiteContext ctx, File file, boolean trusted) throws Exception {
         try (ZipInputStream zis = new ZipInputStream(new BufferedInputStream(new FileInputStream(file)))) {
             ZipEntry e = zis.getNextEntry();
             if (e == null) throw new IOException("Input file is not in correct format");
@@ -459,8 +530,11 @@ public final class StateIO {
                 ctx.scope().exclude().clear();
                 ctx.scope().exclude().addAll(scope.exclude());
             }
-            ctx.settings().restoreProject(settings);
-            if (session != null) ctx.sessions().restore(session);
+            if (trusted) {
+                ctx.settings().restoreProject(settings);
+                if (session != null) ctx.sessions().restore(session);
+            }
+            holdBack(ctx, trusted, session, settings);
             if (organizer != null) ctx.organizer().restore(organizer);
             if (savedIssues != null) ctx.restoreIssues(savedIssues);
             if (savedTasks != null) ctx.restoreTasks(savedTasks);
@@ -496,10 +570,11 @@ public final class StateIO {
      * Restore off the event thread, with a small progress dialog, so a large
      * project never freezes the window. The UI fans the restored data out in
      * bulk on the event thread. {@code onDone} runs on the event thread with
-     * the number of history items restored.
+     * the number of history items restored. {@code trusted} is as for
+     * {@link #restore(SuiteContext, File, boolean)}.
      */
     public static void restoreAsync(SuiteContext ctx, java.awt.Component parent, File file,
-                                    java.util.function.IntConsumer onDone) {
+                                    boolean trusted, java.util.function.IntConsumer onDone) {
         java.awt.Window owner = parent == null ? null : SwingUtilities.getWindowAncestor(parent);
         if (owner == null && parent instanceof java.awt.Window w) owner = w;
         final JDialog progress = new JDialog(owner, "Opening project", java.awt.Dialog.ModalityType.MODELESS);
@@ -520,7 +595,7 @@ public final class StateIO {
         Thread t = new Thread(() -> {
             int n = -1;
             Exception failure = null;
-            try { n = restore(ctx, file); } catch (Exception e) { failure = e; }
+            try { n = restore(ctx, file, trusted); } catch (Exception e) { failure = e; }
             final int count = n;
             final Exception err = failure;
             SwingUtilities.invokeLater(() -> {

@@ -392,6 +392,7 @@ public class SuiteFrame extends JFrame {
             if (current.exists()) java.nio.file.Files.move(current.toPath(), target.toPath());
             ctx.setProjectFile(target);
             RecentProjects.record(RecentProjects.baseName(target), target);
+            ProjectTrust.moved(current, target);
             ctx.alert("suite", "Project renamed to " + target.getName());
         } catch (java.io.IOException e) {
             JOptionPane.showMessageDialog(this, "Could not rename the project: " + e.getMessage(),
@@ -482,6 +483,7 @@ public class SuiteFrame extends JFrame {
                 "save copy", JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) return;
         try {
             StateIO.save(ctx, f, opts);
+            if (ctx.heldBack() == null) ProjectTrust.trust(f);   // nothing foreign was written along
             ctx.alert("suite", "Copy saved to " + f.getName() + ", " + ProjectSizeDialog.human(f.length()));
         } catch (Exception e) {
             JOptionPane.showMessageDialog(this, "Could not save the copy: " + e.getMessage(),

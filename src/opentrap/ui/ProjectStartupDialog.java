@@ -1,5 +1,7 @@
 package opentrap.ui;
 
+import opentrap.core.Settings;
+
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
@@ -25,15 +27,17 @@ public final class ProjectStartupDialog extends JDialog {
     private final JTextField newName = Ui.field("");
     private final JTextField newFile = Ui.field("");
     private final JTextField openFile = Ui.field("");
-    private final JCheckBox trust = new JCheckBox("Trust this project file", true);
+    private final JCheckBox trust = new JCheckBox("Trust this project file");
     private final JCheckBox pause = new JCheckBox("Pause automated tasks");
     private final List<RecentProjects.Entry> recents = RecentProjects.load();
     private final JTable recentsTable = new JTable();
+    private final Settings settings;
 
     private boolean proceeded;
 
-    public ProjectStartupDialog(Frame owner, String title) {
+    public ProjectStartupDialog(Frame owner, String title, Settings settings) {
         super(owner, title, true);
+        this.settings = settings;
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         setIconImages(AppIcon.images());
 
@@ -238,7 +242,16 @@ public final class ProjectStartupDialog extends JDialog {
         p.add(formRow("File:", fileRow(openFile)));
 
         // Checkboxes, indented so they line up under the field, not the label.
-        trust.setFont(Ui.PLAIN); trust.setOpaque(false); trust.setEnabled(false);
+        // Trust follows the chosen file: ticked for one this installation
+        // already trusts, clear for any other, and the user can change it.
+        trust.setFont(Ui.PLAIN); trust.setOpaque(false);
+        trust.setToolTipText("load the file's session handling rules, macros, cookies and project settings too");
+        openFile.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            public void insertUpdate(javax.swing.event.DocumentEvent e)  { syncTrust(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e)  { syncTrust(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { syncTrust(); }
+        });
+        syncTrust();
         pause.setFont(Ui.PLAIN); pause.setOpaque(false);
         trust.setAlignmentX(Component.LEFT_ALIGNMENT);
         pause.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -333,6 +346,12 @@ public final class ProjectStartupDialog extends JDialog {
         catch (RuntimeException e) { syncing = false; throw e; }
     }
 
+    /** Set "Trust this project file" from whether the chosen file is trusted already. */
+    private void syncTrust() {
+        String t = openFile.getText().trim();
+        trust.setSelected(!t.isEmpty() && ProjectTrust.trustedWithoutAsking(settings, new File(t)));
+    }
+
     /** A small grey question-mark glyph, matching the welcome header. */
     private static JComponent helpGlyph() {
         JComponent c = new JComponent() {
@@ -401,6 +420,9 @@ public final class ProjectStartupDialog extends JDialog {
         if (f != null && !f.getName().isBlank()) return f.getName();
         return newName.getText().trim();
     }
+
+    /** Whether to open the chosen file in full, see {@link ProjectTrust}. */
+    public boolean trustProject() { return trust.isSelected(); }
 
     /** Whether to open without automatically starting scanning tasks. */
     public boolean pauseTasks() { return pause.isSelected(); }

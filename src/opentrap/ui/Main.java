@@ -153,7 +153,7 @@ public class Main {
 
             // Otherwise choose the project in a dialog owned by the visible window.
             Debug.log("showing startup project dialog");
-            ProjectStartupDialog startup = new ProjectStartupDialog(frame, TITLE);
+            ProjectStartupDialog startup = new ProjectStartupDialog(frame, TITLE, ctx.settings());
             // The dialog is modal, so setVisible returns only once it closes. The
             // start-up time is taken when the dialog reports it is open, once only.
             if (Debug.enabled()) {
@@ -185,6 +185,7 @@ public class Main {
                         StateIO.bindNew(ctx, projectFile, StateIO.SaveOptions.fromSettings(ctx));
                         ctx.setProjectFile(projectFile);
                         RecentProjects.record(startup.projectName(), projectFile);
+                        ProjectTrust.trust(projectFile);
                         ctx.alert("suite", "New project: " + projectFile.getName());
                     } catch (Exception e) {
                         JOptionPane.showMessageDialog(frame,
@@ -195,10 +196,15 @@ public class Main {
                 case OPEN -> {
                     // Off the event thread with a progress dialog: a large
                     // project must never freeze the window while it loads.
+                    // The dialog's "Trust this project file" is the answer to
+                    // ProjectTrust's question, so no second prompt is shown.
                     final String projectName = startup.projectName();
-                    StateIO.restoreAsync(ctx, frame, projectFile, n -> {
+                    final boolean trusted = startup.trustProject();
+                    StateIO.restoreAsync(ctx, frame, projectFile, trusted, n -> {
                         ctx.setProjectFile(projectFile);
                         RecentProjects.record(projectName, projectFile);
+                        if (trusted) ProjectTrust.trust(projectFile);
+                        else ctx.alert("suite", ProjectTrust.heldBackNote(projectFile));
                         ctx.alert("suite", "Opened project " + projectFile.getName() + " (" + n + " items)");
                     });
                 }
@@ -224,9 +230,16 @@ public class Main {
     private static void openProjectFromArg(SuiteContext ctx, SuiteFrame frame, java.io.File projectFile) {
         String name = projectFile.getName();
         if (projectFile.exists()) {
-            StateIO.restoreAsync(ctx, frame, projectFile, n -> {
+            // A double-clicked file is the easiest way to be handed a foreign
+            // project, so ask before loading what would act on its own.
+            ProjectTrust.Choice choice = ProjectTrust.ask(frame, ctx.settings(), projectFile);
+            if (choice == ProjectTrust.Choice.CANCEL) return;
+            boolean trusted = choice == ProjectTrust.Choice.TRUST;
+            StateIO.restoreAsync(ctx, frame, projectFile, trusted, n -> {
                 ctx.setProjectFile(projectFile);
                 RecentProjects.record(name, projectFile);
+                if (trusted) ProjectTrust.trust(projectFile);
+                else ctx.alert("suite", ProjectTrust.heldBackNote(projectFile));
                 ctx.alert("suite", "Opened project " + name + " (" + n + " items)");
             });
         } else {
@@ -234,6 +247,7 @@ public class Main {
                 StateIO.bindNew(ctx, projectFile, StateIO.SaveOptions.fromSettings(ctx));
                 ctx.setProjectFile(projectFile);
                 RecentProjects.record(name, projectFile);
+                ProjectTrust.trust(projectFile);
                 ctx.alert("suite", "New project: " + name);
             } catch (Exception e) {
                 Debug.error("could not create the project from the command line", e);

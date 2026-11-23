@@ -117,6 +117,19 @@ public class SuiteContext {
     public java.io.File projectFile() { return projectFile; }
     public void setProjectFile(java.io.File f) { this.projectFile = f; }
 
+    /**
+     * What a project file opened without trust held that acts on requests: its
+     * session handling state and its project settings. They are not applied,
+     * but every save writes them back, so declining trust once does not erase
+     * them from the file. Null when nothing is held back.
+     */
+    public record HeldBack(opentrap.session.SessionManager.State session,
+                           java.util.Map<String, String> settings) {}
+
+    private volatile HeldBack heldBack;
+    public HeldBack heldBack() { return heldBack; }
+    public void setHeldBack(HeldBack h) { this.heldBack = h; }
+
     // True while a project is being opened, so a listener can tell a scope
     // that arrived from the file apart from one the user just added.
     private volatile boolean restoring;

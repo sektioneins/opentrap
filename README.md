@@ -48,6 +48,9 @@ For everything else, the original project is the place to go:
   its settings into your own preferences, no longer copies your secrets into
   projects you save, and reads its data only through an allowlist of known
   classes. An in-scope copy now really leaves out everything out of scope.
+  A project file from someone else asks before its session handling rules,
+  macros, cookies and project settings take effect; declined, they stay in the
+  file unused.
 - **Security fixes in the toolset.** Text from captured traffic is no longer
   rendered as HTML in tables and labels, "Copy as curl" quotes every part of the
   request, redirects no longer carry cookies and credentials to another origin,
