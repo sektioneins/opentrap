@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
 Version=1.0
-Name=OpenTRAP
+Name=OpenTRAP-S1
 GenericName=Intercepting Proxy
 Comment=Intercept, inspect, replay and scan HTTP and HTTPS traffic
 Icon=opentrap

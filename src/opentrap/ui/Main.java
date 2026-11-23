@@ -17,7 +17,9 @@ public class Main {
      * and reports "dev".
      */
     public static final String VERSION = buildVersion();
-    public static final String TITLE = "OpenTRAP " + VERSION;
+    /** The app's visible name: window titles, the menu, the About box, the dock. */
+    public static final String NAME = "OpenTRAP-S1";
+    public static final String TITLE = NAME + " " + VERSION;
 
     private static String buildVersion() {
         try {
@@ -170,7 +172,7 @@ public class Main {
                 System.exit(0);
                 return;
             }
-            ctx.alert("suite", "OpenTRAP " + VERSION + " started");
+            ctx.alert("suite", TITLE + " started");
 
             // Resolve the chosen project now that the window and its tools
             // (whose listeners repopulate on restore) are live.

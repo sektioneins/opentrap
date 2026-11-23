@@ -292,7 +292,7 @@ public class SuiteFrame extends JFrame {
     private void buildMenus() {
         menuBar.removeAll();
 
-        JMenu suite = new JMenu("OpenTRAP");
+        JMenu suite = new JMenu(Main.NAME);
         suite.setFont(Ui.PLAIN);
         // Search is built into the places it belongs: the quick URL box and the
         // filter popup on the proxy history and the target site map. It is no
@@ -374,7 +374,7 @@ public class SuiteFrame extends JFrame {
         java.io.File current = ctx.projectFile();
         if (current == null) {
             JOptionPane.showMessageDialog(this,
-                    "This session is not saved as a project yet. Use OpenTRAP > save state "
+                    "This session is not saved as a project yet. Use " + Main.NAME + " > save state "
                     + "to give it a file, then rename it.", "Rename project", JOptionPane.INFORMATION_MESSAGE);
             return;
         }

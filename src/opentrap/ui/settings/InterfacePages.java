@@ -495,13 +495,13 @@ public final class InterfacePages {
         restart.run();
     }
 
-    private static final String RESTART_BY_HAND = "Restart OpenTRAP to use the new setting.";
+    private static final String RESTART_BY_HAND = "Restart " + opentrap.ui.Main.NAME + " to use the new setting.";
 
     /** Relaunches the app so a changed font or theme is picked up everywhere. */
     public static void restartApp(SuiteContext ctx) {
         restart(ctx, System.getenv("APPIMAGE") != null,
                 () -> JOptionPane.showConfirmDialog(null,
-                        "OpenTRAP restarts to apply the change. This temporary project is not saved, so its traffic is lost.\nRestart now?",
+                        opentrap.ui.Main.NAME + " restarts to apply the change. This temporary project is not saved, so its traffic is lost.\nRestart now?",
                         "Restart", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE) == JOptionPane.YES_OPTION,
                 () -> opentrap.ui.UiScale.relaunchWith(opentrap.ui.UiScale.desired(), opentrap.ui.Main.launchArgs),
                 () -> System.exit(0),

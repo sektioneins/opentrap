@@ -174,11 +174,11 @@ public final class ProjectStartupDialog extends JDialog {
         JPanel leftSide = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         leftSide.setOpaque(false);
         leftSide.add(helpGlyph());
-        JLabel welcome = new JLabel("Welcome to OpenTRAP. Use the options below to create or open a project.");
+        JLabel welcome = new JLabel("Welcome to " + Main.NAME + ". Use the options below to create or open a project.");
         welcome.setFont(Ui.PLAIN);
         leftSide.add(welcome);
         p.add(leftSide, BorderLayout.WEST);
-        JLabel logo = new JLabel("OpenTRAP", AppIcon.icon(32), SwingConstants.RIGHT);
+        JLabel logo = new JLabel(Main.NAME, AppIcon.icon(32), SwingConstants.RIGHT);
         logo.setFont(Fonts.ui(Font.BOLD, 18));
         logo.setForeground(Theme.ACCENT);
         logo.setIconTextGap(8);

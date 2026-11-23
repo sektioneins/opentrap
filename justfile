@@ -116,7 +116,7 @@ run *args: _check-jdk
         opts+=("-Dsun.java2d.uiScale=$scale" "-Dopentrap.scaled=$scale")
     fi
     if [ "$(uname -s)" = Darwin ]; then
-        opts+=(-Xdock:name=OpenTRAP -Xdock:icon=src/opentrap/ui/icons/opentrap-s1-light_256.png)
+        opts+=(-Xdock:name=OpenTRAP-S1 -Xdock:icon=src/opentrap/ui/icons/opentrap-s1-light_256.png)
     elif [ -z "${_JAVA_AWT_WM_NONREPARENTING+x}" ]; then
         # Java's X11 toolkit assumes a reparenting window manager. Under the
         # tiling and wlroots-family compositors below, Swing windows paint
@@ -255,7 +255,7 @@ appimage:
     cat > AppDir/OpenTRAP.desktop <<'DESK'
     [Desktop Entry]
     Type=Application
-    Name=OpenTRAP
+    Name=OpenTRAP-S1
     Comment=Open web security testing proxy
     Exec=OpenTRAP
     Icon=opentrap

@@ -111,7 +111,7 @@ public final class InstalledPanel extends JPanel {
         headRow.setOpaque(false);
         JPanel headLeft = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
         headLeft.setOpaque(false);
-        headLeft.add(Ui.heading("OpenTRAP extensions"));
+        headLeft.add(Ui.heading(opentrap.ui.Main.NAME + " extensions"));
         headLeft.add(Ui.helpButton("Extensions",
                 "An extension is a jar whose classes implement the suite's tool-module contract. "
                 + "Loading one runs its entry point and adds whatever tabs and menus it declares."));

@@ -57,7 +57,7 @@ public class DiscoverTool implements ToolModule {
         JPanel heroText = new JPanel();
         heroText.setLayout(new BoxLayout(heroText, BoxLayout.Y_AXIS));
         heroText.setOpaque(false);
-        JLabel headline = opentrap.ui.theme.HtmlGuard.allowHtml(new JLabel("<html>OpenTRAP, <span style='color:"
+        JLabel headline = opentrap.ui.theme.HtmlGuard.allowHtml(new JLabel("<html>" + opentrap.ui.Main.NAME + ", <span style='color:"
                 + opentrap.ui.Theme.css(opentrap.ui.Theme.ACCENT) + "'>open.</span></html>"));
         headline.setFont(Fonts.ui(Font.BOLD, 36));
         headline.setForeground(Color.WHITE);
