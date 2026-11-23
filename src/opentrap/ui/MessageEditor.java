@@ -1191,7 +1191,7 @@ public class MessageEditor extends JPanel {
         });
         if (service != null) {
             addItem(menu, "Copy URL", null, e -> clip(service.url() + (message.isRequest() ? message.requestTarget() : "")));
-            if (message.isRequest()) addItem(menu, "Copy as curl command (bash)", null, e -> clip(asCurl()));
+            if (message.isRequest()) addItem(menu, "Copy as curl command (bash)", null, e -> clip(CurlCommand.of(service, message)));
         }
 
         // Record an issue, open/add the request, as the reference request menu does.
@@ -1295,22 +1295,6 @@ public class MessageEditor extends JPanel {
         MessageActions.openResponseInBrowser(this, ctx, service,
                 relatedRequest != null ? relatedRequest : (message.isRequest() ? message : null),
                 message.isRequest() ? null : message);
-    }
-
-    private String asCurl() {
-        StringBuilder b = new StringBuilder("curl -i -s -k ");
-        b.append("-X ").append(message.method()).append(' ');
-        for (String line : message.headerLines()) {
-            int c = line.indexOf(':');
-            if (c < 0) continue;
-            String n = line.substring(0, c).trim();
-            if (n.equalsIgnoreCase("content-length")) continue;
-            b.append("-H '").append(line.replace("'", "'\\''")).append("' ");
-        }
-        byte[] body = message.body();
-        if (body.length > 0) b.append("--data-raw '").append(message.bodyText().replace("'", "'\\''")).append("' ");
-        b.append('\'').append(service == null ? "" : service.url()).append(message.requestTarget()).append('\'');
-        return b.toString();
     }
 
     private static void clip(String s) {

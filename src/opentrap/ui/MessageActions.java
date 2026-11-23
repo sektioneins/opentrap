@@ -40,24 +40,6 @@ public final class MessageActions {
         Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(s), null);
     }
 
-    /** A bash curl command that reproduces {@code request} to {@code service}. */
-    public static String curl(HttpService service, HttpMessage request) {
-        StringBuilder b = new StringBuilder("curl -i -s -k ");
-        b.append("-X ").append(request.method()).append(' ');
-        for (String line : request.headerLines()) {
-            int c = line.indexOf(':');
-            if (c < 0) continue;
-            String n = line.substring(0, c).trim();
-            if (n.equalsIgnoreCase("content-length")) continue;
-            b.append("-H '").append(line.replace("'", "'\\''")).append("' ");
-        }
-        if (request.body().length > 0) {
-            b.append("--data-raw '").append(request.bodyText().replace("'", "'\\''")).append("' ");
-        }
-        b.append('\'').append(service == null ? "" : service.url()).append(request.requestTarget()).append('\'');
-        return b.toString();
-    }
-
     /** The proxy server, if one is registered, else null. */
     private static ProxyServer proxyServer(SuiteContext ctx) {
         if (ctx == null) return null;

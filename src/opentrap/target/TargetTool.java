@@ -784,7 +784,7 @@ public class TargetTool implements ToolModule {
             addItem(menu, "copy URL", () -> opentrap.ui.MessageActions.clip(le.url()));
             if (le.request() != null) {
                 addItem(menu, "copy as curl command (bash)",
-                        () -> opentrap.ui.MessageActions.clip(opentrap.ui.MessageActions.curl(le.service(), le.request())));
+                        () -> opentrap.ui.MessageActions.clip(opentrap.ui.CurlCommand.of(le.service(), le.request())));
             }
             if (le.response() != null) {
                 addItem(menu, "copy links in response",

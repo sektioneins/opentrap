@@ -1,6 +1,7 @@
 package opentrap.proxy;
 
 import opentrap.core.*;
+import opentrap.ui.CurlCommand;
 import opentrap.ui.Glyphs;
 import opentrap.ui.Theme;
 import opentrap.ui.Ui;
@@ -189,7 +190,7 @@ public class HistoryContextMenu {
             for (LogEntry e : sel) sb.append(e.url()).append('\n');
             clip(sb.toString().trim());
         });
-        addI(menu, "Copy as curl command (bash)", Glyphs.copy(14, Theme.ICON), () -> clip(curl(first)));
+        addI(menu, "Copy as curl command (bash)", Glyphs.copy(14, Theme.ICON), () -> clip(CurlCommand.of(first.service(), first.request())));
         if (first.response() != null) addI(menu, "Copy links in response", Glyphs.copy(14, Theme.ICON), () -> clip(links(first)));
         addI(menu, "Save item", Glyphs.export(14, Theme.ICON), () -> saveItem(first));
         addI(menu, "Add to site map", Glyphs.plus(14, Theme.ICON), () -> { for (LogEntry e : sel) ctx.siteMapChanged(e); });
@@ -253,16 +254,6 @@ public class HistoryContextMenu {
         f.setSize(1000, 600);
         f.setLocationRelativeTo(table);
         f.setVisible(true);
-    }
-
-    private static String curl(LogEntry e) {
-        HttpMessage r = e.request();
-        if (r == null) return "";
-        StringBuilder sb = new StringBuilder("curl -i -s -k -X $'").append(r.method()).append("' ");
-        for (String h : r.headerLines()) sb.append("-H $'").append(h.replace("'", "\\'")).append("' ");
-        if (r.body().length > 0) sb.append("--data-binary $'").append(new String(r.body(), java.nio.charset.StandardCharsets.ISO_8859_1).replace("'", "\\'")).append("' ");
-        sb.append("$'").append(e.url()).append("'");
-        return sb.toString();
     }
 
     private static String links(LogEntry e) {
