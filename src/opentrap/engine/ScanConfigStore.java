@@ -7,7 +7,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Properties;
+import java.util.Set;
 import java.util.stream.Stream;
 
 /**
@@ -86,12 +88,27 @@ public final class ScanConfigStore {
                 num(p, "ajaxMaxDurationMin", d.ajaxMaxDurationMin()),
                 num(p, "ajaxMaxDepth", d.ajaxMaxDepth()),
                 num(p, "ajaxMaxStates", d.ajaxMaxStates()),
-                p.getProperty("attackStrength", d.attackStrength()),
-                p.getProperty("alertThreshold", d.alertThreshold()),
+                strength(p.getProperty("attackStrength"), d.attackStrength()),
+                threshold(p.getProperty("alertThreshold"), d.alertThreshold()),
                 num(p, "injectableMask", d.injectableMask()),
                 num(p, "rpcMask", d.rpcMask()),
                 num(p, "delayMs", d.delayMs()),
                 num(p, "scanDurationMin", d.scanDurationMin()));
+    }
+
+    private static final Set<String> STRENGTHS = Set.of("DEFAULT", "LOW", "MEDIUM", "HIGH", "INSANE");
+    private static final Set<String> THRESHOLDS = Set.of("OFF", "DEFAULT", "LOW", "MEDIUM", "HIGH");
+
+    /** The engine's attack strength for {@code v}, or {@code def} when the engine would not accept it. */
+    static String strength(String v, String def) { return oneOf(v, STRENGTHS, def); }
+
+    /** The engine's alert threshold for {@code v}, or {@code def} when the engine would not accept it. */
+    static String threshold(String v, String def) { return oneOf(v, THRESHOLDS, def); }
+
+    private static String oneOf(String v, Set<String> allowed, String def) {
+        if (v == null) return def;
+        String s = v.strip().toUpperCase(Locale.ROOT);
+        return allowed.contains(s) ? s : def;
     }
 
     public static boolean delete(String name) {

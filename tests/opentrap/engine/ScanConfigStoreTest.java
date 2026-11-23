@@ -21,6 +21,14 @@ public final class ScanConfigStoreTest {
         try { return ScanConfigStore.load(name); } catch (java.io.IOException e) { throw new RuntimeException(e); }
     }
 
+    /** A hand-written library file, as a shared one would arrive. */
+    private static void writeRaw(String name, String content) {
+        try {
+            Files.createDirectories(ScanConfigStore.dir());
+            Files.writeString(ScanConfigStore.dir().resolve(name + ".properties"), content);
+        } catch (java.io.IOException e) { throw new RuntimeException(e); }
+    }
+
     public void run() {
         Harness.suite("scan configuration library");
 
@@ -66,6 +74,21 @@ public final class ScanConfigStoreTest {
                 save("../escape/me", ScanConfig.preset("Fast"));
                 Expect.isTrue(!Files.exists(tmp.resolve("escape")), "nothing written outside the library");
                 Expect.isTrue(ScanConfigStore.exists("../escape/me"), "still retrievable under its own name");
+            });
+
+            Harness.test("an unknown attack strength or alert threshold loads as the preset's value", () -> {
+                writeRaw("Shared", "attackStrength=<html><b>x</b>\nalertThreshold=EXTREME\n");
+                ScanConfig d = ScanConfig.preset("Balanced");
+                ScanConfig back = load("Shared");
+                Expect.equal(back.attackStrength(), d.attackStrength(), "strength falls back");
+                Expect.equal(back.alertThreshold(), d.alertThreshold(), "threshold falls back");
+            });
+
+            Harness.test("every value the engine accepts loads, in any case", () -> {
+                writeRaw("Lower", "attackStrength= insane \nalertThreshold=off\n");
+                ScanConfig back = load("Lower");
+                Expect.equal(back.attackStrength(), "INSANE", "strength upper-cased and stripped");
+                Expect.equal(back.alertThreshold(), "OFF", "threshold upper-cased");
             });
         } finally {
             System.setProperty("user.home", home);
