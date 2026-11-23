@@ -10,13 +10,18 @@ import opentrap.core.HttpService;
  * ASCII and {@code $'\xhh'} for every other byte, so bash and zsh read back the
  * exact bytes and the command stays on one printable line. The body goes out as
  * {@code --data-raw}, which unlike {@code --data} never reads a file for a
- * leading {@code @}; a body holding a NUL byte cannot be an argument, so it is
- * piped in with {@code printf} and {@code --data-binary @-}. A chunked body is
+ * leading {@code @}; a body holding a NUL byte cannot be an argument, and one
+ * over {@link #MAX_ARG_BODY} bytes would exceed the one-argument limit of Linux
+ * (128 KiB), so both are piped in with {@code printf} (a builtin, not bound by
+ * that limit) and {@code --data-binary @-}. A chunked body is
  * passed with its chunk framing (see PLAN.md).
  */
 public final class CurlCommand {
 
     private static final char[] HEX = "0123456789abcdef".toCharArray();
+
+    /** Longest body passed as one argument; a longer one is piped in. */
+    private static final int MAX_ARG_BODY = 65536;
 
     private CurlCommand() {}
 
@@ -24,11 +29,11 @@ public final class CurlCommand {
     public static String of(HttpService service, HttpMessage request) {
         if (request == null) return "";
         String body = Bytes.str(request.body());
-        boolean nul = body.indexOf('\u0000') >= 0;
+        boolean piped = body.indexOf('\u0000') >= 0 || body.length() > MAX_ARG_BODY;
         StringBuilder b = new StringBuilder();
-        if (nul) b.append("printf ").append(quote(printfFormat(body))).append(" | ");
+        if (piped) b.append("printf ").append(quote(printfFormat(body))).append(" | ");
         b.append("curl -i -s -k -g --path-as-is ");
-        if (request.method().equals("HEAD")) b.append("--head ");
+        if (request.method().equals("HEAD") && body.isEmpty()) b.append("--head ");
         else b.append("-X ").append(quote(request.method())).append(' ');
         for (String line : request.headerLines()) {
             int c = line.indexOf(':');
@@ -40,13 +45,16 @@ public final class CurlCommand {
             if (header.startsWith("@")) continue;
             b.append("-H ").append(quote(header)).append(' ');
         }
-        if (nul) b.append("--data-binary @- ");
+        if (piped) b.append("--data-binary @- ");
         else if (!body.isEmpty()) b.append("--data-raw ").append(quote(body)).append(' ');
         b.append(quote(url(service, request.requestTarget())));
         return b.toString();
     }
 
-    /** One shell word that bash and zsh read back as exactly {@code s} (ISO-8859-1, one char per byte). */
+    /**
+     * One shell word that bash and zsh read back as exactly {@code s} (ISO-8859-1, one char per byte);
+     * a NUL cannot be held by any argument, so outside the piped body it is lost.
+     */
     static String quote(String s) {
         if (s.isEmpty()) return "''";
         StringBuilder b = new StringBuilder();
@@ -84,13 +92,15 @@ public final class CurlCommand {
         return c >= 0x20 && c <= 0x7e;
     }
 
-    /** A printf format that prints {@code body} byte for byte; it still needs quoting. */
+    /** A printf format that prints {@code body} byte for byte; it still needs quoting. A leading dash
+     * is written as an octal escape, or the shell would read the format as an option. */
     private static String printfFormat(String body) {
         StringBuilder b = new StringBuilder();
         for (int i = 0; i < body.length(); i++) {
             char c = body.charAt(i);
             if (c == '%') b.append("%%");
             else if (c == '\\') b.append("\\\\");
+            else if (c == '-' && i == 0) b.append("\\055"); // not an option of the printf builtin
             else if (printable(c)) b.append(c);
             else b.append('\\').append((char) ('0' + ((c >> 6) & 7))).append((char) ('0' + ((c >> 3) & 7))).append((char) ('0' + (c & 7)));
         }

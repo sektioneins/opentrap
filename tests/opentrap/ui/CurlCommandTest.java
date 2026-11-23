@@ -90,6 +90,29 @@ public final class CurlCommandTest {
         return req("POST /x HTTP/1.1\r\nHost: t.example\r\n\r\na\u0000b%s\\");
     }
 
+    private static String piped(List<String> a) {
+        return String.join("\0", a.subList(a.indexOf("STDIN") + 1, a.size()));
+    }
+
+    private static List<String> shells() {
+        List<String> l = new ArrayList<>(List.of("bash"));
+        for (String shell : new String[] {"/bin/zsh", "/bin/bash"}) if (new File(shell).exists()) l.add(shell);
+        return l;
+    }
+
+    private static final String MULTIPART = "--b\r\nContent-Disposition: form-data; name=\"f\"; filename=\"x.png\"\r\n"
+            + "Content-Type: image/png\r\n\r\n\u0089PNG\r\n\u001a\n\u0000\u0000\u0000\rIHDR'7\r\n--b--\r\n";
+
+    private static HttpMessage multipartMessage() {
+        return req("POST /up HTTP/1.1\r\nHost: t.example\r\n\r\n" + MULTIPART);
+    }
+
+    private static String bigBody() {
+        StringBuilder b = new StringBuilder();
+        while (b.length() < 200000) b.append("abc'%\\ def 0123456789\n");
+        return b.substring(0, 200000);
+    }
+
     public void run() {
         Harness.suite("copy as curl command");
 
@@ -126,10 +149,12 @@ public final class CurlCommandTest {
         });
 
         Harness.test("the command is one line of printable ASCII", () -> {
-            String cmd = CurlCommand.of(SVC, controlMessage());
-            for (int i = 0; i < cmd.length(); i++) {
-                char c = cmd.charAt(i);
-                Expect.isTrue(c >= 0x20 && c <= 0x7e, "char " + (int) c + " at " + i);
+            for (HttpMessage m : List.of(controlMessage(), multipartMessage())) {
+                String cmd = CurlCommand.of(SVC, m);
+                for (int i = 0; i < cmd.length(); i++) {
+                    char c = cmd.charAt(i);
+                    Expect.isTrue(c >= 0x20 && c <= 0x7e, "char " + (int) c + " at " + i);
+                }
             }
         });
 
@@ -142,6 +167,26 @@ public final class CurlCommandTest {
             // the piped bytes hold a NUL, so the split cut them into pieces
             Expect.equal(String.join("\0", a.subList(a.indexOf("STDIN") + 1, a.size())),
                     "a\u0000b%s\\", "piped bytes");
+        });
+
+        Harness.test("a NUL body with a quote, high, control and digit bytes reaches curl unchanged", () -> {
+            String body = "a'\u00e9\u0001\u00007%d\\n'";
+            String cmd = CurlCommand.of(SVC, req("POST /x HTTP/1.1\r\nHost: t.example\r\n\r\n" + body));
+            for (String shell : shells()) Expect.equal(piped(args(shell, cmd)), body, shell);
+        });
+
+        Harness.test("a binary multipart body reaches curl unchanged", () -> {
+            String cmd = CurlCommand.of(SVC, multipartMessage());
+            for (String shell : shells()) Expect.equal(piped(args(shell, cmd)), MULTIPART, shell);
+        });
+
+        Harness.test("a body over 64 KiB goes through printf and reaches curl unchanged", () -> {
+            String body = bigBody();
+            String cmd = CurlCommand.of(SVC, req("POST /x HTTP/1.1\r\nHost: t.example\r\n\r\n" + body));
+            Expect.isTrue(cmd.startsWith("printf "), "starts with printf");
+            Expect.isTrue(cmd.contains("--data-binary @-"), "reads stdin");
+            Expect.isFalse(cmd.contains("--data-raw"), "no --data-raw");
+            Expect.equal(piped(args("bash", cmd)), body, "piped bytes");
         });
 
         Harness.test("a body starting with @ is sent as data, not read from a file", () -> {
@@ -157,7 +202,7 @@ public final class CurlCommandTest {
             Expect.equal(headerValues(a), List.of("Host: t.example", "X-Z: 1"), "headers");
         });
 
-        Harness.test("a header that only starts with @ after trimming is left out too", () -> {
+        Harness.test("a header whose -H value would start with @ is left out", () -> {
             List<String> a = args("bash", CurlCommand.of(SVC, req("GET / HTTP/1.1\r\n @/etc/passwd:\r\n"
                     + "\t@/etc/passwd:   \r\nX-Z: 1\r\n\r\n")));
             Expect.equal(headerValues(a), List.of("X-Z: 1"), "headers");
@@ -179,6 +224,13 @@ public final class CurlCommandTest {
             List<String> a = args("bash", CurlCommand.of(SVC, req("HEAD / HTTP/1.1\r\nHost: t.example\r\n\r\n")));
             Expect.isTrue(a.contains("--head"), "--head");
             Expect.isFalse(a.contains("-X"), "no -X");
+        });
+
+        Harness.test("HEAD with a body uses -X so curl accepts it", () -> {
+            List<String> a = args("bash", CurlCommand.of(SVC, req("HEAD / HTTP/1.1\r\nHost: t.example\r\n\r\nx")));
+            Expect.equal(after(a, "-X"), "HEAD", "-X");
+            Expect.isFalse(a.contains("--head"), "no --head");
+            Expect.equal(after(a, "--data-raw"), "x", "body");
         });
 
         Harness.test("globbing is off and the path is passed as is", () -> {
