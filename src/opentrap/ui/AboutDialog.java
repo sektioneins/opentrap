@@ -5,13 +5,18 @@ import javax.swing.event.HyperlinkEvent;
 import java.awt.*;
 
 /**
- * The about box: the logo, the build, what it runs on, and where the project
- * lives. Links open in the desktop browser.
+ * The about box: the logo, the build, what it runs on, that this is a fork,
+ * and where both this fork and the original project live. Links open in the
+ * desktop browser.
  */
 public final class AboutDialog {
 
     private AboutDialog() {}
 
+    /** This fork's repository; releases are published here. */
+    private static final String FORK_REPO = "https://github.com/sektioneins/opentrap";
+    private static final String SEKTIONEINS = "https://sektioneins.de";
+    /** The original project, for installation, help, the roadmap and contributing. */
     private static final String REPO = "https://github.com/opentrap/opentrap";
     private static final String SITE = "https://opentrap.github.io/opentrap/";
 
@@ -34,7 +39,7 @@ public final class AboutDialog {
         });
         panel.add(text, BorderLayout.CENTER);
 
-        JOptionPane.showMessageDialog(parent, panel, "about OpenTRAP", JOptionPane.PLAIN_MESSAGE);
+        JOptionPane.showMessageDialog(parent, panel, "about " + Main.NAME, JOptionPane.PLAIN_MESSAGE);
     }
 
     private static String html() {
@@ -43,9 +48,11 @@ public final class AboutDialog {
         StringBuilder sb = new StringBuilder();
         sb.append("<html><body style='font-family:").append(Fonts.css(Fonts.uiFamily()))
           .append(";font-size:12pt;width:380px'>");
-        sb.append("<div style='font-size:16pt;font-weight:bold'>OpenTRAP</div>");
+        sb.append("<div style='font-size:16pt;font-weight:bold'>").append(Main.NAME).append("</div>");
         sb.append("<div style='color:").append(muted).append("'>Open Traffic Replay and Analysis Proxy</div>");
         sb.append("<p>An open-source web security testing suite built around an intercepting proxy.</p>");
+        sb.append("<p style='margin-bottom:10px'>").append(Main.NAME).append(" is a fork maintained by <a href='").append(SEKTIONEINS).append("' style='color:")
+          .append(accent).append("'>SektionEins</a>.</p>");
         sb.append("<table cellpadding='1' cellspacing='0'>");
         row(sb, "Build", Main.VERSION);
         row(sb, "Scan engine", engineVersion());
@@ -54,13 +61,15 @@ public final class AboutDialog {
                 + " (" + System.getProperty("os.arch") + ")");
         row(sb, "Licence", "GNU AGPL v3.0");
         sb.append("</table>");
-        sb.append("<p>");
+        sb.append("<p><b>").append(Main.NAME).append("</b><br>");
+        link(sb, accent, FORK_REPO, "Source and issues on GitHub");
+        link(sb, accent, FORK_REPO + "/releases", "Releases");
+        sb.append("</p>");
+        sb.append("<p><b>Original OpenTRAP</b><br>");
         link(sb, accent, REPO, "Source and issues on GitHub");
-        link(sb, accent, REPO + "/releases/latest", "Latest release");
         link(sb, accent, SITE, "Project site");
         link(sb, accent, REPO + "/blob/main/CONTRIBUTING.md", "How to contribute");
         sb.append("</p>");
-        sb.append("<div style='color:").append(muted).append("'>Built by its community. Every contribution is credited.</div>");
         sb.append("</body></html>");
         return sb.toString();
     }
