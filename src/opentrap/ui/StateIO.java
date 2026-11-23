@@ -76,7 +76,7 @@ public final class StateIO {
      * {@link #fromSettings}; a saved copy can narrow it further.
      */
     public static final class SaveOptions {
-        /** Only history entries and issues inside the target scope. */
+        /** Narrow every section of the copy (history, frames, cookies, macros, organizer, tool states) to the target scope. */
         public boolean inScopeOnly;
         /** The tools whose history is kept, by tool tag; null keeps every tool. */
         public java.util.Set<String> tools;
@@ -293,7 +293,7 @@ public final class StateIO {
             LogEntry rec = e.writtenTo(target, drop, o.bodyCapBytes);
             target.append(ProjectStore.ENTRY, rec.indexBytes());
         }
-        SaveFilter f = o.filter(ctx.scope());
+        opentrap.core.SaveFilter f = o.filter(ctx.scope());
         for (WebSocketMessage m : ctx.wsStore().all()) {
             if (!f.keeps(m.service, m.path)) continue;
             WebSocketMessage rec = m.writtenTo(target);

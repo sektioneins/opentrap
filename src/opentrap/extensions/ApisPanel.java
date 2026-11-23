@@ -360,6 +360,15 @@ public final class ApisPanel extends JPanel {
                 record Rule(boolean enabled, String prefix, boolean subdomains) {}
             }
             """);
+        d.put("opentrap.core.SaveFilter", """
+            package opentrap.core;
+
+            /** What a narrowed project copy keeps; handed to ToolModule.saveState(SaveFilter). */
+            public final class SaveFilter {
+                boolean keepsAll();                           // true for a full copy: write the whole state
+                boolean keeps(HttpService svc, String path);  // true when this target belongs in the copy
+            }
+            """);
         d.put("opentrap.core.Settings", """
             package opentrap.core;
 

@@ -435,6 +435,7 @@ public class SuiteFrame extends JFrame {
         JTextArea scopeNote = Ui.note("History, findings, WebSocket frames, cookies, macros, organizer items and "
                 + "Repeater tabs are kept for in-scope targets only. Scan cards and other tools' saved state are left out.");
         scopeNote.setBorder(Ui.pad(2, 16, 0, 0));
+        Ui.sizeNote(scopeNote);   // again, so the maximum height includes the inset
         scopeNote.setAlignmentX(Component.LEFT_ALIGNMENT);
         body.add(scopeNote);
         boolean[] tasksBefore = {tasks.isSelected()};

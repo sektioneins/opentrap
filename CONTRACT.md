@@ -25,6 +25,9 @@ public interface ToolModule {
 }
 ```
 
+`opentrap.core.SaveFilter` (the argument of `saveState(SaveFilter)`): `boolean keepsAll(); boolean keeps(HttpService svc, String path);`
+`keepsAll()` is true for a full copy. A narrowed copy keeps only what `keeps(...)` accepts; a null service is never kept.
+
 ## opentrap.core.SuiteContext  (passed to init)
 
 ```java
