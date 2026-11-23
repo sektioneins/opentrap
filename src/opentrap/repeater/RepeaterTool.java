@@ -36,6 +36,11 @@ public class RepeaterTool implements ToolModule {
     }
 
     @Override public java.io.Serializable saveState() {
+        java.util.ArrayList<TabState> out = savedTabs();
+        return out.isEmpty() ? null : out;
+    }
+
+    private java.util.ArrayList<TabState> savedTabs() {
         java.util.ArrayList<TabState> out = new java.util.ArrayList<>();
         for (int i = 0; i < tabs.getTabCount(); i++) {
             if (tabs.getComponentAt(i) instanceof RepeaterTab rt) {
@@ -49,7 +54,27 @@ public class RepeaterTool implements ToolModule {
                 out.add(s);
             }
         }
+        return out;
+    }
+
+    /** An in-scope copy keeps the tabs whose target, and request path where one parses, are in scope. */
+    @Override public java.io.Serializable saveState(SaveFilter filter) {
+        if (filter.keepsAll()) return saveState();
+        java.util.ArrayList<TabState> out = kept(savedTabs(), filter);
         return out.isEmpty() ? null : out;
+    }
+
+    /** The tabs the filter keeps. A request that is empty or does not parse is judged with path "/". */
+    static java.util.ArrayList<TabState> kept(java.util.List<TabState> tabs, SaveFilter filter) {
+        java.util.ArrayList<TabState> out = new java.util.ArrayList<>();
+        for (TabState s : tabs) {
+            String path = "/";
+            try {
+                if (s.req != null && s.req.length > 0) path = new HttpMessage(s.req).path();
+            } catch (Exception e) { path = "/"; }
+            if (filter.keeps(new HttpService(s.host == null ? "127.0.0.1" : s.host, s.port, s.secure), path)) out.add(s);
+        }
+        return out;
     }
 
     @Override public void restoreState(java.io.Serializable state) {
@@ -66,7 +91,7 @@ public class RepeaterTool implements ToolModule {
         }
     }
 
-    private static final class TabState implements java.io.Serializable {
+    static final class TabState implements java.io.Serializable {
         private static final long serialVersionUID = 1L;
         String title; String host; int port; boolean secure; byte[] req; byte[] resp;
     }
