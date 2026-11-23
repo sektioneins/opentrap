@@ -138,8 +138,12 @@ public final class SessionManager implements SessionHook {
     }
 
     private static boolean reachesAny(Cookie c, Map<HttpService, Set<String>> targets) {
-        for (Map.Entry<HttpService, Set<String>> t : targets.entrySet())
+        for (Map.Entry<HttpService, Set<String>> t : targets.entrySet()) {
+            // The cookie's own path always matches itself, so this call rules out a
+            // service by domain, secure flag or expiry before its paths are scanned.
+            if (!c.matches(t.getKey(), c.path)) continue;
             for (String path : t.getValue()) if (c.matches(t.getKey(), path)) return true;
+        }
         return false;
     }
 
