@@ -17,7 +17,6 @@ import javax.net.ssl.SSLContext;
 import java.io.*;
 import java.math.BigInteger;
 import java.nio.file.*;
-import java.nio.file.attribute.PosixFilePermissions;
 import java.security.*;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
@@ -65,7 +64,9 @@ public class CertificateAuthority {
     }
 
     public CertificateAuthority(Path dir) throws Exception {
-        Files.createDirectories(dir);
+        // The CA key signs certificates every client of this proxy trusts, so
+        // its directory and store are owner-only.
+        opentrap.core.OwnerOnly.directory(dir);
         this.storePath = dir.resolve("ca.p12");
         if (Files.exists(storePath)) loadCa(); else generateCa();
         // One leaf key pair is reused across hosts. Generating RSA keys is the
@@ -102,6 +103,8 @@ public class CertificateAuthority {
     }
 
     private void loadCa() throws Exception {
+        // An older build, or an imported store, may have left it readable by others.
+        opentrap.core.OwnerOnly.restrictFile(storePath);
         KeyStore ks = KeyStore.getInstance("PKCS12");
         try (InputStream in = Files.newInputStream(storePath)) {
             ks.load(in, PASSWORD);
@@ -137,12 +140,15 @@ public class CertificateAuthority {
         KeyStore ks = KeyStore.getInstance("PKCS12");
         ks.load(null, PASSWORD);
         ks.setKeyEntry("ca", caKey, PASSWORD, new Certificate[]{caCert});
-        try (OutputStream out = Files.newOutputStream(storePath,
-                StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)) {
-            ks.store(out, PASSWORD);
-        }
-        try { Files.setPosixFilePermissions(storePath, PosixFilePermissions.fromString("rw-------")); }
-        catch (Exception _) {}
+        opentrap.core.OwnerOnly.write(storePath, out -> ks.store(out, PASSWORD));
+    }
+
+    /**
+     * Replace the store at {@code storePath} with a copy of {@code source}, owner-only
+     * from the start. Listeners pick it up on the next start.
+     */
+    public static void importStore(Path source, Path storePath) throws IOException {
+        opentrap.core.OwnerOnly.write(storePath, out -> Files.copy(source, out));
     }
 
     /** A TLS context presenting a CA-signed certificate valid for this host. */

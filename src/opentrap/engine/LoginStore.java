@@ -11,7 +11,8 @@ import java.util.Properties;
  * Application logins a scan can use: username/password credentials, and
  * recorded login sequences (a script of steps). Saved to
  * {@code ~/.opentrap/library/login/<label>.txt} so they can be reused across
- * scans and projects. Passwords are stored as typed, so keep the folder private.
+ * scans and projects. Passwords are stored as typed, so the folder is 0700 and
+ * every file in it 0600, both from the moment they are created.
  */
 public final class LoginStore {
     private LoginStore() {}
@@ -49,13 +50,18 @@ public final class LoginStore {
     }
 
     private static void write(String label, Properties p) throws IOException {
-        Files.createDirectories(dir());
-        try (var w = Files.newBufferedWriter(dir().resolve(safe(label) + ".txt"))) { p.store(w, "OpenTRAP application login"); }
+        opentrap.core.OwnerOnly.write(dir().resolve(safe(label) + ".txt"), out -> {
+            var w = new java.io.OutputStreamWriter(out, java.nio.charset.StandardCharsets.UTF_8);
+            p.store(w, "OpenTRAP application login");
+            w.flush();
+        });
     }
 
     public static List<String> names() {
         List<String> out = new ArrayList<>();
         if (!Files.isDirectory(dir())) return out;
+        // A folder an older build made is narrowed the first time it is listed.
+        try { opentrap.core.OwnerOnly.directory(dir()); } catch (IOException _) { }
         try (var ds = Files.newDirectoryStream(dir(), "*.txt")) {
             for (Path f : ds) out.add(f.getFileName().toString().replaceAll("\\.txt$", ""));
         } catch (IOException _) { }
@@ -67,6 +73,7 @@ public final class LoginStore {
     public static Object load(String name) {
         Path f = dir().resolve(safe(name) + ".txt");
         if (!Files.isRegularFile(f)) return null;
+        opentrap.core.OwnerOnly.restrictFile(f);
         Properties p = new Properties();
         try (var r = Files.newBufferedReader(f)) { p.load(r); } catch (IOException e) { return null; }
         if ("recorded".equals(p.getProperty("kind"))) {

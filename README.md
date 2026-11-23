@@ -54,7 +54,8 @@ For everything else, the original project is the place to go:
 - **Security fixes in the toolset.** Text from captured traffic is no longer
   rendered as HTML in tables and labels, "Copy as curl" quotes every part of the
   request, redirects no longer carry cookies and credentials to another origin,
-  and the proxy refuses to forward a request to itself.
+  and the proxy refuses to forward a request to itself. The CA key and the saved
+  application logins are written readable by their owner only from the start.
 - **Fonts.** The interface uses the system's own UI font, and both the UI font
   and the monospace font can be changed in Settings, with a reset to the
   default.

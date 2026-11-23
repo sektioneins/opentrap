@@ -75,6 +75,7 @@ public final class RunTests {
         new opentrap.collaborator.CollaboratorPayloadTest().run();
         new opentrap.proxy.CertificateModeTest().run();
         new opentrap.proxy.CertificateAuthorityIsolationTest().run();
+        new opentrap.core.OwnerOnlyTest().run();
         new opentrap.ui.ProjectTasksTest().run();
         new opentrap.ui.ProjectSlimTest().run();
         new opentrap.ui.ProjectFileTest().run();

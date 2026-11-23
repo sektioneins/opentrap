@@ -7,7 +7,6 @@ import java.awt.Component;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 
 /**
  * The CA certificate actions beneath the proxy listeners: hand the certificate
@@ -46,7 +45,7 @@ final class CertificateActions {
                 fc.setDialogTitle("Choose a CA store (ca.p12)");
                 if (fc.showOpenDialog(parent) != JFileChooser.APPROVE_OPTION) return;
                 Path in = fc.getSelectedFile().toPath();
-                Files.copy(in, ca.storePath(), StandardCopyOption.REPLACE_EXISTING);
+                CertificateAuthority.importStore(in, ca.storePath());
                 ctx.alert("proxy", "imported a CA store from " + in);
                 JOptionPane.showMessageDialog(parent,
                         "The CA store has been replaced. Restart OpenTRAP for listeners to use it.",
