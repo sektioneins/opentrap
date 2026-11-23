@@ -185,6 +185,11 @@ public final class ScopeUrlRegexTest {
             Expect.isTrue(excludeHits(logout, "http://[::1]:8080/logout"), "the logout page");
         });
 
+        Harness.test("the default logout exclude matches an IPv6-literal host with a zone ID", () -> {
+            Scope.Rule logout = new Scope().exclude().get(0);
+            Expect.isTrue(excludeHits(logout, "http://[fe80::1%25en0]:8080/logout"), "the logout page");
+        });
+
         Harness.test("an exclude with an anchored file matches an IPv6-literal host", () -> {
             Scope.Rule r = new Scope.Rule("any", "", "", "^/logout");
             Expect.isTrue(excludeHits(r, "http://[::1]:8080/logout"), "the logout page");

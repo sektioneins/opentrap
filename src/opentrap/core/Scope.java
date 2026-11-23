@@ -38,8 +38,10 @@ public class Scope implements Serializable {
      * {@link #HOST_CHAR} cannot match because of the colons. Every form that
      * stands for any host takes it as an alternative, and so does an exclude's
      * host pattern, since an exclude must never be narrower than the app.
+     * Letters and "%" admit a zone ID, as in {@code [fe80::1%25en0]}; the
+     * class holds none of the host delimiters.
      */
-    static final String HOST_IP_LITERAL = "\\[[0-9A-Fa-f:.]+\\]";
+    static final String HOST_IP_LITERAL = "\\[[0-9A-Za-z:.%]+\\]";
 
     public static class Rule implements Serializable {
         private static final long serialVersionUID = 1L;
