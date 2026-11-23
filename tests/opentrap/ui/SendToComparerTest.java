@@ -56,7 +56,7 @@ public final class SendToComparerTest {
             Expect.isFalse(ctx.sinkTakesSingleItem("no-such-tool"), "unknown tool takes one item");
         });
 
-        Harness.test("sending from a response view loads the response alone", () -> {
+        Harness.displayTest("sending from a response view loads the response alone", () -> {
             Recorder comparer = new Recorder(true);
             SuiteContext ctx = context(comparer);
             MessageEditor editor = new MessageEditor(ctx, MessageEditor.RESPONSE, false);
@@ -71,7 +71,7 @@ public final class SendToComparerTest {
             Expect.equal(text(comparer.responses.get(0)), RESPONSE_TEXT, "the response sent");
         });
 
-        Harness.test("sending from a request view loads the request alone", () -> {
+        Harness.displayTest("sending from a request view loads the request alone", () -> {
             Recorder comparer = new Recorder(true);
             SuiteContext ctx = context(comparer);
             MessageEditor editor = new MessageEditor(ctx, MessageEditor.REQUEST, true);
@@ -84,7 +84,7 @@ public final class SendToComparerTest {
             Expect.equal(text(comparer.requests.get(0)), REQUEST_TEXT, "the request sent");
         });
 
-        Harness.test("the intercept view sends what it holds, not the same bytes twice", () -> {
+        Harness.displayTest("the intercept view sends what it holds, not the same bytes twice", () -> {
             Recorder comparer = new Recorder(true);
             Recorder repeater = new Recorder(false);
             SuiteContext ctx = new SuiteContext();
@@ -109,7 +109,7 @@ public final class SendToComparerTest {
                     "the response the repeater receives");
         });
 
-        Harness.test("a pair sink still receives both halves from a response view", () -> {
+        Harness.displayTest("a pair sink still receives both halves from a response view", () -> {
             Recorder repeater = new Recorder(false);
             SuiteContext ctx = new SuiteContext();
             ctx.registerSink("repeater", repeater);
@@ -122,7 +122,7 @@ public final class SendToComparerTest {
             Expect.equal(text(repeater.responses.get(0)), RESPONSE_TEXT, "the response sent");
         });
 
-        Harness.test("an empty view offers no send to the comparer", () -> {
+        Harness.displayTest("an empty view offers no send to the comparer", () -> {
             Recorder comparer = new Recorder(true);
             SuiteContext ctx = context(comparer);
             MessageEditor editor = new MessageEditor(ctx, MessageEditor.RESPONSE, false);

@@ -19,6 +19,12 @@ import java.util.Map;
  * every thread's stack printed once, so a hang names where it is stuck
  * instead of leaving a run that never ends and says nothing.
  *
+ * <p>A case that needs a display is declared with {@link #displayTest}. A
+ * sandboxed agent session has none: its JVM must run headless, where such a
+ * case only throws HeadlessException. {@code -Dopentrap.test.cases} picks the
+ * cases to run: {@code all} (the default), {@code sandbox} (every case but
+ * those) or {@code nosandbox} (only those).
+ *
  * <p>Not thread-safe, and deliberately so. Tests run in order on one thread so
  * that a failure report reads the same way twice. The hang watchdog only reads
  * the two volatile fields below.
@@ -30,11 +36,22 @@ public final class Harness {
     private static final long SLOW_MS = Long.getLong("opentrap.test.slowMs", 500);
     private static final long DUMP_AFTER_MS = Long.getLong("opentrap.test.dumpAfterMs", 60_000);
     private static final long RUN_START = System.nanoTime();
+    private static final String CASES = System.getProperty("opentrap.test.cases", "all");
+
+    static {
+        if (!CASES.equals("all") && !CASES.equals("sandbox") && !CASES.equals("nosandbox")) {
+            System.err.println("opentrap.test.cases must be all, sandbox or nosandbox, not '" + CASES + "'");
+            System.exit(2);
+        }
+    }
 
     private static final List<String> failures = new ArrayList<>();
     private static String currentSuite = "";
+    /** Whether the current suite's name is printed yet; it waits for its first selected case. */
+    private static boolean suiteShown;
     private static int passed;
     private static int failed;
+    private static int skipped;
     private static int suites;
 
     /** The case now running and when it started, read by the hang watchdog. */
@@ -45,11 +62,10 @@ public final class Harness {
         Thread.ofPlatform().daemon().name("test-hang-watchdog").start(Harness::watchForHangs);
     }
 
-    /** Begin a group of cases. */
+    /** Begin a group of cases. It is listed and counted only if one of them runs. */
     public static void suite(String name) {
         currentSuite = name;
-        suites++;
-        System.out.println("  " + name);
+        suiteShown = false;
     }
 
     /**
@@ -58,6 +74,25 @@ public final class Harness {
      * throws is a module that found nothing.
      */
     public static void test(String name, Runnable body) {
+        run(name, body, !CASES.equals("nosandbox"));
+    }
+
+    /**
+     * Run one case that needs a display: it builds real windows or asks the
+     * toolkit for something a headless JVM refuses, such as the menu shortcut
+     * key. Left out of the sandbox selection.
+     */
+    public static void displayTest(String name, Runnable body) {
+        run(name, body, !CASES.equals("sandbox"));
+    }
+
+    private static void run(String name, Runnable body, boolean selected) {
+        if (!selected) { skipped++; return; }
+        if (!suiteShown) {
+            suiteShown = true;
+            suites++;
+            System.out.println("  " + currentSuite);
+        }
         long start = System.nanoTime();
         runningSince = start;
         runningCase = currentSuite + " / " + name;
@@ -121,7 +156,8 @@ public final class Harness {
         }
         long secs10 = (System.nanoTime() - RUN_START) / 100_000_000;
         System.out.println(suites + " suites, " + (passed + failed) + " cases, "
-                + passed + " passed, " + failed + " failed, in "
+                + passed + " passed, " + failed + " failed, "
+                + (skipped == 0 ? "" : skipped + " not selected (" + CASES + "), ") + "in "
                 + (secs10 / 10) + "." + (secs10 % 10) + " s");
         return failed == 0 ? 0 : 1;
     }

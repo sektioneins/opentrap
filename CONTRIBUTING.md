@@ -47,10 +47,15 @@ naming, comment density and idioms. Do not reformat unrelated code.
     just build      # compiles src/ and repacks dist/opentrap.jar
     just run        # launches the app
     just test       # compiles and runs the test suite
+    just test-sandbox     # only the cases that run headless, as in a sandboxed agent session
+    just test-nosandbox   # only the cases that need a display
     just --list     # every recipe: fetching, releasing, packaging
 
 Tests live under `tests/` rather than `src/`, so they are never packed into the
-shipped jar. Any change with logic to it should come with test cases.
+shipped jar. Any change with logic to it should come with test cases. A case
+that needs a display (it opens a window, or asks the toolkit for the menu
+shortcut key) is declared with `Harness.displayTest` instead of `Harness.test`,
+so `just test-sandbox` leaves it out and `just test-nosandbox` runs it.
 
 Requirements:
 

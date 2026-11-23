@@ -23,11 +23,20 @@ public final class ScanWizardTest {
     private interface Body { void run() throws Exception; }
 
     private static void check(String name, Body body) {
-        Harness.test(name, () -> {
+        Harness.test(name, asserting(body));
+    }
+
+    /** As {@link #check}, for a case that opens a window and so needs a display. */
+    private static void checkWithDisplay(String name, Body body) {
+        Harness.displayTest(name, asserting(body));
+    }
+
+    private static Runnable asserting(Body body) {
+        return () -> {
             try { body.run(); }
             catch (AssertionError e) { throw e; }
             catch (Exception e) { throw new AssertionError(e.toString(), e); }
-        });
+        };
     }
 
     public void run() {
@@ -55,7 +64,7 @@ public final class ScanWizardTest {
             Expect.isTrue(checked > 0, "the panel has spinners to check");
         });
 
-        check("the wizard itself can be constructed", () -> {
+        checkWithDisplay("the wizard itself can be constructed", () -> {
             SuiteContext ctx = new SuiteContext();
             NewScanWizard w = new NewScanWizard(ctx, null);
             Expect.isFalse(w.started(), "a wizard that was never run reports started");

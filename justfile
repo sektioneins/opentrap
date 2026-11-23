@@ -3,6 +3,8 @@
 #
 #   just build        compile and pack dist/opentrap.jar
 #   just test         build, then compile and run the test suite
+#   just test-sandbox     only the cases a sandboxed agent session can run (headless)
+#   just test-nosandbox   only the cases that need a display, the rest of just test
 #   just run          launch the app (builds first if the jar is missing)
 #   just run 1.5      launch at a fixed interface scale; later arguments go to the app
 #   just release      build the self-contained release jar dist/opentrap_<timestamp>.jar
@@ -64,7 +66,16 @@ build: _classes
     @echo "Built dist/opentrap.jar ($(du -h dist/opentrap.jar | cut -f1))"
 
 # Build, then compile and run the test suite (tests/ is never packed into the jar)
-test: build
+test: build (_tests "all")
+
+# Run every case that passes in a sandboxed agent session: headless, none that need a display
+test-sandbox: build (_tests "sandbox")
+
+# Run only the cases that need a display, the ones test-sandbox leaves out
+test-nosandbox: build (_tests "nosandbox")
+
+# Compile the tests and run the cases $1 selects: all, sandbox or nosandbox
+_tests cases:
     #!/usr/bin/env bash
     set -euo pipefail
     rm -rf build-tests && mkdir -p build-tests
@@ -77,7 +88,12 @@ test: build
     # Tests create their scratch files with Files.createTemp*. Java on macOS
     # takes its temp directory from the system, not from $TMPDIR, so a
     # sandboxed run would write somewhere it may not. Follow $TMPDIR when set.
-    exec "$JAVA_HOME/bin/java" -Djava.io.tmpdir="${TMPDIR:-/tmp}" -cp "lib/*:build:build-tests" RunTests
+    # A sandbox has no display, and a JVM that is not headless hangs there
+    # while it initialises AppKit, so the sandbox selection runs headless.
+    jvm=()
+    if [ "$1" = sandbox ]; then jvm+=(-Djava.awt.headless=true); fi
+    exec "$JAVA_HOME/bin/java" -Djava.io.tmpdir="${TMPDIR:-/tmp}" -Dopentrap.test.cases="$1" "${jvm[@]}" \
+        -cp "lib/*:build:build-tests" RunTests
 
 # Launch OpenTRAP; a first argument such as 1.5 or 2 forces the interface scale, the rest go to the app
 run *args: _check-jdk
