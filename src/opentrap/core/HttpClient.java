@@ -33,6 +33,21 @@ public class HttpClient {
         /** Optional upstream override (e.g. the ZAP engine for live passive scanning);
          *  falls back to a direct connection if it cannot be reached. */
         public UpstreamProxy upstream;
+        /**
+         * Optional check run before the socket connects, with the resolved address
+         * it is about to connect to: the target, or the upstream proxy when one is
+         * routed through. A non-null reason refuses the connection. Null means no
+         * check. Applies to the HTTP/1 path only; {@link Http2Client} uses
+         * java.net.http, cannot be hooked before it connects, and is not used by
+         * the proxy.
+         */
+        public ConnectGuard connectGuard;
+    }
+
+    /** Decides whether a connection to a resolved address may be opened. */
+    public interface ConnectGuard {
+        /** The reason to refuse a connection to {@code dest}, or null to allow it. */
+        String refusal(InetSocketAddress dest);
     }
 
     public static class Result {
@@ -83,7 +98,12 @@ public class HttpClient {
      * socket rather than the request/response send cycle.
      */
     public static Socket openSocket(HttpService svc, int connectTimeoutMs, int readTimeoutMs) throws Exception {
-        return connect(svc, connectTimeoutMs, readTimeoutMs);
+        return openSocket(svc, connectTimeoutMs, readTimeoutMs, null);
+    }
+
+    /** As above, asking the guard (when not null) before the socket connects. */
+    public static Socket openSocket(HttpService svc, int connectTimeoutMs, int readTimeoutMs, ConnectGuard guard) throws Exception {
+        return connect(svc, connectTimeoutMs, readTimeoutMs, null, guard);
     }
 
     /**
@@ -91,26 +111,22 @@ public class HttpClient {
      * proxy when one is configured for the destination, and layering TLS (with
      * SNI) on top when the service is secure.
      */
-    private static Socket connect(HttpService svc, int connectTimeoutMs, int readTimeoutMs) throws Exception {
-        return connect(svc, connectTimeoutMs, readTimeoutMs, null);
-    }
-
     /**
      * Connect, optionally through an override upstream (used for live passive
      * scanning through the ZAP engine). If the override cannot be reached the
      * connection falls back to direct, so the scan engine being down never breaks
      * the user's traffic.
      */
-    private static Socket connect(HttpService svc, int ct, int rt, UpstreamProxy override) throws Exception {
+    private static Socket connect(HttpService svc, int ct, int rt, UpstreamProxy override, ConnectGuard guard) throws Exception {
         if (override != null) {
-            try { return connectVia(svc, ct, rt, override); }
+            try { return connectVia(svc, ct, rt, override, guard); }
             catch (Exception e) {
                 Debug.log("upstream proxy " + override.host + ":" + override.port
                         + " failed (" + e + "); falling back to a direct connection");
-                return connectVia(svc, ct, rt, null); // fail-safe: go direct
+                return connectVia(svc, ct, rt, null, guard); // fail-safe: go direct
             }
         }
-        return connectVia(svc, ct, rt, upstreamFor(svc));
+        return connectVia(svc, ct, rt, upstreamFor(svc), guard);
     }
 
     /** The upstream proxy a rule assigns to this target, or null for a direct connection. */
@@ -119,17 +135,27 @@ public class HttpClient {
         return p == null ? null : p.proxyFor(svc);
     }
 
-    private static Socket connectVia(HttpService svc, int connectTimeoutMs, int readTimeoutMs, UpstreamProxy up) throws Exception {
+    private static Socket connectVia(HttpService svc, int connectTimeoutMs, int readTimeoutMs, UpstreamProxy up, ConnectGuard guard) throws Exception {
+        // The address the base socket really connects to: the target when direct,
+        // the proxy for either upstream type (a SOCKS proxy resolves the target itself).
+        InetSocketAddress dest = up == null
+                ? new InetSocketAddress(svc.host(), svc.port())
+                : new InetSocketAddress(up.host, up.port);
+        if (dest.isUnresolved()) throw new UnknownHostException(dest.getHostString());
+        if (guard != null) {
+            String reason = guard.refusal(dest);
+            if (reason != null) throw new IOException(reason);
+        }
         Socket base;
         if (up == null) {
             base = new Socket();
-            base.connect(new InetSocketAddress(svc.host(), svc.port()), connectTimeoutMs);
+            base.connect(dest, connectTimeoutMs);
         } else if (up.type == UpstreamProxy.Type.SOCKS) {
-            base = new Socket(new java.net.Proxy(java.net.Proxy.Type.SOCKS, new InetSocketAddress(up.host, up.port)));
+            base = new Socket(new java.net.Proxy(java.net.Proxy.Type.SOCKS, dest));
             base.connect(InetSocketAddress.createUnresolved(svc.host(), svc.port()), connectTimeoutMs);
         } else {
             base = new Socket();
-            base.connect(new InetSocketAddress(up.host, up.port), connectTimeoutMs);
+            base.connect(dest, connectTimeoutMs);
             httpConnectTunnel(base, svc, up);
         }
         base.setSoTimeout(readTimeoutMs);
@@ -260,7 +286,7 @@ public class HttpClient {
         Result r = new Result();
         Socket sock = null;
         try {
-            sock = connect(svc, opt.connectTimeoutMs, opt.readTimeoutMs, opt.upstream);
+            sock = connect(svc, opt.connectTimeoutMs, opt.readTimeoutMs, opt.upstream, opt.connectGuard);
             try { r.remoteIp = ((InetSocketAddress) sock.getRemoteSocketAddress()).getAddress().getHostAddress(); }
             catch (Exception _) {}
 
