@@ -126,9 +126,61 @@ public final class EngineMappingTest {
             Expect.isTrue(back.get(0).response() == back.get(1).response(),
                     "a restored project holds the pair once too");
         });
+
+        Harness.suite("Engine scope binding");
+
+        Harness.test("an include rule the engine cannot match exactly is left out and named", () -> {
+            opentrap.core.Scope s = new opentrap.core.Scope();
+            s.include().add(opentrap.core.Scope.Rule.prefix("https://example.com", false));
+            s.include().add(new opentrap.core.Scope.Rule("any", "(?x) a", "", ""));
+            ZapScanner.EngineScope es = scopeOf(s, List.of());
+            Expect.equal(es.includes().size(), 1, "includes");
+            Expect.isTrue(es.notes().contains(
+                    "left out include rule the engine cannot match exactly: host matches (?x) a"), "note");
+        });
+
+        Harness.test("a scope whose include rules all cannot be bound refuses the scan", () -> {
+            opentrap.core.Scope s = new opentrap.core.Scope();
+            s.include().add(new opentrap.core.Scope.Rule("any", "(?x) a", "", ""));
+            try {
+                scopeOf(s, List.of());
+                throw new AssertionError("expected a refusal");
+            } catch (Exception e) {
+                Expect.equal(e.getMessage(),
+                        "none of the scope's include rules can be handed to the engine exactly, "
+                        + "so the scan would not be bound to the scope", "message");
+            }
+        });
+
+        Harness.test("a scope with no enabled include rule binds the scan to the seed hosts", () -> {
+            opentrap.core.Scope s = new opentrap.core.Scope();
+            ZapScanner.Seed seed = new ZapScanner.Seed(
+                    new opentrap.core.HttpService("shop.example", 443, true), "https://shop.example/");
+            ZapScanner.EngineScope es = scopeOf(s, List.of(seed));
+            Expect.equal(es.includes().size(), 1, "includes");
+            java.util.regex.Pattern p = java.util.regex.Pattern.compile(es.includes().get(0));
+            Expect.isTrue(p.matcher("https://shop.example/x").matches(), "seed host");
+            Expect.isTrue(!p.matcher("https://other.example/").matches(), "other host");
+        });
+
+        Harness.test("an exclude rule the engine cannot match exactly is widened and named", () -> {
+            opentrap.core.Scope s = new opentrap.core.Scope();
+            s.include().add(opentrap.core.Scope.Rule.prefix("https://example.com", false));
+            s.exclude().add(new opentrap.core.Scope.Rule("any", "", "", "\\bx"));
+            ZapScanner.EngineScope es = scopeOf(s, List.of());
+            Expect.equal(es.excludes().size(), 5, "excludes");
+            Expect.isTrue(es.notes().contains(
+                    "widened exclude rule the engine cannot match exactly: file matches \\bx"), "note");
+        });
     }
 
     /** Body size for evidence in the sharing tests, large enough that one copy is unmistakable in the file. */
+    private static ZapScanner.EngineScope scopeOf(opentrap.core.Scope s, List<ZapScanner.Seed> seeds) {
+        try { return ZapScanner.engineScope(s, seeds); }
+        catch (RuntimeException e) { throw e; }
+        catch (Exception e) { throw new IllegalStateException(e.getMessage(), e); }
+    }
+
     private static final int EVIDENCE_BODY_BYTES = 64 * 1024;
 
     /** One engine message record: a request and a response with a sizeable body. */

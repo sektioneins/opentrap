@@ -58,27 +58,59 @@ public final class ZapScanner {
         try { api.removeContext(SCOPE_CONTEXT); } catch (Exception _) { /* none yet */ }
         String id = api.newContext(SCOPE_CONTEXT);
         if (id == null || id.isBlank()) throw new Exception("the engine did not create the scope context");
-        int inc = 0, exc = 0;
-        for (opentrap.core.Scope.Rule r : ctx.scope().include()) {
+        EngineScope es = engineScope(ctx.scope(), seeds);
+        for (String re : es.includes()) api.includeInContext(SCOPE_CONTEXT, re);
+        for (String re : es.excludes()) api.excludeFromContext(SCOPE_CONTEXT, re);
+        api.setContextInScope(SCOPE_CONTEXT, true);
+        task.log("Scope applied to the engine: " + es.includes().size() + " include rule(s), "
+                + es.excludes().size() + " exclude rule(s)");
+        for (String note : es.notes()) task.log(note);
+        return id;
+    }
+
+    /** The regexes to hand the engine for a scope, and what was left out or widened on the way. */
+    record EngineScope(java.util.List<String> includes, java.util.List<String> excludes,
+                       java.util.List<String> notes) {}
+
+    /**
+     * Translate the scope into engine regexes. An include rule the engine
+     * cannot match exactly is left out, so the engine is never wider than the
+     * app; an exclude rule it cannot match exactly is widened, which can only
+     * exclude more. Throws when include rules exist but none can be handed
+     * over, since the scan would then not be bound to the scope.
+     */
+    static EngineScope engineScope(opentrap.core.Scope scope, java.util.List<Seed> seeds) throws Exception {
+        java.util.List<String> includes = new java.util.ArrayList<>();
+        java.util.List<String> excludes = new java.util.ArrayList<>();
+        java.util.List<String> notes = new java.util.ArrayList<>();
+        boolean anyEnabled = false;
+        for (opentrap.core.Scope.Rule r : scope.include()) {
+            if (!r.enabled) continue;
+            anyEnabled = true;
             String re = r.includeRegex();
-            if (re != null) { api.includeInContext(SCOPE_CONTEXT, re); inc++; }
+            if (re != null) includes.add(re);
+            else notes.add("left out include rule the engine cannot match exactly: " + r.describe());
         }
-        if (inc == 0) {
-            // No usable include rule: bind the scan to the targets themselves.
+        if (includes.isEmpty()) {
+            if (anyEnabled) throw new Exception("none of the scope's include rules can be handed to the engine "
+                    + "exactly, so the scan would not be bound to the scope");
+            // No include rule: bind the scan to the targets themselves.
             for (Seed seed : seeds) {
                 opentrap.core.Scope.Rule r = new opentrap.core.Scope.Rule();
                 r.prefix = seed.service().host().toLowerCase(java.util.Locale.ROOT);
                 String re = r.includeRegex();
-                if (re != null) { api.includeInContext(SCOPE_CONTEXT, re); inc++; }
+                if (re != null) includes.add(re);
             }
         }
-        for (opentrap.core.Scope.Rule r : ctx.scope().exclude()) {
+        for (opentrap.core.Scope.Rule r : scope.exclude()) {
+            if (!r.enabled) continue;
+            // No regex means a prefix rule with no host, which matches nothing in the app either.
             String re = r.excludeRegex();
-            if (re != null) { api.excludeFromContext(SCOPE_CONTEXT, re); exc++; }
+            if (re == null) continue;
+            excludes.add(re);
+            if (!r.engineExact()) notes.add("widened exclude rule the engine cannot match exactly: " + r.describe());
         }
-        api.setContextInScope(SCOPE_CONTEXT, true);
-        task.log("Scope applied to the engine: " + inc + " include rule(s), " + exc + " exclude rule(s)");
-        return id;
+        return new EngineScope(includes, excludes, notes);
     }
 
     /** One seed to crawl: the target service and the full seed URL. */
