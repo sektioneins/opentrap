@@ -115,7 +115,8 @@ second scan carries on from where the first stopped.
 **The testing browser is not bundled in the release.** It is large (~680 MB), so
 the release stays small. `opentrap.proxy.EmbeddedBrowser` uses a Chromium found in
 the product `browser/` folder (populated by `just browser`, or by the optional
-in-app download) or one already on the system `PATH`. It launches with an isolated
+in-app download), one already on the system `PATH`, or on macOS the Chromium app
+in `/Applications`. It launches with an isolated
 profile under `~/.opentrap/browser`, pointed at the proxy
 (`--proxy-server=http://127.0.0.1:<port>`) and trusting the proxy CA, so TLS
 interception works with nothing to configure. It is launched with its own window

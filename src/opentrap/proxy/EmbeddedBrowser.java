@@ -26,6 +26,28 @@ public final class EmbeddedBrowser {
         "/snap/bin/chromium"
     };
 
+    /**
+     * The fixed paths to try for this OS, in order. On macOS a Chromium installed
+     * as an app (the Homebrew ungoogled-chromium cask) lives inside its .app
+     * bundle and is on no PATH, so the bundle's binary is listed explicitly.
+     */
+    static List<String> candidates(String osName, String home) {
+        if (osName.toLowerCase(java.util.Locale.ROOT).startsWith("mac")) {
+            return List.of(
+                "/Applications/Chromium.app/Contents/MacOS/Chromium",
+                home + "/Applications/Chromium.app/Contents/MacOS/Chromium");
+        }
+        return List.of(CANDIDATES);
+    }
+
+    /** The error shown when no browser is found, with the install hint for this OS. */
+    static String notFoundMessage(String osName) {
+        if (osName.toLowerCase(java.util.Locale.ROOT).startsWith("mac")) {
+            return "No Chromium found. Install it with: brew install ungoogled-chromium";
+        }
+        return "No Chromium-based browser found. Install chromium (apt install chromium).";
+    }
+
     private static Process running;
 
     /** The Chromium bundled in the product's browser/ folder, or null. */
@@ -99,7 +121,7 @@ public final class EmbeddedBrowser {
         // machine has no browser installed.
         File bundled = bundledBrowser();
         if (bundled != null) return bundled.getAbsolutePath();
-        for (String c : CANDIDATES) {
+        for (String c : candidates(System.getProperty("os.name"), System.getProperty("user.home"))) {
             if (new File(c).canExecute()) return c;
         }
         // Last resort: rely on PATH.
@@ -133,7 +155,7 @@ public final class EmbeddedBrowser {
                                              boolean relaxSecurity) {
         String binary = findBinary();
         if (binary == null) {
-            return "No Chromium-based browser found. Install chromium (apt install chromium).";
+            return notFoundMessage(System.getProperty("os.name"));
         }
 
         int port = runningPort(server);
