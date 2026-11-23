@@ -203,7 +203,8 @@ box, and it is the release tag.
 ## Where things are
 
 - `src/opentrap/` - application source (Java)
-- `icon/opentrap.svg`, `src/opentrap/ui/icons/` - the logo (README, launcher, app window)
+- `icon/opentrap-s1-light.svg`, `icon/opentrap-s1-dark.svg` - the S1 (SektionEins) fork logo, the app icon (window, dock, launcher, AppImage), for light and dark backgrounds, rasterised as `src/opentrap/ui/icons/opentrap-s1-<light|dark>_<size>.png`; `icon/wordmark-s1-light.svg`, `icon/wordmark-s1-dark.svg` - its wordmarks
+- `icon/opentrap.svg`, `icon/wordmark.svg`, `src/opentrap/ui/icons/opentrap_<size>.png` - the original orange logo, still used by the README
 - `docs/` - the GitHub Pages site (`index.md`) and README screenshots (`images/`)
 - `tools/versions` - pinned versions of the JDK, ZAP engine, testing browser and vendored libraries
 - `lib/` - vendored compile-time libraries (BouncyCastle, Brotli decoder)

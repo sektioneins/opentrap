@@ -9,10 +9,15 @@ import java.util.List;
 /**
  * The application window icon.
  *
- * <p>The icon is the bidirectional traffic arrows from {@code icon/opentrap.svg},
- * rasterised to PNGs under {@code opentrap/ui/icons/} and loaded here, so the
- * window, the taskbar and the installed launcher all show the same thing and it
- * stays the same on any desktop theme.
+ * <p>The icon is the S1 logo, amber traffic arrows held by brackets, from
+ * {@code icon/opentrap-s1-light.svg} and {@code icon/opentrap-s1-dark.svg},
+ * rasterised to PNGs under {@code opentrap/ui/icons/} and loaded here. The two
+ * differ only in the bracket colour: navy for a light background, pale blue for
+ * a dark one. Windows and dialogs take the variant for the active theme, since
+ * the logo shows on the theme's own background in About and Discover. The
+ * launcher, the dock and the AppImage are drawn before any theme is known, so
+ * they use the light variant. The original orange icon, {@code icon/opentrap.svg}
+ * and {@code opentrap_<size>.png}, stays in the tree but is no longer loaded.
  *
  * <p>If the raster resources are somehow absent, a plain drawn fallback is used
  * so the window always has an icon.
@@ -56,9 +61,17 @@ public final class AppIcon {
         return new javax.swing.ImageIcon(img);
     }
 
+    /** The resource path of the S1 raster at one size, for a dark or a light background. */
+    static String resource(boolean dark, int size) {
+        return "/opentrap/ui/icons/opentrap-s1-" + (dark ? "dark" : "light") + "_" + size + ".png";
+    }
+
     private static BufferedImage load(int size) {
-        String path = "/opentrap/ui/icons/opentrap_" + size + ".png";
-        try (InputStream in = AppIcon.class.getResourceAsStream(path)) {
+        return load(Theme.dark, size);
+    }
+
+    private static BufferedImage load(boolean dark, int size) {
+        try (InputStream in = AppIcon.class.getResourceAsStream(resource(dark, size))) {
             return in == null ? null : ImageIO.read(in);
         } catch (Exception e) {
             return null;
@@ -82,15 +95,15 @@ public final class AppIcon {
     }
 
     /**
-     * Export the window icon as PNGs into a directory, named
-     * {@code opentrap_<size>.png}, for the desktop installer. Run with
+     * Export the launcher icon (the light variant) as PNGs into a directory,
+     * named {@code opentrap_<size>.png}, for the desktop installer. Run with
      * {@code java -cp dist/opentrap.jar opentrap.ui.AppIcon <dir>}.
      */
     public static void main(String[] args) throws Exception {
         java.io.File dir = new java.io.File(args.length > 0 ? args[0] : ".");
         dir.mkdirs();
         for (int size : SIZES) {
-            BufferedImage img = load(size);
+            BufferedImage img = load(false, size);
             if (img == null) img = fallback(size);
             ImageIO.write(img, "png", new java.io.File(dir, "opentrap_" + size + ".png"));
         }

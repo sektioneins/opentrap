@@ -16,6 +16,13 @@ line with the GPL, this credit and the licence are retained. The full GPL-3.0
 text is at https://www.gnu.org/licenses/gpl-3.0.html and is also shipped with
 most systems under `/usr/share/common-licenses/GPL-3`.
 
+The S1 (SektionEins) icons, `icon/opentrap-s1-light.svg` and
+`icon/opentrap-s1-dark.svg` with their rasterised copies
+`src/opentrap/ui/icons/opentrap-s1-*_<size>.png` and the wordmarks
+`icon/wordmark-s1-light.svg` and `icon/wordmark-s1-dark.svg`, are original
+artwork for this fork and are not derived from Flat Remix. Like the icon above,
+they are licensed under the GNU General Public License v3.
+
 # Bundled tools
 
 OpenTRAP drives these external tools, fetched on demand into the product rather

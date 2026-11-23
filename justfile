@@ -116,7 +116,7 @@ run *args: _check-jdk
         opts+=("-Dsun.java2d.uiScale=$scale" "-Dopentrap.scaled=$scale")
     fi
     if [ "$(uname -s)" = Darwin ]; then
-        opts+=(-Xdock:name=OpenTRAP -Xdock:icon=src/opentrap/ui/icons/opentrap_256.png)
+        opts+=(-Xdock:name=OpenTRAP -Xdock:icon=src/opentrap/ui/icons/opentrap-s1-light_256.png)
     elif [ -z "${_JAVA_AWT_WM_NONREPARENTING+x}" ]; then
         # Java's X11 toolkit assumes a reparenting window manager. Under the
         # tiling and wlroots-family compositors below, Swing windows paint
@@ -219,14 +219,14 @@ appimage:
     echo ">> jpackage: self-contained app image using that runtime"
     "$JAVA_HOME/bin/jpackage" --type app-image --name OpenTRAP \
         --input build/otin --main-jar "$(basename "$jar")" --main-class opentrap.ui.Main \
-        --icon src/opentrap/ui/icons/opentrap_256.png \
+        --icon src/opentrap/ui/icons/opentrap-s1-light_256.png \
         --runtime-image build/runtime --java-options "-XX:MaxRAMPercentage=50 -XX:+UseG1GC -XX:G1PeriodicGCInterval=300000" \
         --dest build/appimage
 
     echo ">> assembling AppDir (with a scale-probing launcher)"
     mkdir -p AppDir/usr
     cp -a build/appimage/OpenTRAP/. AppDir/usr/
-    cp src/opentrap/ui/icons/opentrap_256.png AppDir/opentrap.png
+    cp src/opentrap/ui/icons/opentrap-s1-light_256.png AppDir/opentrap.png
     # The launcher picks a HiDPI scale with a quick headless probe and sets it
     # before the real JVM starts. Inside an AppImage the in-app relaunch the
     # plain jar uses would tear down the mount and kill the app, so the scale
@@ -714,7 +714,7 @@ install-desktop scope="user":
     echo "Installing OpenTRAP desktop entry ($1 scope)..."
     # Scalable source, for themes and desktops that prefer SVG.
     mkdir -p "$iconroot/scalable/apps"
-    cp icon/opentrap.svg "$iconroot/scalable/apps/opentrap.svg"
+    cp icon/opentrap-s1-light.svg "$iconroot/scalable/apps/opentrap.svg"
     # Raster sizes, rendered by the app itself so no SVG tool is needed.
     if [ -f dist/opentrap.jar ] && [ -x "$JAVA_HOME/bin/java" ]; then
         "$JAVA_HOME/bin/java" -cp dist/opentrap.jar opentrap.ui.AppIcon "$tmp" >/dev/null
