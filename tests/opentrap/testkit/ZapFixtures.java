@@ -57,7 +57,11 @@ public final class ZapFixtures {
     public static Path zap(Path dir, String id, String version, String status, String... depIdRange) {
         StringBuilder deps = new StringBuilder();
         for (int i = 0; i + 1 < depIdRange.length; i += 2) {
-            deps.append("<addon>").append(depIdRange[i]).append("</addon>");
+            deps.append("<addon><id>").append(depIdRange[i]).append("</id>");
+            if (!depIdRange[i + 1].isEmpty()) {
+                deps.append("<version>").append(escape(depIdRange[i + 1])).append("</version>");
+            }
+            deps.append("</addon>");
         }
         String xml = "<zapaddon><name>Add-on " + id + "</name><version>" + version + "</version>"
                 + "<status>" + status + "</status>"
