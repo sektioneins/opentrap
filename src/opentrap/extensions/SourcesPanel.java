@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 /**
@@ -67,6 +68,8 @@ public final class SourcesPanel extends JPanel {
     private String notOpen;
     /** Set while the list is rebuilt, so its selection events do not act half-way. */
     private boolean reloading;
+    /** How many changes have run to their end, for tests to wait on. */
+    private final AtomicInteger finished = new AtomicInteger();
 
     public SourcesPanel(Store store) {
         this(store, () -> {
@@ -157,16 +160,17 @@ public final class SourcesPanel extends JPanel {
             return new Source("", n, type, loc, p, true);
         }
         if (type == SourceType.LOCAL_FOLDER) {
+            if (loc.isEmpty()) throw new IllegalArgumentException("Enter the folder of .zap files.");
             Path dir;
             try {
-                dir = loc.isEmpty() ? null : Path.of(loc).toAbsolutePath().normalize();
+                dir = Path.of(loc);
             } catch (InvalidPathException e) {
-                dir = null;
+                throw new IllegalArgumentException("No such folder: " + loc);
             }
-            if (dir == null || !Files.isDirectory(dir)) {
-                throw new IllegalArgumentException(loc.isEmpty() ? "Enter the folder of .zap files."
-                        : "No such folder: " + loc);
-            }
+            // a relative path would depend on the folder OpenTRAP happened to be started in
+            if (!dir.isAbsolute()) throw new IllegalArgumentException("The folder path must be absolute: " + loc);
+            dir = dir.normalize();
+            if (!Files.isDirectory(dir)) throw new IllegalArgumentException("No such folder: " + loc);
             return new Source("", n, type, dir.toString(), "", true);
         }
         throw new IllegalArgumentException("Only a feed URL or a local folder can be added as a source.");
@@ -247,6 +251,9 @@ public final class SourcesPanel extends JPanel {
         for (int i = 0; i < rows.size(); i++) if (rows.get(i).id().equals(id)) table.setRowSelectionInterval(i, i);
     }
 
+    /** How many changes the panel started have run to their end, succeeded or not; for tests. */
+    int changesFinished() { return finished.get(); }
+
     /** Which of Add, Edit and Remove are on, as "AER" with "-" for one that is off; for tests. */
     String buttons() {
         return (add.isEnabled() ? "A" : "-") + (edit.isEnabled() ? "E" : "-") + (remove.isEnabled() ? "R" : "-");
@@ -304,13 +311,14 @@ public final class SourcesPanel extends JPanel {
         Source s = selected();
         if (s == null || !store.isOpen()) return;
         if (s.builtIn()) {
+            List<Pending> queued = s.enabled() ? queuedFrom(s.id()) : List.of();
             String text = s.name() + " is built in: it can be switched on or off, but not changed or removed.";
             if (s.enabled()) {
                 text += " Switched off, its add-ons are no longer listed in Store and get no updates;"
-                        + " those installed keep working.";
+                        + " those installed keep working." + droppedNote(queued);
             }
             if (dialogs.choose(s.name(), text, s.enabled() ? "Switch off" : "Switch on", "Cancel") == 0) {
-                setOn(s.id(), !s.enabled());
+                switchTo(s.id(), !s.enabled(), queued);
             }
             return;
         }
@@ -322,19 +330,78 @@ public final class SourcesPanel extends JPanel {
         boolean moved = next.type() != s.type() || !next.location().equals(s.location())
                 || !next.prefix().equals(s.prefix());
         if (moved && dialogs.choose(title, trustText(next, "Save the changed source?"), "Save", "Cancel") != 0) return;
+        // refused when the saved source is no longer s, so moved above was asked against what is saved
         change(title, () -> {
-            store.updateSource(next);
+            store.updateSource(s, next);
             return null;
         });
     }
 
-    /** Switches the source {@code id} on or off. */
+    /**
+     * Switches the source {@code id} on or off. Switching off stops its
+     * updates, so the changes queued from it are dropped, after asking.
+     */
     void setOn(String id, boolean on) {
         if (!store.isOpen()) return;
+        List<Pending> queued = on ? List.of() : queuedFrom(id);
+        if (!queued.isEmpty()) {
+            String name = id;
+            for (Source s : rows) if (s.id().equals(id)) name = s.name();
+            String text = "Switch off " + name + "? Its add-ons are no longer listed in Store and get no updates;"
+                    + " those installed keep working." + droppedNote(queued);
+            if (dialogs.choose("Switch off " + name, text, "Switch off", "Cancel") != 0) {
+                reload();  // the On box shows the saved state again
+                return;
+            }
+        }
+        switchTo(id, on, queued);
+    }
+
+    private void switchTo(String id, boolean on, List<Pending> queued) {
         change(on ? "Switch on" : "Switch off", () -> {
             store.enableSource(id, on);
-            return null;
+            return undoAll(queued);
         });
+    }
+
+    /** The queued changes that would bring in an add-on from {@code sourceId}. */
+    private List<Pending> queuedFrom(String sourceId) {
+        List<Pending> out = new ArrayList<>();
+        for (Pending p : store.pending()) {
+            if (p.target() != null && sourceId.equals(p.target().sourceId())) out.add(p);
+        }
+        return out;
+    }
+
+    /** What a question says about the queued changes it drops; empty when there are none. */
+    static String droppedNote(List<Pending> queued) {
+        if (queued.isEmpty()) return "";
+        List<String> names = new ArrayList<>();
+        for (Pending p : queued) {
+            String what = switch (p.action()) {
+                case UPDATE -> "update to ";
+                case SWITCH -> "switch to ";
+                default -> "install ";
+            };
+            names.add(p.id() + " (" + what + p.target().version() + ")");
+        }
+        return "\n\nThese changes queued from it are dropped: " + String.join(", ", names) + ".";
+    }
+
+    /** Drops every queued change of the add-ons in {@code queued}; what to tell when one fails, or null. */
+    private String undoAll(List<Pending> queued) {
+        Set<String> ids = new java.util.LinkedHashSet<>();
+        for (Pending p : queued) ids.add(p.id());
+        for (String id : ids) {
+            try {
+                store.undo(id);
+            } catch (IOException | RuntimeException e) {
+                return "The change queued for " + id + " could not be dropped: "
+                        + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName())
+                        + ". Undo it in Extensions > Installed.";
+            }
+        }
+        return null;
     }
 
     /**
@@ -352,21 +419,24 @@ public final class SourcesPanel extends JPanel {
         for (Installed in : store.installed()) {
             if (s.id().equals(in.sourceId()) && !going.contains(in.id())) own.add(in.id());
         }
+        // nothing from a removed source may still go into the engine, whatever is kept
+        List<Pending> queued = queuedFrom(s.id());
         if (own.isEmpty()) {
-            if (dialogs.choose(title, "Remove the source " + s.name() + "? Its add-ons are no longer listed in Store.",
-                    "Remove", "Cancel") != 0) return;
+            if (dialogs.choose(title, "Remove the source " + s.name() + "? Its add-ons are no longer listed in Store."
+                    + droppedNote(queued), "Remove", "Cancel") != 0) return;
             change(title, () -> {
                 store.removeSource(s.id());
-                return null;
+                return undoAll(queued);
             });
             return;
         }
         InstalledPanel.TakeOut out = InstalledPanel.takeOut(store, own);
-        int pick = dialogs.choose(title, removeText(s, own, out), "Keep add-ons", "Remove add-ons", "Cancel");
+        int pick = dialogs.choose(title, removeText(s, own, out) + droppedNote(queued),
+                "Keep add-ons", "Remove add-ons", "Cancel");
         if (pick == 0) {
             change(title, () -> {
                 store.removeSource(s.id());
-                return null;
+                return undoAll(queued);
             });
             return;
         }
@@ -378,6 +448,8 @@ public final class SourcesPanel extends JPanel {
                 "Remove anyway", "Cancel") != 0) return;
         change(title, () -> {
             store.removeSource(s.id());
+            String failed = undoAll(queued);
+            if (failed != null) return failed;
             // what needs the source's add-ons first, as Installed queues it
             return InstalledPanel.queueEach(all, store::remove);
         });
@@ -408,6 +480,7 @@ public final class SourcesPanel extends JPanel {
                         : e.getClass().getSimpleName());
             }
             String told = msg;
+            finished.incrementAndGet();
             SwingUtilities.invokeLater(() -> {
                 reload();
                 if (told != null) dialogs.tell(title, told);

@@ -300,7 +300,7 @@ public final class StoreUiTest {
                     SourceList sources = SourceList.load(engine.resolveSibling("addons"), "2.17");
                     sources.add(new Source("src-2", "Mirror", SourceType.FEED_URL, base + "feed.xml", base, true));
                     sources.save();
-                    cache(engine, "src-2", ZapFixtures.addon("far", "1.0.0", "release", base + "far.zap", HASH));
+                    cache(engine, "src-2", base + "feed.xml", ZapFixtures.addon("far", "1.0.0", "release", base + "far.zap", HASH));
                     store.startHook().beforeLaunch(engine, "2.17.0");
                     StorePanel panel = panel(store);
                     Expect.isNull(onEdt(() -> panel.whyNot("far")), "the cached entry can be installed");
@@ -609,6 +609,8 @@ public final class StoreUiTest {
                             "http://a.example/"), "a plain HTTP prefix");
             refused(() -> SourcesPanel.fromForm("x", SourceType.FEED_URL, "https://a.example/f.xml", "https:///x/"),
                     "a prefix without a host");
+            refused(() -> SourcesPanel.fromForm("x", SourceType.LOCAL_FOLDER, "relative/folder", ""),
+                    "a relative folder path");
             refused(() -> SourcesPanel.fromForm("x", SourceType.LOCAL_FOLDER, "/no/such/folder/here", ""),
                     "a folder that is not there");
             refused(() -> SourcesPanel.fromForm("x", SourceType.ZAP_FEED, "https://a.example/f.xml", ""),
@@ -724,7 +726,7 @@ public final class StoreUiTest {
             try {
                 StoreFixtures.inTemp(CRAWL, new Fetcher(tls.client(), host -> null), (store, engine) -> {
                     String base = mirror(engine, https);
-                    cache(engine, "src-1", ZapFixtures.addon("far", "1.0.0", "release", base + "far.zap", HASH));
+                    cache(engine, "src-1", base + "feed.xml", ZapFixtures.addon("far", "1.0.0", "release", base + "far.zap", HASH));
                     store.open(Version.parse("2.17.0"), engine);
                     SourceAnswers answers = new SourceAnswers(
                             new SourcesPanel.Form("Mirror 2", SourceType.FEED_URL, base + "feed.xml", base));
@@ -758,7 +760,7 @@ public final class StoreUiTest {
             try {
                 StoreFixtures.inTemp(CRAWL, new Fetcher(tls.client(), host -> null), (store, engine) -> {
                     String base = mirror(engine, https);
-                    cache(engine, "src-1", ZapFixtures.addon("far", "1.0.0", "release", base + "far.zap", HASH));
+                    cache(engine, "src-1", base + "feed.xml", ZapFixtures.addon("far", "1.0.0", "release", base + "far.zap", HASH));
                     store.open(Version.parse("2.17.0"), engine);
                     SourceAnswers answers = new SourceAnswers(
                             new SourcesPanel.Form("Mirror", SourceType.FEED_URL, base + "other.xml", ""))
@@ -789,30 +791,183 @@ public final class StoreUiTest {
                     onEdt(() -> { panel.removeSelected(); return null; });
                     Expect.equal(answers.asked.size(), 1, "asked once: " + answers.asked);
                     Expect.isTrue(answers.asked.get(0).contains("foo"), "its add-on is named: " + answers.asked.get(0));
-                    await(() -> store.catalogue().source("src-1").isEmpty(), () -> "the store hears it removed");
-                    // a change queued after it would come after anything this click queued
-                    store.disable("network");
-                    Expect.equal(store.pending().stream().map(Pending::id).toList(), List.of("network"),
-                            "nothing of the source's was queued");
+                    await(() -> onEdt(panel::changesFinished) == 1, () -> "the removal ran to its end");
+                    Expect.isTrue(store.catalogue().source("src-1").isEmpty(), "the store heard it removed");
+                    Expect.equal(store.pending(), List.of(), "nothing of the source's was queued");
                     Expect.isTrue(store.installed().stream().anyMatch(i -> i.id().equals("foo")), "foo stays installed");
                 }));
 
         Harness.test("removing a source with its add-ons queues their removal and what needs them", () ->
                 StoreFixtures.inTemp(CRAWL, (store, engine) -> {
                     twoFolders(store, engine);
+                    ZapFixtures.zap(engine.resolveSibling("mine"), "baz", "1.0.0", "release");
+                    store.refresh(() -> false);
+                    install(store, offer(store, "baz", "1.0.0"));
                     SourceAnswers answers = new SourceAnswers().choose(1);
                     SourcesPanel panel = sources(store, answers);
                     onEdt(() -> { panel.select("src-1"); return null; });
                     onEdt(() -> { panel.removeSelected(); return null; });
                     Expect.equal(answers.asked.size(), 1, "asked once: " + answers.asked);
                     Expect.isTrue(answers.asked.get(0).contains("bar"), "what needs foo is named: " + answers.asked.get(0));
-                    await(() -> queued(store, Pending.Action.REMOVE).size() == 2,
-                            () -> "two removals are queued: " + store.pending());
-                    Expect.equal(queued(store, Pending.Action.REMOVE), List.of("bar", "foo"),
-                            "what needs it first, then the source's own");
+                    Expect.isTrue(answers.asked.get(0).contains("baz (install 1.0.0)"),
+                            "the queued install is named: " + answers.asked.get(0));
+                    await(() -> onEdt(panel::changesFinished) == 1, () -> "the removal ran to its end");
+                    Expect.equal(store.pending().stream().map(p -> p.action() + " " + p.id()).toList(),
+                            List.of("REMOVE bar", "REMOVE foo"),
+                            "what needs it first, then the source's own, and its queued install is dropped");
                     Expect.isTrue(store.catalogue().source("src-1").isEmpty(), "the source is gone");
                     Expect.isTrue(store.catalogue().source("src-2").isPresent(), "the other stays");
                 }));
+
+        Harness.test("removing a source with nothing installed from it drops what is queued from it", () ->
+                StoreFixtures.inTemp(CRAWL, (store, engine) -> {
+                    queuedInstall(store, engine);
+                    SourceAnswers answers = new SourceAnswers().choose(0);
+                    SourcesPanel panel = sources(store, answers);
+                    onEdt(() -> { panel.select("src-1"); return null; });
+                    onEdt(() -> { panel.removeSelected(); return null; });
+                    Expect.equal(answers.asked.size(), 1, "asked once: " + answers.asked);
+                    Expect.isTrue(answers.asked.get(0).contains("foo (install 1.0.0)"),
+                            "the queued install is named: " + answers.asked.get(0));
+                    await(() -> onEdt(panel::changesFinished) == 1, () -> "the removal ran to its end");
+                    Expect.isTrue(store.catalogue().source("src-1").isEmpty(), "the source is gone");
+                    Expect.equal(store.pending(), List.of(), "its queued install is dropped");
+                    Expect.isFalse(Files.exists(staged(engine, "foo-release-1.0.0.zap")), "with its staged file");
+                }));
+
+        Harness.test("switching a source off drops what is queued from it after asking", () ->
+                StoreFixtures.inTemp(CRAWL, (store, engine) -> {
+                    queuedInstall(store, engine);
+                    SourceAnswers answers = new SourceAnswers().choose(1, 0);
+                    SourcesPanel panel = sources(store, answers);
+                    onEdt(() -> { panel.setOn("src-1", false); return null; });
+                    Expect.equal(answers.asked.size(), 1, "asked: " + answers.asked);
+                    Expect.isTrue(answers.asked.get(0).contains("foo (install 1.0.0)"),
+                            "the queued install is named: " + answers.asked.get(0));
+                    Expect.equal(onEdt(() -> panel.model().getValueAt(1, 3)), true, "declined, it shows on");
+                    onEdt(() -> { panel.setOn("src-1", false); return null; });
+                    Expect.equal(answers.asked.size(), 2, "asked again: " + answers.asked);
+                    await(() -> onEdt(panel::changesFinished) == 1, () -> "the switch ran to its end");
+                    Expect.isFalse(store.catalogue().source("src-1").orElseThrow().enabled(), "it is off");
+                    Expect.equal(store.pending(), List.of(), "its queued install is dropped");
+                    Expect.equal(onEdt(panel::changesFinished), 1, "only the accepted switch ran a change");
+                }));
+
+        Harness.test("an edit made from a stale row is refused and the saved source is shown", () ->
+                StoreFixtures.inTemp(CRAWL, (store, engine) -> {
+                    Path mine = folderSource(engine, false);
+                    Path theirs = Files.createDirectories(engine.resolveSibling("theirs"));
+                    store.open(Version.parse("2.17.0"), engine);
+                    // another OpenTRAP instance moves the source after this one listed it
+                    Path root = engine.resolveSibling("addons");
+                    SourceList other = SourceList.load(root, "2.17");
+                    other.update(new Source("src-1", "Theirs", SourceType.LOCAL_FOLDER, theirs.toString(), "", true));
+                    other.save();
+                    SourceAnswers answers = new SourceAnswers(
+                            new SourcesPanel.Form("Mine 2", SourceType.LOCAL_FOLDER, mine.toString(), ""));
+                    SourcesPanel panel = sources(store, answers);
+                    onEdt(() -> { panel.select("src-1"); return null; });
+                    onEdt(() -> { panel.editSelected(); return null; });
+                    await(() -> onEdt(panel::changesFinished) == 1, () -> "the edit ran to its end");
+                    await(() -> answers.told.size() == 1, () -> "the refusal is told: " + answers.told);
+                    Expect.isTrue(answers.told.get(0).contains("changed elsewhere"), "why: " + answers.told.get(0));
+                    Source saved = SourceList.load(root, "2.17").all().get(1);
+                    Expect.equal(saved.name() + " " + saved.location(), "Theirs " + theirs, "the other change is kept");
+                    Expect.equal(store.catalogue().source("src-1").orElseThrow().name(), "Theirs",
+                            "and the list shows it");
+                }));
+
+        Harness.test("declining the trust question for an edit saves nothing", () ->
+                StoreFixtures.inTemp(CRAWL, (store, engine) -> {
+                    Path mine = folderSource(engine, false);
+                    Path elsewhere = Files.createDirectories(engine.resolveSibling("elsewhere"));
+                    store.open(Version.parse("2.17.0"), engine);
+                    SourceAnswers answers = new SourceAnswers(
+                            new SourcesPanel.Form("Mine", SourceType.LOCAL_FOLDER, elsewhere.toString(), ""))
+                            .choose(1);
+                    SourcesPanel panel = sources(store, answers);
+                    onEdt(() -> { panel.select("src-1"); return null; });
+                    onEdt(() -> { panel.editSelected(); return null; });
+                    Expect.equal(answers.asked.size(), 1, "the trust question: " + answers.asked);
+                    // a switch after it is the later event: had the edit run, two changes would finish
+                    onEdt(() -> { panel.setOn("src-1", false); return null; });
+                    await(() -> onEdt(panel::changesFinished) == 1, () -> "the switch ran to its end");
+                    Source saved = SourceList.load(engine.resolveSibling("addons"), "2.17").all().get(1);
+                    Expect.equal(saved.location(), mine.toString(), "the folder is unchanged");
+                    Expect.isFalse(saved.enabled(), "only the switch was saved");
+                }));
+
+        Harness.test("a cached list fetched from another URL is not shown", () ->
+                StoreFixtures.inTemp(CRAWL, (store, engine) -> {
+                    Path root = engine.resolveSibling("addons");
+                    String base = "https://mirror.example/";
+                    SourceList sources = SourceList.load(root, "2.17");
+                    sources.update(Source.zapFeed("2.17", false));
+                    sources.add(new Source("src-1", "Mirror", SourceType.FEED_URL, base + "feed.xml", base, true));
+                    sources.save();
+                    cache(engine, "src-1", base + "feed.xml",
+                            ZapFixtures.addon("far", "1.0.0", "release", base + "far.zap", HASH));
+                    store.open(Version.parse("2.17.0"), engine);
+                    Expect.equal(store.catalogue().offers("far").size(), 1, "the cache of its own URL is shown");
+                    // another instance moves the feed, and this cache file stays behind
+                    SourceList moved = SourceList.load(root, "2.17");
+                    moved.update(new Source("src-1", "Mirror", SourceType.FEED_URL, base + "other.xml", base, true));
+                    moved.save();
+                    opentrap.extensions.store.Store again = new opentrap.extensions.store.Store(root,
+                            new Fetcher(null, host -> null));
+                    again.open(Version.parse("2.17.0"), engine);
+                    Expect.equal(again.catalogue().offers("far"), List.of(), "the old URL's list is not shown");
+                    Expect.isNull(again.catalogue().status("src-1").fetched(), "the moved feed is not fetched yet");
+                }));
+
+        Harness.test("a feed moved while a refresh fetches it keeps none of the old URL's list", () -> {
+            TestTls.Pair tls = TestTls.pair(IP);
+            AtomicReference<opentrap.extensions.store.Store> current = new AtomicReference<>();
+            AtomicReference<String> baseOf = new AtomicReference<>();
+            HttpsServer https = server(tls, ex -> {
+                String base = baseOf.get();
+                try {
+                    // the move lands while the old URL's answer is on its way
+                    Source was = current.get().catalogue().source("src-1").orElseThrow();
+                    current.get().updateSource(was, new Source("src-1", "Mirror", SourceType.FEED_URL,
+                            base + "other.xml", base, true));
+                } catch (java.io.IOException e) {
+                    throw new java.io.UncheckedIOException(e);
+                }
+                byte[] b = ZapFixtures.feed(ZapFixtures.addon("far", "1.0.0", "release", base + "far.zap", HASH))
+                        .getBytes();
+                ex.sendResponseHeaders(200, b.length);
+                try (OutputStream o = ex.getResponseBody()) { o.write(b); }
+            });
+            try {
+                StoreFixtures.inTemp(CRAWL, new Fetcher(tls.client(), host -> null), (store, engine) -> {
+                    current.set(store);
+                    baseOf.set(mirror(engine, https));
+                    store.open(Version.parse("2.17.0"), engine);
+                    store.refresh(() -> false);
+                    Source now = store.catalogue().source("src-1").orElseThrow();
+                    Expect.isTrue(now.location().endsWith("other.xml"), "the refresh kept the moved feed: " + now);
+                    Expect.equal(store.catalogue().offers("far"), List.of(), "the old URL's list is not shown");
+                    Expect.isFalse(Files.exists(engine.resolveSibling("addons").resolve("2.17").resolve("cache")
+                            .resolve("src-1")), "nor cached");
+                });
+            } finally {
+                https.stop(0);
+            }
+        });
+    }
+
+    /** Folder source "src-1" offering foo, whose install is queued and not applied yet. */
+    private static void queuedInstall(opentrap.extensions.store.Store store, Path engine) throws Exception {
+        Path folder = folderSource(engine, false);
+        ZapFixtures.zap(folder, "foo", "1.0.0", "release");
+        store.startHook().beforeLaunch(engine, "2.17.0");
+        install(store, offer(store, "foo", "1.0.0"));
+        Expect.equal(queued(store, Pending.Action.INSTALL), List.of("foo"), "foo's install is queued");
+    }
+
+    private static Path staged(Path engine, String file) {
+        return engine.resolveSibling("addons").resolve("2.17").resolve("staged").resolve(file);
     }
 
     /** The answers a sources list gets, in turn, and what it asked and told; a form that runs out is Cancel. */
@@ -905,16 +1060,21 @@ public final class StoreUiTest {
 
     /** A loopback HTTPS server that serves an empty feed and counts the requests it gets. */
     private static HttpsServer feedServer(TestTls.Pair tls, AtomicInteger requests) {
+        return server(tls, ex -> {
+            requests.incrementAndGet();
+            byte[] b = ZapFixtures.feed().getBytes();
+            ex.sendResponseHeaders(200, b.length);
+            try (OutputStream o = ex.getResponseBody()) { o.write(b); }
+        });
+    }
+
+    /** A loopback HTTPS server answering every request with {@code handler}. */
+    private static HttpsServer server(TestTls.Pair tls, com.sun.net.httpserver.HttpHandler handler) {
         try {
             HttpsServer https = HttpsServer.create(new InetSocketAddress(IP, 0), 0);
             https.setHttpsConfigurator(new HttpsConfigurator(tls.server()));
             https.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
-            https.createContext("/", ex -> {
-                requests.incrementAndGet();
-                byte[] b = ZapFixtures.feed().getBytes();
-                ex.sendResponseHeaders(200, b.length);
-                try (OutputStream o = ex.getResponseBody()) { o.write(b); }
-            });
+            https.createContext("/", handler);
             https.start();
             return https;
         } catch (java.io.IOException e) {
@@ -942,12 +1102,13 @@ public final class StoreUiTest {
 
     /** ZAP's feed as if fetched just now, from the cache alone. */
     private static void zapCache(Path engine, String... addons) throws java.io.IOException {
-        cache(engine, Source.ZAP_ID, addons);
+        cache(engine, Source.ZAP_ID, Source.zapFeed("2.17", true).location(), addons);
     }
 
-    private static void cache(Path engine, String sourceId, String... addons) throws java.io.IOException {
+    /** {@code sourceId}'s cached list as if fetched just now from {@code url}. */
+    private static void cache(Path engine, String sourceId, String url, String... addons) throws java.io.IOException {
         Path dir = Files.createDirectories(engine.resolveSibling("addons").resolve("2.17").resolve("cache"));
-        Files.writeString(dir.resolve(sourceId), Instant.now() + "\n" + ZapFixtures.feed(addons));
+        Files.writeString(dir.resolve(sourceId), Instant.now() + "\n" + url + "\n" + ZapFixtures.feed(addons));
     }
 
     private static Entry offer(opentrap.extensions.store.Store store, String id, String version) {

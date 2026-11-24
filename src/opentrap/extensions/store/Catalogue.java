@@ -72,20 +72,26 @@ public final class Catalogue {
     }
 
     /**
-     * Fetches every enabled source and scans local folders. A source that fails
-     * keeps its previous list and fetch time and gets the error. Stops before the
-     * next source once {@code cancelled} is true.
+     * Takes {@code sources} as {@link #useSources} does, then fetches every
+     * enabled one and scans local folders. A source that fails keeps its
+     * previous list and fetch time and gets the error. Stops before the next
+     * source once {@code cancelled} is true.
      */
     public void refresh(List<Source> sources, BooleanSupplier cancelled) {
-        List<Source> list = List.copyOf(sources);
-        update(old -> {
-            Map<String, Slot> kept = new HashMap<>();
-            for (Source s : list) if (old.slots.containsKey(s.id())) kept.put(s.id(), old.slots.get(s.id()));
-            return new State(list, Map.copyOf(kept), old.bundled, old.bundledAt);
-        });
-        for (Source s : list) {
+        useSources(sources);
+        fetchAll(sources, cancelled);
+    }
+
+    /**
+     * The fetching half of {@link #refresh}, for sources {@link #useSources}
+     * has taken already; it never sets the source list, so a list read before
+     * a change cannot replace the changed one. A source changed meanwhile is
+     * skipped, and what was fetched for it is dropped.
+     */
+    public void fetchAll(List<Source> sources, BooleanSupplier cancelled) {
+        for (Source s : List.copyOf(sources)) {
             if (cancelled.getAsBoolean()) return;
-            if (!s.enabled() || s.type() == SourceType.BUNDLED) continue;
+            if (!s.enabled() || s.type() == SourceType.BUNDLED || !state.sources.contains(s)) continue;
             Slot previous = state.slots.getOrDefault(s.id(), Slot.EMPTY);
             Slot next = s.type() == SourceType.LOCAL_FOLDER ? scan(s, previous) : fetch(s, previous);
             update(old -> old.sources.contains(s) ? old.withSlot(s.id(), next) : old);
@@ -96,9 +102,11 @@ public final class Catalogue {
      * Takes the sources after the user added, changed, switched or removed
      * one. Makes no request. A feed whose URL is the same keeps its list, read
      * again from its cache when its name or prefix changed, so the entries
-     * carry the new name and are checked against the new prefix. A new feed,
-     * or one moved to another URL, has no list until the next refresh, and the
-     * old URL's cached list is deleted. A local folder is scanned again.
+     * carry the new name and are checked against the new prefix. A feed new
+     * to the catalogue starts from its cache, which is only read when it was
+     * fetched from the feed's URL. One moved to another URL, or turned into a
+     * local folder, has no list until the next refresh, and the old URL's
+     * cached list is deleted. A local folder is scanned again.
      * Synchronized, so a refresh cannot write a cache file between the
      * deletion and the new list.
      */
@@ -114,9 +122,12 @@ public final class Catalogue {
             Slot previous = st.slots.getOrDefault(s.id(), Slot.EMPTY);
             boolean samePlace = old != null && old.type() == s.type() && old.location().equals(s.location());
             if (s.type() == SourceType.LOCAL_FOLDER) {
+                if (old != null) dropCache(old);
                 if (!s.equals(old)) changed.put(s.id(), scan(s, samePlace ? previous : Slot.EMPTY));
+            } else if (old == null) {
+                changed.put(s.id(), readCache(s));
             } else if (!samePlace) {
-                dropCache(s);
+                dropCache(old);
                 changed.put(s.id(), Slot.EMPTY);
             } else if (!old.name().equals(s.name()) || !old.prefix().equals(s.prefix())) {
                 Slot again = readCache(s);
@@ -224,11 +235,12 @@ public final class Catalogue {
             byte[] body = fetcher.fetch(s.location(), Fetcher.FEED_CAP);
             Listing listing = ZapFeed.parse(new ByteArrayInputStream(body), s, engine);
             Instant now = Instant.now();
-            // with useSources kept out, so a source moved meanwhile never gets its old URL's list cached
+            // with useSources kept out, so a source moved meanwhile in this process never gets its
+            // old URL's list cached; the URL in the file covers another instance moving it
             synchronized (this) {
                 if (!state.sources.contains(s)) return previous;
                 OwnerOnly.write(file, out -> {
-                    out.write((now + "\n").getBytes(StandardCharsets.UTF_8));
+                    out.write((now + "\n" + s.location() + "\n").getBytes(StandardCharsets.UTF_8));
                     out.write(body);
                 });
             }
@@ -247,16 +259,27 @@ public final class Catalogue {
             } catch (NoSuchFileException e) {
                 return Slot.EMPTY;
             }
-            int nl = 0;
-            while (nl < all.length && all[nl] != '\n') nl++;
-            if (nl == all.length) throw new IOException("The cached list is cut short");
+            // a time line, the URL it was fetched from, then the feed
+            int nl = lineEnd(all, 0);
+            int nl2 = lineEnd(all, nl + 1);
             Instant fetched = Instant.parse(new String(all, 0, nl, StandardCharsets.UTF_8));
+            String from = new String(all, nl + 1, nl2 - nl - 1, StandardCharsets.UTF_8);
+            // fetched from another URL, before the source was moved: not this source's list
+            if (!from.equals(s.location())) return Slot.EMPTY;
             Listing listing = ZapFeed.parse(
-                    new ByteArrayInputStream(all, nl + 1, all.length - nl - 1), s, engine);
+                    new ByteArrayInputStream(all, nl2 + 1, all.length - nl2 - 1), s, engine);
             return new Slot(listing, fetched, null);
         } catch (IOException | RuntimeException e) {
             return Slot.EMPTY.failed("The cached list could not be read: " + why(e));
         }
+    }
+
+    /** Where the line starting at {@code from} ends. */
+    private static int lineEnd(byte[] all, int from) throws IOException {
+        int nl = from;
+        while (nl < all.length && all[nl] != '\n') nl++;
+        if (nl >= all.length) throw new IOException("The cached list is cut short");
+        return nl;
     }
 
     private Path cacheFile(Source s) throws IOException {

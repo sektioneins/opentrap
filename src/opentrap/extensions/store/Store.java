@@ -155,13 +155,15 @@ public final class Store {
     public void refresh(BooleanSupplier cancelled) {
         Opened o = opened();
         List<Source> sources;
-        try {
+        // read and taken under the lock, so this list never replaces one a later change saved
+        try (StoreLock _ = StoreLock.acquire(root)) {
             sources = SourceList.load(root, o.minor).all();
+            o.catalogue.useSources(sources);
         } catch (IOException e) {
             Debug.log("add-on sources could not be read, refreshing the ones last read: " + e.getMessage());
             sources = o.catalogue.sources();
         }
-        o.catalogue.refresh(sources, cancelled);
+        o.catalogue.fetchAll(sources, cancelled);
         fire();
     }
 
@@ -180,8 +182,28 @@ public final class Store {
         return added.get();
     }
 
-    /** Replaces the source with {@code s}'s id; of a built-in source only {@code enabled} may change. */
-    public void updateSource(Source s) throws IOException { changeSources(l -> l.update(s)); }
+    /**
+     * Replaces the source {@code expected} with {@code next}, which has its
+     * id; of a built-in source only {@code enabled} may change. Refused with
+     * {@link ChangedElsewhere} when the saved source is no longer
+     * {@code expected}, as when another OpenTRAP instance changed it since it
+     * was listed; the catalogue then takes the sources as saved.
+     */
+    public void updateSource(Source expected, Source next) throws IOException {
+        changeSources(l -> {
+            Source saved = null;
+            for (Source s : l.all()) if (s.id().equals(next.id())) saved = s;
+            if (!expected.equals(saved)) throw new ChangedElsewhere(expected.name());
+            l.update(next);
+        });
+    }
+
+    /** A source changed since the caller listed it. */
+    public static final class ChangedElsewhere extends IllegalStateException {
+        ChangedElsewhere(String name) {
+            super(name + " was changed elsewhere since it was listed. The list now shows it as saved; edit it again.");
+        }
+    }
 
     /** Switches a source on or off as saved now, built-in ones too; nothing else of it changes. */
     public void enableSource(String id, boolean on) throws IOException {
@@ -197,14 +219,22 @@ public final class Store {
 
     private void changeSources(Consumer<SourceList> change) throws IOException {
         Opened o = opened();
+        RuntimeException refused = null;
         try (StoreLock _ = StoreLock.acquire(root)) {
             SourceList l = SourceList.load(root, o.minor);
-            change.accept(l);
-            l.save();
+            try {
+                change.accept(l);
+                l.save();
+            } catch (RuntimeException e) {
+                // nothing is saved; the catalogue still learns what is, which may be another instance's change
+                refused = e;
+                l = SourceList.load(root, o.minor);
+            }
             // under the lock, so two changes reach the catalogue in the order they were saved
             o.catalogue.useSources(l.all());
         }
         fire();
+        if (refused != null) throw refused;
     }
 
     /** The chosen entry and what it needs, dependencies first. */
