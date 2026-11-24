@@ -102,7 +102,8 @@ For everything else, the original project is the place to go:
   default.
 - **Themes.** Light and dark are theme files, and Settings > User interface >
   Display lists them with your own: add a theme from a file after a summary of
-  what it sets and what it leaves to its base theme, and remove it again. A
+  what it sets and what it leaves to its base theme, and remove it again. The
+  built-in light and dark themes pass the contrast checks. A
   change that is saved but not yet applied is undone by choosing the active
   font or theme again.
 - **Working hotkeys.** The palette's Go to shortcuts and the Send to shortcuts

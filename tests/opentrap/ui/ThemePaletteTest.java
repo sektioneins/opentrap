@@ -68,10 +68,8 @@ public final class ThemePaletteTest {
 
             Theme.configure(true);
             for (Field f : fields) {
-                // The accent is deliberately the same in both themes, so the
-                // brand reads the same; everything else must move.
-                if (f.getName().startsWith("ACCENT") && !f.getName().equals("ACCENT_LIGHT")
-                        && !f.getName().equals("ACCENT_FAINT")) continue;
+                // The light accent is darker so white text on it reads; the
+                // dark accent keeps the sampled orange, so every colour moves.
                 Expect.isFalse(read(f).equals(light.get(f.getName())),
                         f.getName() + " is left at the other theme's value");
             }
@@ -82,13 +80,20 @@ public final class ThemePaletteTest {
             // ~/Working/burpmap/video/frames: #26639C is the most common
             // saturated blue across all 346 of them by a factor of five, and
             // is the fill of the site map's selected "URL view" segment and of
-            // the selected task card's edge bar. #EAEFF5 is that card's fill
-            // and #DFDFDF the unselected segment. #DA602F is the accent.
+            // the selected task card's edge bar. #EAEFF5 is that card (derived now as #E9EFF5)'s fill
+            // and #DFDFDF the unselected segment. #DA602F is the accent, which the dark
+            // theme keeps and the light theme darkens to #BC5328.
             Theme.configure(false);
             Expect.equal(hex(Theme.CONTROL), "#26639C", "the control blue");
-            Expect.equal(hex(Theme.CONTROL_TINT), "#EAEFF5", "the selection tint");
+            Expect.equal(hex(Theme.CONTROL_TINT), "#E9EFF5", "the selection tint");
             Expect.equal(hex(Theme.SEGMENT_OFF), "#DFDFDF", "the unselected segment");
-            Expect.isTrue(near(Theme.ACCENT, 0xDA, 0x60, 0x2F, 3), "the accent is the sampled orange");
+            Expect.equal(hex(Theme.ACCENT), "#BC5328", "the light accent");
+            Theme.configure(true);
+            try {
+                Expect.isTrue(near(Theme.ACCENT, 0xDA, 0x60, 0x2F, 3), "the dark accent is the sampled orange");
+            } finally {
+                Theme.configure(false);
+            }
         });
 
         Harness.test("a tint stays on the right side of its text", () -> {

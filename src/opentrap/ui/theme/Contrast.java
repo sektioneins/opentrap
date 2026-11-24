@@ -27,6 +27,8 @@ public final class Contrast {
         new Pair("TEXT", "ACCENT_FAINT", 4.5),
         new Pair("TEXT_ON_ACCENT", "ACCENT", 4.5),
         new Pair("TEXT_ON_CONTROL", "CONTROL", 4.5),
+        // The selected row of the command palette and the scan presets.
+        new Pair("TEXT_ON_SELECTION", "ACCENT_LIGHT", 4.5),
         new Pair("LINK", "BG", 4.5),
         new Pair("ERROR", "BG", 4.5),
         new Pair("MUTED", "BG", 3.0),
