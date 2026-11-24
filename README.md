@@ -91,8 +91,9 @@ For everything else, the original project is the place to go:
   and download prefix, and adding a source asks first. Changes wait for Restart
   engine, a real engine restart that keeps the session, the live audit and your
   rule edits, and stops only the crawls and audits running on the engine.
-  Nothing is fetched unless you click Refresh, Install or Update, or switch on
-  the startup check. A crawl or audit whose add-ons are disabled says which ones
+  Nothing is fetched unless you click Refresh, Install, Update, Update all,
+  Switch source or, for a new ZAP version, Look them up, or switch on the
+  startup check. A crawl or audit whose add-ons are disabled says which ones
   instead of failing on an engine error, and the rule tabs report a rule change
   the engine refuses instead of showing it as applied.
 - **Fonts.** The interface uses the system's own UI font, and both the UI font
