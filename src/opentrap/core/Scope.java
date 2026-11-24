@@ -358,13 +358,32 @@ public class Scope implements Serializable {
         return s.replace("\\Q", "").replace("\\E", "");
     }
 
+    /**
+     * Whether a request is in scope. The path is judged in every form a server
+     * may read it: as written, with unreserved escapes decoded and dot
+     * segments removed, and fully decoded (see {@link ScopePath#forms}). An
+     * include rule must match all of them, or {@code /app/../admin} would pass
+     * a prefix {@code /app}; an exclude rule matches any of them, or
+     * {@code /%6cogout} would slip past the {@code logout} exclude.
+     */
     public boolean isInScope(HttpService svc, String path) {
         if (svc == null) return false;
+        List<String> forms = ScopePath.forms(path);
         boolean in = false;
-        for (Rule r : include) if (r.matches(svc, path)) { in = true; break; }
+        for (Rule r : include) if (matchesAll(r, svc, forms)) { in = true; break; }
         if (!in) return false;
-        for (Rule r : exclude) if (r.matches(svc, path)) return false;
+        for (Rule r : exclude) if (matchesAny(r, svc, forms)) return false;
         return true;
+    }
+
+    private static boolean matchesAll(Rule r, HttpService svc, List<String> forms) {
+        for (String f : forms) if (!r.matches(svc, f)) return false;
+        return true;
+    }
+
+    private static boolean matchesAny(Rule r, HttpService svc, List<String> forms) {
+        for (String f : forms) if (r.matches(svc, f)) return true;
+        return false;
     }
 
     public boolean isInScope(LogEntry e) {
