@@ -187,6 +187,26 @@ public final class StoreTest {
                     List.of("UPDATE 2.0.0", "SWITCH 3.0.0"), "the queued actions");
         }));
 
+        Harness.test("a download into a staged file a queued change names is refused before it is staged", () -> inTemp((root, engine, folder) -> {
+            ZapFixtures.zap(folder, "foo", "1.0.0", "release");
+            Path other = Files.createDirectories(root.resolveSibling("other"));
+            ZapFixtures.zap(other, "foo", "1.0.0", "release", "bar", "");
+            SourceList sources = SourceList.load(root, "2.17");
+            sources.add(new Source("src-2", "Other", SourceType.LOCAL_FOLDER, other.toString(), "", true));
+            sources.save();
+            Store s = store(root, engine);
+            Entry mine = s.catalogue().offers("foo").stream().filter(e -> e.sourceId().equals("src-1")).findFirst().get();
+            Entry theirs = s.catalogue().offers("foo").stream().filter(e -> e.sourceId().equals("src-2")).findFirst().get();
+            s.install(List.of(mine), (d, t) -> {}, () -> false);
+            Throwable failure = null;
+            try { s.install(List.of(theirs), (d, t) -> {}, () -> false); } catch (IOException ex) { failure = ex; }
+            Expect.notNull(failure, "the second install is refused");
+            Expect.isTrue(failure.getMessage().contains("foo-release-1.0.0.zap"), "it names the file: " + failure.getMessage());
+            Expect.equal(ZapAddOnFile.sha256(root.resolve("2.17/staged/foo-release-1.0.0.zap")), mine.sha256(),
+                    "the queued change's file is untouched");
+            Expect.equal(s.pendingCount(), 1, "only the first is queued");
+        }));
+
         Harness.test("a bundled add-on is installed again as a link to the engine's file", () -> inTemp((root, engine, folder) -> {
             Path foo = ZapFixtures.zap(engine.resolve("plugin"), "foo", "1.0.0", "release");
             Store s = store(root, engine);

@@ -635,17 +635,47 @@ public final class StorePanel extends JPanel {
     // ---- actions ----
 
     private void act(Row r) {
-        List<Entry> plan;
+        InstallPlan ip;
         try {
-            plan = store.plan(r.best());
+            ip = planInstall(r.best());
         } catch (Resolver.Unresolvable ex) {
             JOptionPane.showMessageDialog(this, ex.getMessage(), r.action() + " " + r.best().name(),
                     JOptionPane.WARNING_MESSAGE);
             return;
         }
         String verb = r.action().equals("New build") ? "Update" : r.action();
-        if (!confirm(verb + " " + r.best().name(), confirmText(r, plan), verb)) return;
-        download(plan, verb + " " + r.best().name());
+        if (!confirm(verb + " " + r.best().name(), confirmText(r, ip), verb)) return;
+        download(ip.plan(), verb + " " + r.best().name());
+    }
+
+    /** What Install, Update or Switch source downloads, and one "name (action)" per entry already queued. */
+    record InstallPlan(List<Entry> plan, List<String> queued) {}
+
+    /**
+     * The chosen entry with what it needs, without what already has a
+     * download queued: that change brings its own file, and a second one of
+     * the same name would replace it in {@code staged/}.
+     */
+    InstallPlan planInstall(Entry chosen) throws Resolver.Unresolvable {
+        Map<String, Pending> putting = putQueued(store.pending());
+        List<Entry> plan = new ArrayList<>();
+        List<String> queued = new ArrayList<>();
+        for (Entry e : store.plan(chosen)) {
+            Pending p = putting.get(e.id());
+            if (p == null) plan.add(e);
+            else queued.add(e.name() + " (" + p.action().name().toLowerCase(Locale.ROOT) + ")");
+        }
+        return new InstallPlan(List.copyOf(plan), List.copyOf(queued));
+    }
+
+    /** The queued changes that put a downloaded file in place, by add-on id. */
+    static Map<String, Pending> putQueued(List<Pending> pending) {
+        Map<String, Pending> out = new HashMap<>();
+        for (Pending p : pending) {
+            if (p.action() == Pending.Action.INSTALL || p.action() == Pending.Action.UPDATE
+                    || p.action() == Pending.Action.SWITCH) out.putIfAbsent(p.id(), p);
+        }
+        return out;
     }
 
     /** What Update all downloads, dependencies first and each id once, and one "name: reason" per update left out. */
@@ -655,10 +685,12 @@ public final class StorePanel extends JPanel {
      * Every update the store counts, with what it needs, except those whose
      * source cannot be reached, whose dependencies cannot be met, or whose
      * add-on has a change queued already: another update would be downloaded
-     * and queued twice, and one over a queued removal would bring it back.
+     * and queued twice, and one over a queued removal would bring it back. A
+     * dependency with a download queued already is left to that change.
      */
     UpdatePlan planUpdates() {
         Catalogue cat = store.catalogue();
+        Map<String, Pending> putting = putQueued(store.pending());
         List<Entry> plan = new ArrayList<>();
         List<String> refused = new ArrayList<>();
         for (Entry u : store.updates()) {
@@ -667,7 +699,7 @@ public final class StorePanel extends JPanel {
             if (why != null) { refused.add(u.name() + ": " + why); continue; }
             try {
                 for (Entry e : store.plan(u)) {
-                    boolean held = false;
+                    boolean held = putting.containsKey(e.id());
                     for (Entry x : plan) if (x.id().equals(e.id())) held = true;
                     if (!held) plan.add(e);
                 }
@@ -698,7 +730,7 @@ public final class StorePanel extends JPanel {
     }
 
     /** What the confirmation says before anything is downloaded: every entry, dependencies first. */
-    private String confirmText(Row r, List<Entry> plan) {
+    private String confirmText(Row r, InstallPlan ip) {
         Catalogue cat = store.catalogue();
         StringBuilder b = new StringBuilder();
         if (r.action().equals("Switch source")) {
@@ -710,7 +742,11 @@ public final class StorePanel extends JPanel {
             if (e.version().compareTo(in.version()) < 0) b.append(" This is an older version.");
             b.append("\n\n");
         }
-        b.append(listText("These add-ons are downloaded now and take effect when the engine restarts:", plan));
+        b.append(listText("These add-ons are downloaded now and take effect when the engine restarts:", ip.plan()));
+        if (!ip.queued().isEmpty()) {
+            b.append("\nAlready queued for the next engine start, so not downloaded again: ")
+                    .append(String.join(", ", ip.queued())).append('.');
+        }
         return b.toString().strip();
     }
 

@@ -279,7 +279,8 @@ public final class Store {
     /**
      * Puts every entry's file into {@code staged/} (a download, a copy from a
      * local folder, or a link to the engine's own file) and then queues them
-     * all. Nothing is queued when any of them fails.
+     * all. Nothing is queued when any of them fails, nor when a queued change
+     * already names one's staged file.
      *
      * <p>{@code cancelled} is only asked on the calling thread: before each
      * entry and at each block a download receives. The download's own watch
@@ -289,6 +290,17 @@ public final class Store {
      */
     public void install(List<Entry> plan, Fetcher.Progress progress, BooleanSupplier cancelled) throws IOException {
         Opened o = opened();
+        // staged/ holds one file per name: a second download of it would replace what a queued change verified
+        try (StoreLock _ = StoreLock.acquire(root)) {
+            Set<String> named = new HashSet<>();
+            for (Pending p : StoreRecord.load(o.minorDir).pending()) if (p.stagedFile() != null) named.add(p.stagedFile());
+            for (Entry e : plan) {
+                if (named.contains(e.file())) {
+                    throw new IOException(e.file() + " is already staged for a queued change of " + e.id()
+                            + "; undo it in Installed first");
+                }
+            }
+        }
         AtomicBoolean stop = new AtomicBoolean();
         Fetcher.Progress ticked = (done, total) -> {
             if (cancelled.getAsBoolean()) stop.set(true);

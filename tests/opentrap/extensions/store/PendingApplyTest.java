@@ -52,7 +52,7 @@ public final class PendingApplyTest {
     private static Pending stage(ZapAddOnKind k, Pending.Action a, String id, String version) {
         Path zap = ZapFixtures.zap(k.stagingDir(), id, version, "release");
         String name = zap.getFileName().toString();
-        return new Pending(a, id, entry(id, version, name), name);
+        return new Pending(a, id, entry("src-1", id, version, name, ZapFixtures.sha256(zap)), name);
     }
 
     private static List<String> names(Path dir) throws IOException {
@@ -73,7 +73,7 @@ public final class PendingApplyTest {
             Expect.equal(in.file(), "foo-release-1.0.0.zap", "file");
             Expect.equal(in.sourceId(), "src-1", "sourceId");
             Expect.equal(in.origin(), "src-1", "origin");
-            Expect.equal(in.sha256(), "ab".repeat(32), "sha256");
+            Expect.equal(in.sha256(), p.target().sha256(), "sha256");
             Expect.isTrue(in.active(), "active");
             Expect.isTrue(rec.pending().isEmpty(), "pending emptied");
             Expect.isTrue(StoreRecord.load(minor).installed().containsKey("foo"), "saved");
@@ -198,6 +198,24 @@ public final class PendingApplyTest {
                 return;
             }
             throw new AssertionError("expected IOException");
+        }));
+
+        Harness.test("a staged file that no longer matches its hash fails and stays queued", () -> inTemp((minor, k, rec) -> {
+            ZapFixtures.zap(k.enabledDir(), "foo", "1.0.0", "release");
+            Pending good = stage(k, Pending.Action.UPDATE, "foo", "2.0.0");
+            Pending p = new Pending(good.action(), "foo", entry("src-1", "foo", "2.0.0", good.stagedFile(),
+                    "cd".repeat(32)), good.stagedFile());
+            rec.pending().add(p);
+            try {
+                k.apply(rec, p);
+                throw new AssertionError("expected IOException");
+            } catch (IOException e) {
+                Expect.isTrue(e.getMessage().contains("foo-release-2.0.0.zap") && e.getMessage().contains("hash"),
+                        "names the file and the hash: " + e.getMessage());
+            }
+            Expect.equal(names(k.enabledDir()), List.of("foo-release-1.0.0.zap"), "the installed file is kept");
+            Expect.equal(names(k.stagingDir()), List.of("foo-release-2.0.0.zap"), "the staged file is not moved");
+            Expect.equal(rec.pending(), List.of(p), "still queued");
         }));
 
         Harness.test("the folders win over a stale record", () -> inTemp((minor, k, rec) -> {

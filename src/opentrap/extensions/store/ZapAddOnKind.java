@@ -67,6 +67,11 @@ public final class ZapAddOnKind implements KindHandler {
         boolean inDisabled = Files.exists(disabledDir().resolve(name), LinkOption.NOFOLLOW_LINKS);
         // checked before anything is deleted, so a missing download never costs the add-on it was to replace
         if (!inStaged && !inEnabled && !inDisabled) throw new IOException("Staged file " + name + " is missing");
+        // what was downloaded and verified is what is moved: a bundled link is the engine's own file
+        if (inStaged && !Source.BUNDLED_ID.equals(t.sourceId())
+                && !ZapAddOnFile.sha256(staged).equalsIgnoreCase(t.sha256())) {
+            throw new IOException("Staged file " + name + " no longer matches the hash it was queued with");
+        }
         Installed old = rec.installed().get(p.id());
         boolean active;
         if (!inStaged) {

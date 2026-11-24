@@ -352,6 +352,40 @@ public final class StoreUiTest {
                     Expect.isNull(onEdt(() -> panel.whyNot("baz")), "baz's button is on");
                 }));
 
+        Harness.test("an install leaves out what it needs when that is queued already", () ->
+                StoreFixtures.inTemp(CRAWL, (store, engine) -> {
+                    Path folder = folderSource(engine, false);
+                    ZapFixtures.zap(folder, "lib", "1.0.0", "release");
+                    ZapFixtures.zap(folder, "foo", "1.0.0", "release", "lib", "");
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    install(store, offer(store, "lib", "1.0.0"));
+                    StorePanel panel = panel(store);
+                    StorePanel.InstallPlan ip = onEdt(() -> {
+                        try { return panel.planInstall(offer(store, "foo", "1.0.0")); }
+                        catch (opentrap.extensions.store.Resolver.Unresolvable e) { throw new AssertionError(e); }
+                    });
+                    Expect.equal(ip.plan().stream().map(Entry::id).toList(), List.of("foo"), "only foo is downloaded");
+                    Expect.equal(ip.queued(), List.of("Add-on lib (install)"), "lib is named as queued already");
+                }));
+
+        Harness.test("update all leaves out a dependency whose update is queued already", () ->
+                StoreFixtures.inTemp(CRAWL, (store, engine) -> {
+                    Path folder = folderSource(engine, false);
+                    ZapFixtures.zap(folder, "lib", "1.0.0", "release");
+                    ZapFixtures.zap(folder, "foo", "1.0.0", "release", "lib", "");
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    install(store, offer(store, "foo", "1.0.0"));
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    ZapFixtures.zap(folder, "lib", "2.0.0", "release");
+                    ZapFixtures.zap(folder, "foo", "2.0.0", "release", "lib", ">= 2.0.0");
+                    store.refresh(() -> false);
+                    install(store, offer(store, "lib", "2.0.0"));
+                    StorePanel panel = panel(store);
+                    StorePanel.UpdatePlan up = onEdt(panel::planUpdates);
+                    Expect.equal(up.plan().stream().map(Entry::id).toList(), List.of("foo"),
+                            "foo without lib, whose update is queued");
+                }));
+
         Harness.test("an engine start that cannot bring the record in line stops it being trusted", () ->
                 StoreFixtures.started(CRAWL, List.of("spider"), (store, engine) -> {
                     Expect.isTrue(store.reflectsEngine(), "the first starts brought the record in line");
