@@ -74,6 +74,12 @@ public final class Bundled {
     private static void take(Entry e, Version zap, ZapAddOnKind kind, StoreRecord rec, Boolean wasActive)
             throws IOException {
         Installed held = rec.installed().get(e.id());
+        if (held != null && lostLink(held, e, kind)) {
+            // linked by a start that was killed before it saved the record: it is this engine's, as it is now
+            rec.installed().put(e.id(), new Installed(Kind.ZAP_ADDON, e.id(), e.version(), e.file(),
+                    Source.BUNDLED_ID, origin(zap), held.active(), e.sha256()));
+            return;
+        }
         boolean active;
         if (held == null) {
             if (rec.removedBundled().contains(e.id())) return;
@@ -97,6 +103,17 @@ public final class Bundled {
         }
         rec.installed().put(e.id(), new Installed(Kind.ZAP_ADDON, e.id(), e.version(), e.file(), Source.BUNDLED_ID,
                 origin(zap), active, e.sha256()));
+    }
+
+    /** Whether {@code held} is a file the record does not know, a link of the engine file's name to it. */
+    private static boolean lostLink(Installed held, Entry e, ZapAddOnKind kind) throws IOException {
+        if (!ZapAddOnKind.UNKNOWN.equals(held.sourceId()) || !e.file().equals(held.file())) return false;
+        Path target = Path.of(e.location());
+        for (Path dir : new Path[] {kind.enabledDir(), kind.disabledDir()}) {
+            Path link = dir.resolve(e.file());
+            if (Files.isSymbolicLink(link) && Files.readSymbolicLink(link).equals(target)) return true;
+        }
+        return false;
     }
 
     /** Deletes links whose target does not exist; never follows a link to delete, never touches a target. */

@@ -20,6 +20,9 @@ import java.util.stream.Stream;
  */
 public final class ZapAddOnKind implements KindHandler {
 
+    /** The source and origin of a file the record does not know. */
+    static final String UNKNOWN = "unknown";
+
     private static final Pattern ANY_ADDON =
             Pattern.compile("([A-Za-z0-9_]+)-(release|beta|alpha)-([A-Za-z0-9._]+)\\.zap");
 
@@ -154,7 +157,7 @@ public final class ZapAddOnKind implements KindHandler {
                     old.sha256());
         }
         String sha = Files.isSymbolicLink(f) ? "" : ZapAddOnFile.sha256(f);
-        return new Installed(Kind.ZAP_ADDON, m.group(1), version, name, "unknown", "unknown", active, sha);
+        return new Installed(Kind.ZAP_ADDON, m.group(1), version, name, UNKNOWN, UNKNOWN, active, sha);
     }
 
     /** A regular file or a link (even a dangling one); a folder is never an add-on. */

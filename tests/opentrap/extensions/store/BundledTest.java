@@ -167,6 +167,21 @@ public final class BundledTest {
             Expect.equal(names(k.enabledDir()), List.of("foo-release-1.1.0.zap"), "the newer engine file is linked");
         }));
 
+        Harness.test("links a killed first start made are taken as bundled at the next start", () -> inTemp((root, engine, k, rec) -> {
+            Path foo = ZapFixtures.zap(engine.resolve("plugin"), "foo", "1.0.0", "release");
+            // linked, but the record is never saved: the start was killed before its save
+            Bundled.reconcile(engine, ZAP, k, rec);
+            StoreRecord next = StoreRecord.load(root.resolve("minor"));
+            k.reconcile(next);
+            Bundled.reconcile(engine, ZAP, k, next);
+            Installed in = next.installed().get("foo");
+            Expect.equal(in.sourceId(), "bundled", "source");
+            Expect.equal(in.origin(), "bundled with ZAP 2.17.0", "origin");
+            Expect.equal(in.sha256(), ZapFixtures.sha256(foo), "hash of the engine file");
+            Expect.isTrue(in.active(), "active");
+            Expect.equal(names(k.enabledDir()), List.of("foo-release-1.0.0.zap"), "the link is kept");
+        }));
+
         Harness.test("an engine already taken in is not taken in again", () -> inTemp((root, engine, k, rec) -> {
             ZapFixtures.zap(engine.resolve("plugin"), "foo", "1.0.0", "release");
             Bundled.reconcile(engine, ZAP, k, rec);
