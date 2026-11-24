@@ -570,16 +570,16 @@ public final class StoreUiTest {
         Harness.test("declining the second question about a feature queues nothing", () ->
                 StoreFixtures.started(CRAWL, List.of(), (store, engine) -> {
                     Answers answers = new Answers(true, false);
-                    InstalledPanel panel = installed(store, answers);
+                    AtomicInteger started = new AtomicInteger();
+                    // the panel's store changes run at once, so all a click queues is queued when it returns
+                    InstalledPanel panel = onEdt(() -> new InstalledPanel(new SuiteContext(), store, () -> null, answers,
+                            r -> { started.incrementAndGet(); r.run(); }));
                     onEdt(() -> { panel.removeAddOn("spider"); return null; });
                     Expect.equal(answers.asked.size(), 2, "asked twice: " + answers.asked);
                     Expect.isTrue(answers.asked.get(0).contains("bundled with ZAP"),
                             "removing a bundled add-on says it stays removed: " + answers.asked.get(0));
-                    // a change queued after it would come after anything this click queued
-                    store.disable("network");
-                    await(() -> !store.pending().isEmpty(), () -> "the later change is queued");
-                    Expect.equal(store.pending().stream().map(Pending::id).toList(), List.of("network"),
-                            "spider's removal was not queued");
+                    Expect.equal(started.get(), 0, "no store change was started");
+                    Expect.equal(store.pending(), List.of(), "spider's removal was not queued");
                 }));
 
         Harness.test("removing a bundled add-on updated from ZAP's feed says it stays removed", () ->
@@ -1193,7 +1193,7 @@ public final class StoreUiTest {
 
     /** An Installed tab over an open store; it never looks for an engine. */
     private static InstalledPanel installed(opentrap.extensions.store.Store store, Answers answers) {
-        return onEdt(() -> new InstalledPanel(new SuiteContext(), store, () -> null, answers));
+        return onEdt(() -> new InstalledPanel(new SuiteContext(), store, () -> null, answers, null));
     }
 
     /** The ids queued for {@code action}, in queue order. */

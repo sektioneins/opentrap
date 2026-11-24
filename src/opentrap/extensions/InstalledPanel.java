@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -112,6 +113,8 @@ public final class InstalledPanel extends JPanel {
 
     private final Store store;
     private final Dialogs dialogs;
+    /** Where the store changes a click queues run; off the EDT but for tests. */
+    private final Executor queuer;
     private final List<Loaded> items = new ArrayList<>();
     private final List<Row> rows = new ArrayList<>();
     private final Model model = new Model();
@@ -141,19 +144,22 @@ public final class InstalledPanel extends JPanel {
         this(ctx, store, () -> {
             ZapEngine ze = ZapEngine.shared();
             return ze == null ? null : ze.install();
-        }, null);
+        }, null, null);
     }
 
     /**
      * An Installed tab over {@code store} (null where the add-on store is not
      * set up), which opens it when it is not open yet for the engine
-     * {@code engine} names, and asks through {@code dialogs} (null for the
-     * usual dialogs).
+     * {@code engine} names, asks through {@code dialogs} (null for the usual
+     * dialogs) and queues store changes through {@code queuer} (null for a
+     * virtual thread per click).
      */
-    InstalledPanel(SuiteContext ctx, Store store, Supplier<ZapEngine.Install> engine, Dialogs dialogs) {
+    InstalledPanel(SuiteContext ctx, Store store, Supplier<ZapEngine.Install> engine, Dialogs dialogs,
+                   Executor queuer) {
         super(new BorderLayout());
         this.store = store;
         this.dialogs = dialogs != null ? dialogs : swingDialogs();
+        this.queuer = queuer != null ? queuer : r -> Thread.ofVirtual().name("addon-store-queue").start(r);
         setOpaque(false);
 
         // ---- filter bar ----
@@ -644,7 +650,7 @@ public final class InstalledPanel extends JPanel {
 
     /** Queues {@code change} for each of {@code ids} in turn off the EDT; the first failure stops it and is told. */
     private void queue(String title, List<String> ids, Change change) {
-        Thread.ofVirtual().name("addon-store-queue").start(() -> {
+        queuer.execute(() -> {
             String msg = queueEach(ids, change);
             if (msg != null) SwingUtilities.invokeLater(() -> dialogs.tell(title, msg));
         });
