@@ -224,6 +224,7 @@ public class DashboardTool implements ToolModule {
         // Live passive scanning: route in-scope proxy traffic through the engine
         // and poll its alerts into issues. On by default.
         passiveScanner = new opentrap.engine.LivePassiveScanner(ctx);
+        followRefusals(ctx, passiveScanner, liveAudit);
         ctx.setLiveScanRouter(passiveScanner::routeFor);
         passiveScanner.setEnabled(true);
 
@@ -2346,6 +2347,7 @@ public class DashboardTool implements ToolModule {
         opentrap.core.ScanTask task = new opentrap.core.ScanTask(
                 opentrap.core.ScanTask.Type.LIVE_ACTIVE, title, what + " - " + cfg.name());
         task.setScope(seeds.size() == 1 ? seeds.get(0).service().url() : seeds.size() + " targets");
+        task.markEngineScan();
         ctx.addTask(task);
         taskConfigs.put(task, cfg);
         if (isolated) task.log("Isolated scan: results are kept with this task and not merged into the site map or issue log.");
@@ -2366,6 +2368,19 @@ public class DashboardTool implements ToolModule {
     }
 
     /**
+     * When the live audit switches itself off because the engine lacks an
+     * add-on it needs, its task shows it paused with the reason, so the task
+     * list and its Capturing toggle say it is off.
+     */
+    static void followRefusals(SuiteContext ctx, opentrap.engine.LivePassiveScanner scanner, ScanTask task) {
+        scanner.onRefused(why -> SwingUtilities.invokeLater(() -> {
+            task.setState(ScanTask.State.PAUSED);
+            task.log(why);
+            ctx.taskChanged(task);
+        }));
+    }
+
+    /**
      * The crawl job on its own thread: start the engine, check that the
      * add-ons the job needs are active, then crawl and audit. The check reads
      * the store's record only once the engine is up, since the engine's start
@@ -2379,6 +2394,12 @@ public class DashboardTool implements ToolModule {
                         opentrap.engine.ScanConfig cfg, int threads, ScanTask task) {
         try {
             ze.start();
+            // Stopped while the engine started, by the user or by an engine restart.
+            if (task.cancelled()) {
+                task.setState(ScanTask.State.FINISHED);
+                ctx.taskChanged(task);
+                return;
+            }
             List<String> refused = new ArrayList<>();
             refused.addAll(missing(store, opentrap.extensions.store.CoreAddOns.Feature.CRAWL));
             if (thenAudit) refused.addAll(missing(store, opentrap.extensions.store.CoreAddOns.Feature.AUDIT));
@@ -2412,10 +2433,8 @@ public class DashboardTool implements ToolModule {
     /** The line a task logs when {@code f}'s add-ons are not active, as a list of none or one. */
     private static List<String> missing(opentrap.extensions.store.Store store,
                                         opentrap.extensions.store.CoreAddOns.Feature f) {
-        if (store == null) return List.of();
-        List<String> ids = store.notActive(f);
-        return ids.isEmpty() ? List.of()
-                : List.of(opentrap.extensions.store.CoreAddOns.missingMessage(f, ids));
+        String why = store == null ? null : store.notActiveMessage(f);
+        return why == null ? List.of() : List.of(why);
     }
 
     // --------------------------------------------------------- table model

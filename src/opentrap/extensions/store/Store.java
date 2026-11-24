@@ -136,6 +136,12 @@ public final class Store {
         return CoreAddOns.missing(f, installed);
     }
 
+    /** What {@code f} says where it is started when {@link #notActive} names add-ons, or null. */
+    public String notActiveMessage(CoreAddOns.Feature f) {
+        List<String> ids = notActive(f);
+        return ids.isEmpty() ? null : CoreAddOns.missingMessage(f, ids);
+    }
+
     /** Bundled add-ons the last engine start dropped because their engine file is gone. */
     public List<String> missing() { return missing; }
 
@@ -323,6 +329,9 @@ public final class Store {
      * the engine starts without these arguments.
      */
     private List<String> beforeLaunch(Path engineInstall, String zapVersion) throws IOException {
+        // Set again only once this start has brought the record in line: a
+        // start that cannot do so runs an engine the old record may not match.
+        reflectsEngine = false;
         Version zap;
         try {
             zap = Version.parse(zapVersion);

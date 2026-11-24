@@ -72,7 +72,8 @@ public final class ScanAddOnCheckTest {
                 StoreFixtures.started(ids(CoreAddOns.Feature.LIVE_AUDIT), List.of("pscan"), (store, engine) -> {
                     ZapEngine ze = FakeEngines.engine();
                     SuiteContext ctx = new SuiteContext();
-                    LivePassiveScanner scanner = FakeEngines.liveAudit(ctx, ze, () -> store);
+                    LivePassiveScanner scanner = FakeEngines.liveAudit(ctx, ze,
+                            () -> store.notActiveMessage(CoreAddOns.Feature.LIVE_AUDIT));
                     try {
                         scanner.setEnabled(true);
                         String msg = "Live audit needs the add-on(s) pscan, which are not active. "
@@ -92,7 +93,10 @@ public final class ScanAddOnCheckTest {
                     ZapEngine ze = FakeEngines.engine();
                     SuiteContext ctx = new SuiteContext();
                     AtomicReference<Store> seen = new AtomicReference<>();   // no store until the restart
-                    LivePassiveScanner scanner = FakeEngines.liveAudit(ctx, ze, seen::get);
+                    LivePassiveScanner scanner = FakeEngines.liveAudit(ctx, ze, () -> {
+                        Store s = seen.get();
+                        return s == null ? null : s.notActiveMessage(CoreAddOns.Feature.LIVE_AUDIT);
+                    });
                     try {
                         scanner.setEnabled(true);
                         await(() -> hasAlert(ctx, "Live passive scanning is active"), () -> "active: " + ctx.alerts());
@@ -107,13 +111,49 @@ public final class ScanAddOnCheckTest {
                         ze.shutdown();
                     }
                 }));
+
+        Harness.test("a refused live audit shows paused on the dashboard with the reason", () -> {
+            ZapEngine ze = FakeEngines.engine();
+            SuiteContext ctx = new SuiteContext();
+            String why = "Live audit needs the add-on(s) pscan, which are not active. "
+                    + "Enable them in Extensions > Installed.";
+            LivePassiveScanner scanner = FakeEngines.liveAudit(ctx, ze, () -> why);
+            ScanTask task = new ScanTask(ScanTask.Type.LIVE_PASSIVE, "Live audit from Proxy (all traffic)", "test");
+            ctx.addTask(task);
+            DashboardTool.followRefusals(ctx, scanner, task);
+            try {
+                scanner.setEnabled(true);
+                await(() -> task.state() == ScanTask.State.PAUSED, () -> "the task is paused: " + task.stateLabel());
+                Expect.isTrue(task.logLines().contains(why), "the task says why: " + task.logLines());
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            } finally {
+                scanner.setEnabled(false);
+                ze.shutdown();
+            }
+        });
+
+        Harness.test("a crawl stopped while the engine starts does not crawl", () -> {
+            ScanTask task = new ScanTask(ScanTask.Type.LIVE_ACTIVE, "Crawl of app.test", "Crawl - Fast");
+            task.cancel();   // as an engine restart does while the crawl waits for the engine
+            task.log("Stopped by engine restart");
+            ScanTask done = scan(null, false, NO_AJAX, task);
+            Expect.isFalse(logged(done, ENGINE_READY), "the crawl does not start: " + done.logLines());
+            Expect.equal(done.logLines().get(done.logLines().size() - 1), "Stopped by engine restart",
+                    "the reason stays the last line");
+            Expect.equal(done.state(), ScanTask.State.FINISHED, "the task is finished");
+        });
     }
 
     /** Runs a crawl job, as its thread does, on a fresh fake engine; returns its task. */
     private static ScanTask scan(Store store, boolean thenAudit, ScanConfig cfg) {
+        return scan(store, thenAudit, cfg,
+                new ScanTask(ScanTask.Type.LIVE_ACTIVE, "Crawl of app.test", "Crawl - " + cfg.name()));
+    }
+
+    private static ScanTask scan(Store store, boolean thenAudit, ScanConfig cfg, ScanTask task) {
         ZapEngine ze = FakeEngines.engine();
         SuiteContext ctx = new SuiteContext();
-        ScanTask task = new ScanTask(ScanTask.Type.LIVE_ACTIVE, "Crawl of app.test", "Crawl - " + cfg.name());
         ctx.addTask(task);
         try {
             DashboardTool.runScan(ctx, ze, store, SEEDS, thenAudit, cfg, 2, task);

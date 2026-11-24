@@ -32,6 +32,7 @@ public class ScanTask {
     private volatile long startedAt = System.currentTimeMillis();
     private volatile byte[] lastShot;   // latest rendered-page screenshot (crawl tasks)
     private final List<String> log = new CopyOnWriteArrayList<>();
+    private volatile boolean engineScan;   // a crawl or active audit the scan engine runs
 
     public ScanTask(Type type, String title, String configuration) {
         this.number = SEQ.incrementAndGet();
@@ -103,6 +104,13 @@ public class ScanTask {
     private volatile boolean cancelled;
     public boolean cancelled()    { return cancelled; }
     public void cancel()          { this.cancelled = true; }
+
+    /**
+     * Whether the scan engine runs this task: a crawl or an active audit, as
+     * opposed to a live task over proxy traffic. An engine restart stops it.
+     */
+    public boolean engineScan()   { return engineScan; }
+    public void markEngineScan()  { this.engineScan = true; }
 
     public int high()   { return high.get(); }
     public int medium() { return medium.get(); }

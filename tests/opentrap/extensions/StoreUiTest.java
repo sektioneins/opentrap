@@ -1,5 +1,6 @@
 package opentrap.extensions;
 
+import java.nio.file.Files;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Supplier;
@@ -10,7 +11,6 @@ import opentrap.engine.EngineState;
 import opentrap.engine.FakeEngines;
 import opentrap.engine.ZapEngine;
 import opentrap.extensions.store.CoreAddOns;
-import opentrap.extensions.store.Store;
 import opentrap.extensions.store.Version;
 import opentrap.testkit.Expect;
 import opentrap.testkit.Harness;
@@ -45,9 +45,9 @@ public final class StoreUiTest {
             try {
                 engine.start();
                 SuiteContext ctx = new SuiteContext();
-                ScanTask crawl = task(ctx, ScanTask.Type.LIVE_ACTIVE, ScanTask.State.RUNNING);
-                ScanTask audit = task(ctx, ScanTask.Type.AUDIT, ScanTask.State.PAUSED);
-                ScanTask done = task(ctx, ScanTask.Type.LIVE_ACTIVE, ScanTask.State.FINISHED);
+                ScanTask crawl = scan(ctx, ScanTask.Type.LIVE_ACTIVE, ScanTask.State.RUNNING);
+                ScanTask audit = scan(ctx, ScanTask.Type.AUDIT, ScanTask.State.PAUSED);
+                ScanTask done = scan(ctx, ScanTask.Type.LIVE_ACTIVE, ScanTask.State.FINISHED);
                 ScanTask live = task(ctx, ScanTask.Type.LIVE_PASSIVE, ScanTask.State.RUNNING);
                 List<ScanTask> changed = new CopyOnWriteArrayList<>();
                 ctx.addTaskListener(changed::add);
@@ -65,6 +65,31 @@ public final class StoreUiTest {
                 Expect.isTrue(changed.contains(crawl) && changed.contains(audit), "the task list hears both: " + changed);
                 await(() -> seen.equals(List.of(EngineState.STOPPED, EngineState.STARTING, EngineState.RUNNING)),
                         () -> "the engine restarts off the calling thread: " + seen);
+            } finally {
+                engine.shutdown();
+            }
+        }));
+
+        Harness.test("a running live passive crawl is neither named nor stopped by a restart", body(() -> {
+            ZapEngine engine = FakeEngines.engine();
+            try {
+                engine.start();
+                SuiteContext ctx = new SuiteContext();
+                ScanTask crawl = scan(ctx, ScanTask.Type.LIVE_ACTIVE, ScanTask.State.RUNNING);
+                // "New live task" with passive crawl: a LIVE_ACTIVE task over proxy traffic, not on the engine
+                ScanTask passiveCrawl = task(ctx, ScanTask.Type.LIVE_ACTIVE, ScanTask.State.RUNNING);
+                Expect.equal(EngineRestart.stoppable(ctx), List.of(crawl), "only the engine's crawl would stop");
+                String w = EngineRestart.warning(EngineRestart.stoppable(ctx), false);
+                Expect.isFalse(w.contains(passiveCrawl.title()), "the live passive crawl is not named: " + w);
+                List<EngineState> seen = new CopyOnWriteArrayList<>();
+                engine.addStateListener(seen::add);
+
+                EngineRestart.run(ctx, engine);
+
+                Expect.isFalse(passiveCrawl.cancelled(), "the live passive crawl is not cancelled");
+                Expect.equal(last(passiveCrawl), "Started", "nor told it stopped");
+                Expect.equal(passiveCrawl.state(), ScanTask.State.RUNNING, "it goes on");
+                await(() -> seen.contains(EngineState.RUNNING), () -> "the engine restarts: " + seen);
             } finally {
                 engine.shutdown();
             }
@@ -113,13 +138,29 @@ public final class StoreUiTest {
                             "the audit misses the add-ons not bundled");
                 }));
 
-        Harness.test("the shared store is null until it is set up", () -> {
-            Expect.isNull(Store.sharedIfSet(), "no shared store in the tests");
-        });
+        Harness.test("an engine start that cannot bring the record in line stops it being trusted", () ->
+                StoreFixtures.started(CRAWL, List.of("spider"), (store, engine) -> {
+                    Expect.isTrue(store.reflectsEngine(), "the first starts brought the record in line");
+                    Files.writeString(engine.resolveSibling("addons").resolve("2.17").resolve("store"),
+                            "installed.count=not a number\n");
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    Expect.notNull(store.lastStartError(), "the start failed to read the record");
+                    Expect.isFalse(store.reflectsEngine(), "the record no longer reflects the engine");
+                    Expect.equal(store.notActive(CoreAddOns.Feature.CRAWL), List.of(),
+                            "nothing is named missing from the old record");
+                }));
+    }
+
+    /** A crawl or audit the engine runs, as the dashboard and the scanner make them. */
+    private static ScanTask scan(SuiteContext ctx, ScanTask.Type type, ScanTask.State state) {
+        ScanTask t = task(ctx, type, state);
+        t.markEngineScan();
+        return t;
     }
 
     private static ScanTask task(SuiteContext ctx, ScanTask.Type type, ScanTask.State state) {
-        ScanTask t = new ScanTask(type, type + " " + state, "test");
+        ScanTask t = new ScanTask(type, "test", "test");
+        t.setTitle(type + " " + state + " #" + t.number);
         t.setState(state);
         t.log("Started");
         ctx.addTask(t);

@@ -44,13 +44,16 @@ public final class EngineRestart {
         return b.toString().stripTrailing();
     }
 
-    /** Crawls and active audits on the dashboard that a restart would stop. */
+    /**
+     * Crawls and active audits on the dashboard that a restart would stop. A
+     * live task over proxy traffic, such as a live passive crawl, does not run
+     * on the engine and goes on through the restart.
+     */
     static List<ScanTask> stoppable(SuiteContext ctx) {
         List<ScanTask> out = new ArrayList<>();
         for (ScanTask t : ctx.tasks()) {
-            boolean engineScan = t.type() == ScanTask.Type.LIVE_ACTIVE || t.type() == ScanTask.Type.AUDIT;
             boolean going = t.state() == ScanTask.State.RUNNING || t.state() == ScanTask.State.PAUSED;
-            if (engineScan && going && !t.cancelled()) out.add(t);
+            if (t.engineScan() && going && !t.cancelled()) out.add(t);
         }
         return out;
     }
