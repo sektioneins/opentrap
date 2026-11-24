@@ -9,6 +9,11 @@ public final class Bootstrap {
     private Bootstrap() {}
 
     public static void registerTools(SuiteContext ctx, SuiteFrame frame, Path home) throws Exception {
+        // Before any tool can start the engine: every start applies the add-on
+        // store's queued changes and runs ZAP with the store's add-on folder.
+        opentrap.extensions.store.Store.initShared(opentrap.extensions.store.Fetcher.forSuite(ctx));
+        opentrap.engine.ZapEngine.setStartHook(opentrap.extensions.store.Store.shared().startHook());
+
         // Top-level tabs, one per tool. WebSockets lives
         // under Proxy; session handling is a window from the menu; CSRF PoC and
         // content discovery are right-click engagement tools (registered below).

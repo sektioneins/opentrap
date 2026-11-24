@@ -174,6 +174,61 @@ public final class EngineRestartTest {
             Expect.notNull(failure, "restart() after shutdown() throws");
         }));
 
+        Harness.test("an engine with no start hook starts with today's arguments", body(() -> {
+            FakeLauncher launcher = new FakeLauncher(Integer.MAX_VALUE);
+            ZapEngine engine = ZapEngine.forLauncher("zap-0.0.0.jar", launcher);
+            try {
+                engine.start();
+                List<String> cmd = launcher.launches.get(0);
+                Expect.equal(cmd.get(cmd.indexOf("-jar") + 1), "zap-0.0.0.jar", "the jar is run where it is");
+                Expect.isFalse(cmd.contains("-installdir"), "no install folder is named: " + cmd);
+                Expect.isFalse(cmd.stream().anyMatch(a -> a.startsWith("start.addonDirs=")), "no add-on folder is named");
+            } finally {
+                engine.shutdown();
+            }
+        }));
+
+        Harness.test("a start hook that fails still lets the engine start", body(() -> {
+            FakeLauncher launcher = new FakeLauncher(Integer.MAX_VALUE);
+            ZapEngine engine = ZapEngine.forLauncher("zap-0.0.0.jar", launcher);
+            ZapEngine.setStartHook((install, version) -> { throw new IOException("the store is broken"); });
+            try {
+                engine.start();
+                Expect.equal(engine.state(), EngineState.RUNNING, "the engine runs");
+                List<String> cmd = launcher.launches.get(0);
+                Expect.equal(cmd.get(cmd.indexOf("-jar") + 1), "zap-0.0.0.jar", "the jar is run where it is");
+                Expect.isFalse(cmd.contains("-installdir"), "no install folder is named: " + cmd);
+            } finally {
+                ZapEngine.setStartHook(null);
+                engine.shutdown();
+            }
+        }));
+
+        Harness.test("a start hook's install folder is where the engine jar is run from", body(() -> {
+            FakeLauncher launcher = new FakeLauncher(Integer.MAX_VALUE);
+            ZapEngine engine = ZapEngine.forLauncher("zap-0.0.0.jar", launcher);
+            List<String> asked = new CopyOnWriteArrayList<>();
+            ZapEngine.setStartHook((install, version) -> {
+                asked.add(install + " " + version);
+                return List.of("-installdir", "/rt/abc", "-config", "start.addonDirs=/store/enabled");
+            });
+            try {
+                engine.start();
+                Expect.equal(asked, List.of(Path.of("zap-0.0.0.jar").toAbsolutePath().getParent() + " 0.0.0"),
+                        "the hook is told the install and the ZAP version");
+                List<String> cmd = launcher.launches.get(0);
+                Expect.equal(cmd.get(cmd.indexOf("-jar") + 1), Path.of("/rt/abc/zap-0.0.0.jar").toString(),
+                        "the jar is run from the install folder");
+                int dir = cmd.indexOf("-dir");
+                Expect.equal(cmd.subList(dir + 2, dir + 6),
+                        List.of("-installdir", "/rt/abc", "-config", "start.addonDirs=/store/enabled"),
+                        "the hook's arguments follow -dir");
+            } finally {
+                ZapEngine.setStartHook(null);
+                engine.shutdown();
+            }
+        }));
+
         Harness.test("the live audit routes through the new engine after a restart", body(() -> {
             ZapEngine engine = ZapEngine.forLauncher("zap-0.0.0.jar", new FakeLauncher(Integer.MAX_VALUE));
             SuiteContext ctx = new SuiteContext();
@@ -331,6 +386,7 @@ public final class EngineRestartTest {
         final int limit;
         final List<FakeServer> servers = new CopyOnWriteArrayList<>();
         final List<Path> homes = new CopyOnWriteArrayList<>();   // each launch's -dir
+        final List<List<String>> launches = new CopyOnWriteArrayList<>();   // each launch's command line
         volatile String refuse;       // a query part whose action calls the servers refuse
         volatile boolean nextExits;   // the next launched process reports it exited at once
         volatile boolean nextSilent;  // the next launched server does not answer the version
@@ -341,6 +397,7 @@ public final class EngineRestartTest {
         @Override
         public Process launch(List<String> launch) throws IOException {
             if (servers.size() >= limit) throw new IOException("launch refused by the test");
+            launches.add(List.copyOf(launch));
             int at = launch.indexOf("-port");
             FakeServer s = FakeServer.start(refuse, Integer.parseInt(launch.get(at + 1)));
             s.silent = nextSilent;

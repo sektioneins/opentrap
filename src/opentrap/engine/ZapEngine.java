@@ -126,6 +126,21 @@ public final class ZapEngine {
         this.jar = jar; this.bundled = bundled; this.launcher = launcher;
     }
 
+    /**
+     * Asked before each engine launch for extra command-line arguments, such as
+     * the add-on store's folders. {@code installDir} is the folder of the
+     * engine jar. When the arguments name {@code -installdir}, the jar is run
+     * from that folder.
+     */
+    public interface StartHook {
+        List<String> beforeLaunch(Path installDir, String zapVersion) throws IOException;
+    }
+
+    private static volatile StartHook startHook;
+
+    /** The hook every engine asks before it launches; null for none. */
+    public static void setStartHook(StartHook h) { startHook = h; }
+
     /** An engine for a given jar on disk, for tests. */
     static ZapEngine forJar(String jar) { return new ZapEngine(jar, false); }
 
@@ -316,14 +331,23 @@ public final class ZapEngine {
         apiKey = Long.toHexString(new java.security.SecureRandom().nextLong());
         Path home = this.home = Files.createTempDirectory("opentrap-zap-");
 
+        List<String> extra = hookArguments();
+        checkNotStopping();   // the hook may have waited for the store's lock
+        String runJar = jar;
+        int installDir = extra.indexOf("-installdir");
+        if (installDir >= 0 && installDir + 1 < extra.size()) {
+            runJar = Path.of(extra.get(installDir + 1)).resolve(Path.of(jar).getFileName()).toString();
+        }
+
         List<String> cmd = new ArrayList<>(List.of(
-                javaBin(), "-jar", jar, "-daemon",
+                javaBin(), "-jar", runJar, "-daemon",
                 "-host", "127.0.0.1", "-port", String.valueOf(port),
                 "-config", "api.key=" + apiKey,
                 "-config", "api.addrs.addr.name=127.0.0.1",
                 "-config", "api.addrs.addr.regex=false",
                 "-silent",
                 "-dir", home.toString()));
+        cmd.addAll(extra);
 
         // Point ZAP's Selenium/AJAX-spider at the Chromium and chromedriver we
         // bundle (or the ones on the system), and drive it headless. When either
@@ -380,6 +404,23 @@ public final class ZapEngine {
             awaitingAnswer = false;
         }
         throw new IOException("Scan engine did not become ready in time");
+    }
+
+    /**
+     * The start hook's arguments for this launch. A hook that fails costs only
+     * its arguments: the engine starts as it would without one.
+     */
+    private List<String> hookArguments() {
+        StartHook h = startHook;
+        if (h == null) return List.of();
+        try {
+            Path install = Path.of(jar).toAbsolutePath().getParent();
+            String version = Path.of(jar).getFileName().toString().replaceFirst("^zap-(.*)\\.jar$", "$1");
+            return List.copyOf(h.beforeLaunch(install, version));
+        } catch (Exception e) {
+            Debug.log("engine start hook failed, starting without its arguments: " + e);
+            return List.of();
+        }
     }
 
     /** The real launcher: the watchdog command line as a child process, its stdin the lifeline. */

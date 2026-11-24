@@ -161,7 +161,7 @@ public final class Resolver {
         return false;
     }
 
-    private List<Dependency> offeredDependencies(Installed in) {
+    List<Dependency> offeredDependencies(Installed in) {
         String sha = in.sha256() == null ? "" : in.sha256();
         Entry match = null;
         for (Entry o : cat.offers(in.id())) {
