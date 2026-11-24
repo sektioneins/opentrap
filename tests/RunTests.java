@@ -63,6 +63,7 @@ public final class RunTests {
         new opentrap.proxy.ProxyLoopTest().run();
         new opentrap.engine.ScanConfigStoreTest().run();
         new opentrap.engine.EngineShutdownTest().run();
+        new opentrap.engine.EngineRestartTest().run();
         new opentrap.ui.SendToComparerTest().run();
         new opentrap.ui.CurlCommandTest().run();
         new opentrap.ui.FontsTest().run();

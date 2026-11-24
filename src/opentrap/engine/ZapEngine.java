@@ -8,6 +8,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -106,10 +108,27 @@ public final class ZapEngine {
      */
     private final java.util.concurrent.atomic.AtomicInteger imported = new java.util.concurrent.atomic.AtomicInteger();
 
-    private ZapEngine(String jar, boolean bundled) { this.jar = jar; this.bundled = bundled; }
+    private volatile EngineState state = EngineState.NOT_STARTED;
+    private volatile String lastError;
+    private final List<Consumer<EngineState>> stateListeners = new CopyOnWriteArrayList<>();
+    private final RuleEdits ruleEdits = new RuleEdits();
+
+    /** Starts the engine's command line as a process; a seam so tests can stand in for ZAP. */
+    interface Launcher { Process launch(List<String> launch) throws IOException; }
+
+    private final Launcher launcher;
+
+    private ZapEngine(String jar, boolean bundled) { this(jar, bundled, ZapEngine::launchProcess); }
+
+    private ZapEngine(String jar, boolean bundled, Launcher launcher) {
+        this.jar = jar; this.bundled = bundled; this.launcher = launcher;
+    }
 
     /** An engine for a given jar on disk, for tests. */
     static ZapEngine forJar(String jar) { return new ZapEngine(jar, false); }
+
+    /** An engine whose process {@code l} starts, for tests. */
+    static ZapEngine forLauncher(String jar, Launcher l) { return new ZapEngine(jar, false, l); }
 
     /** The shared read position into this engine's message history. */
     public java.util.concurrent.atomic.AtomicInteger importedMessages() { return imported; }
@@ -189,6 +208,30 @@ public final class ZapEngine {
     public ZapApi api() { return api; }
     public String base() { return base; }
 
+    /** Where the engine is in its life. */
+    public EngineState state() { return state; }
+
+    /** Why the last start failed, or which rule edits a start could not send again; null when neither. */
+    public String lastError() { return lastError; }
+
+    /** The rule edits of this run, sent again to every engine this one starts. */
+    public RuleEdits ruleEdits() { return ruleEdits; }
+
+    /**
+     * Hear every state change. {@code l} is called on the thread that changes
+     * the state (often the one inside {@link #start()}), so a listener that
+     * touches Swing hops to the EDT itself.
+     */
+    public void addStateListener(Consumer<EngineState> l) { stateListeners.add(l); }
+
+    private void setState(EngineState s) {
+        state = s;
+        for (Consumer<EngineState> l : stateListeners) {
+            try { l.accept(s); }
+            catch (RuntimeException e) { Debug.log("engine state listener: " + e); }
+        }
+    }
+
     /** Start the daemon if not already running, and block until its API answers. */
     public synchronized void start() throws Exception {
         starter = Thread.currentThread();
@@ -199,9 +242,48 @@ public final class ZapEngine {
         }
     }
 
+    /**
+     * Stop the running engine and start a fresh one, within this session: a new
+     * port, API key and temp home, with the rule edits of this run sent again.
+     * An engine never started is simply started. Unlike {@link #shutdown()}
+     * this is not final; after a shutdown it throws.
+     */
+    public synchronized void restart() throws Exception {
+        starter = Thread.currentThread();
+        try {
+            checkNotStopping();
+            if (state != EngineState.NOT_STARTED) {
+                stopEngine();
+                api = null;   // the stopped engine's; startEngine must not reuse it
+                setState(EngineState.STOPPED);
+            }
+            startEngine();
+        } finally {
+            starter = null;
+        }
+    }
+
     private void startEngine() throws Exception {
         checkNotStopping();
         if (api != null && responds()) return;
+        setState(EngineState.STARTING);
+        lastError = null;
+        try {
+            launchEngine();
+        } catch (Exception e) {
+            lastError = (e.getMessage() == null) ? e.toString() : e.getMessage();
+            setState(EngineState.FAILED);
+            throw e;
+        }
+        List<String> failed = ruleEdits.replay(api);
+        if (!failed.isEmpty()) {
+            lastError = "Rule edits could not be applied again, rules missing or refused: " + String.join(", ", failed);
+            Debug.log(lastError);
+        }
+        setState(EngineState.RUNNING);
+    }
+
+    private void launchEngine() throws Exception {
         ready = false;
 
         // First run of a release jar: unpack the embedded engine to ~/.opentrap/engine.
@@ -253,11 +335,7 @@ public final class ZapEngine {
                 "/bin/sh", "-c", WATCHDOG, "opentrap-engine-watchdog"));
         launch.addAll(cmd);
 
-        ProcessBuilder pb = new ProcessBuilder(launch);
-        pb.redirectInput(ProcessBuilder.Redirect.PIPE);    // the lifeline
-        pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
-        pb.redirectError(ProcessBuilder.Redirect.DISCARD);
-        proc = pb.start();
+        proc = launcher.launch(launch);
         // Hold the write end open for the engine's lifetime; never write to it.
         // When this JVM ends, the OS closes it and the watchdog fires.
         lifeline = proc.getOutputStream();
@@ -282,6 +360,15 @@ public final class ZapEngine {
             awaitingAnswer = false;
         }
         throw new IOException("Scan engine did not become ready in time");
+    }
+
+    /** The real launcher: the watchdog command line as a child process, its stdin the lifeline. */
+    private static Process launchProcess(List<String> launch) throws IOException {
+        ProcessBuilder pb = new ProcessBuilder(launch);
+        pb.redirectInput(ProcessBuilder.Redirect.PIPE);    // the lifeline
+        pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
+        pb.redirectError(ProcessBuilder.Redirect.DISCARD);
+        return pb.start();
     }
 
     /** Whether start() has launched the engine and is waiting for it to answer (for tests). */
