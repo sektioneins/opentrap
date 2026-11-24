@@ -48,6 +48,7 @@ public final class RunTests {
         new opentrap.decoder.DecoderTransformsTest().run();
         new opentrap.decoder.DecoderFocusTest().run();
         new opentrap.ui.MessageEditorJsonTest().run();
+        new opentrap.ui.MessageEditorSearchTest().run();
         new opentrap.core.HttpMessageTitleTest().run();
         new opentrap.csrf.CsrfPocTest().run();
         new opentrap.sequencer.SequencerStatsTest().run();

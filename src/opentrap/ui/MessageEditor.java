@@ -11,7 +11,6 @@ import java.awt.*;
 import java.awt.event.*;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -575,8 +574,8 @@ public class MessageEditor extends JPanel {
     public void highlight(String term) {
         searchField.setText(term == null ? "" : term);
         if (term == null || term.isEmpty()) return;
-        int pos = activeText().getText().toLowerCase(Locale.ROOT).indexOf(term.toLowerCase(Locale.ROOT));
-        if (pos >= 0) try { activeText().setCaretPosition(pos); } catch (RuntimeException _) {}
+        List<Integer> hits = matchOffsets(activeText(), term);
+        if (!hits.isEmpty()) try { activeText().setCaretPosition(hits.get(0)); } catch (RuntimeException _) {}
     }
 
     public void setChangeListener(Runnable r) { this.changeListener = r; }
@@ -816,6 +815,27 @@ public class MessageEditor extends JPanel {
 
     private int lastMatchPos = -1;
 
+    /**
+     * Where term occurs in the component's text, ignoring case, overlapping
+     * matches included, as offsets into its document. The document's own text
+     * is searched, not getText(): a text pane's getText() gives back the CRLF
+     * line ends its document stores as LF, which would shift every match one
+     * place right per line above it. Case is compared char by char, because
+     * lower-casing the whole text can lengthen it and move later matches.
+     */
+    static List<Integer> matchOffsets(JTextComponent c, String term) {
+        List<Integer> out = new ArrayList<>();
+        if (term.isEmpty()) return out;
+        String text;
+        try { text = c.getDocument().getText(0, c.getDocument().getLength()); }
+        catch (BadLocationException e) { return out; }
+        int n = term.length();
+        for (int i = 0; i + n <= text.length(); i++) {
+            if (text.regionMatches(true, i, term, 0, n)) out.add(i);
+        }
+        return out;
+    }
+
     private void highlightMatches(int direction) {
         JTextComponent a = activeText();
         Highlighter h = a.getHighlighter();
@@ -823,20 +843,13 @@ public class MessageEditor extends JPanel {
         String term = searchField.getText();
         if (term.isEmpty()) { matchLabel.setText("0 highlights"); return; }
 
-        String text = a.getText().toLowerCase(Locale.ROOT);
-        String want = term.toLowerCase(Locale.ROOT);
-        int count = 0;
-        List<Integer> positions = new ArrayList<>();
-        int i = text.indexOf(want);
-        while (i >= 0) {
-            positions.add(i);
-            try {
-                h.addHighlight(i, i + want.length(),
-                        new DefaultHighlighter.DefaultHighlightPainter(Theme.HIGHLIGHT));
-            } catch (BadLocationException _) {}
-            count++;
-            i = text.indexOf(want, i + 1);
+        List<Integer> positions = matchOffsets(a, term);
+        int len = term.length();
+        DefaultHighlighter.DefaultHighlightPainter paint = new DefaultHighlighter.DefaultHighlightPainter(Theme.HIGHLIGHT);
+        for (int i : positions) {
+            try { h.addHighlight(i, i + len, paint); } catch (BadLocationException _) {}
         }
+        int count = positions.size();
         matchLabel.setText(count + (count == 1 ? " highlight" : " highlights"));
 
         if (!positions.isEmpty() && direction != 0) {
@@ -844,7 +857,7 @@ public class MessageEditor extends JPanel {
             idx = (idx + direction + positions.size()) % positions.size();
             lastMatchPos = positions.get(idx);
             a.setCaretPosition(lastMatchPos);
-            a.select(lastMatchPos, lastMatchPos + want.length());
+            a.select(lastMatchPos, lastMatchPos + len);
             a.requestFocusInWindow();
         } else if (!positions.isEmpty()) {
             lastMatchPos = positions.get(0);
