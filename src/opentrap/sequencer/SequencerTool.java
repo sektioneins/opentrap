@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -513,7 +514,12 @@ public class SequencerTool implements ToolModule {
 
         // Each run has its own threads, flag and tokens, so a thread of an earlier
         // run that is still inside a request cannot reach this one.
+        // The holder names the run still being built: onChange needs it, and a
+        // lambda cannot refer to the local it initialises.
         final CaptureRun[] holder = new CaptureRun[1];
+        // One queued repaint per run at a time, so a fast-failing target cannot
+        // flood the event queue; changed() reads the current counts anyway.
+        final AtomicBoolean pending = new AtomicBoolean();
         final CaptureRun thisRun = new CaptureRun(threads, throttle, () -> {
             HttpClient client = new HttpClient();
             HttpClient.Options opt = new HttpClient.Options();
@@ -525,7 +531,13 @@ public class SequencerTool implements ToolModule {
                 if (!r.ok()) throw new java.io.IOException(r.error);
                 return extractToken(r.response, useCookie, cookieName, start, end);
             };
-        }, () -> SwingUtilities.invokeLater(() -> changed(holder[0], window)));
+        }, () -> {
+            if (!pending.compareAndSet(false, true)) return;
+            SwingUtilities.invokeLater(() -> {
+                pending.set(false);
+                changed(holder[0], window);
+            });
+        });
         holder[0] = thisRun;
         run = thisRun;
         liveWindow = window;
@@ -538,7 +550,11 @@ public class SequencerTool implements ToolModule {
         if (r != run) return;
         updateCaptureStatus();
         int count = r.tokenCount();
-        if (count != w.tokenCount() && (count % 20 == 0 || count < 20)) {
+        int shown = w.tokenCount();
+        // Refresh on each 20 tokens, by crossing a boundary: with several threads and
+        // coalesced events the count can step over an exact multiple. After Stop a
+        // late token can land past the final refresh, so catch it up here.
+        if (count != shown && (r.stopped() || count < 20 || count / 20 != shown / 20)) {
             w.setTokens(r.tokens());
         }
     }
