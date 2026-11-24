@@ -746,7 +746,13 @@ public class TargetTool implements ToolModule {
         // reference: a node already in scope offers to leave it.
         boolean inScope = node.service != null
                 && ctx.scope().isInScope(node.service, node.isHost ? "/" : node.path);
-        if (inScope) {
+        if (!inScope && node.service != null
+                && ctx.scope().isInScopeAsSent(node.service, node.isHost ? "/" : node.path)) {
+            JMenuItem sent = new JMenuItem(Scope.AS_SENT_ONLY);
+            sent.setFont(Ui.PLAIN);
+            sent.setEnabled(false);
+            menu.add(sent);
+        } else if (inScope) {
             addItem(menu, "remove from scope", () -> {
                 ctx.scope().removeUrl(node.service, node.path, node.isHost);
                 ctx.scopeChanged();

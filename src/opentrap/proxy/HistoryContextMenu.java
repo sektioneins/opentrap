@@ -116,7 +116,12 @@ public class HistoryContextMenu {
 
         // Scope.
         boolean inScope = single && ctx.scope().isInScope(first);
-        if (inScope) {
+        if (!inScope && single && ctx.scope().isInScopeAsSent(first)) {
+            JMenuItem sent = new JMenuItem(Scope.AS_SENT_ONLY);
+            sent.setFont(Ui.PLAIN);
+            sent.setEnabled(false);
+            menu.add(sent);
+        } else if (inScope) {
             addI(menu, "Remove from scope", Glyphs.cross(14, Theme.ICON), () -> {
                 ctx.scope().removeUrl(first.service(), path, false);
                 ctx.scopeChanged();

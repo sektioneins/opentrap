@@ -451,6 +451,9 @@ public class Scope implements Serializable {
         return true;
     }
 
+    /** What a scope menu says for an item that is in scope as sent but not once normalised. */
+    public static final String AS_SENT_ONLY = "in scope as sent; the normalised path is outside";
+
     /** As {@link #isInScopeAsSent(HttpService, String)}, for a logged exchange. */
     public boolean isInScopeAsSent(LogEntry e) {
         return e != null && isInScopeAsSent(e.service(), e.request() == null ? "/" : e.request().path());
