@@ -3,6 +3,7 @@ package opentrap.scanner;
 import opentrap.core.Debug;
 import opentrap.core.SuiteContext;
 import opentrap.core.ToolModule;
+import opentrap.engine.EngineState;
 import opentrap.engine.ZapApi;
 import opentrap.engine.ZapEngine;
 import opentrap.spider.Cdp.JsonValue;
@@ -24,14 +25,18 @@ import java.util.Locale;
  * This tab lists ZAP's passive rules and configures them, enable/disable and
  * alert threshold, through ZAP's API, so the changes govern the engine that
  * actually performs the scans. It loads lazily the first time the tab is opened,
- * starting the engine if needed.
+ * starting the engine if needed, and again whenever the engine comes back after
+ * a restart. Each edit the engine accepts is kept in the engine's
+ * {@link ZapEngine#ruleEdits()}, so a restarted engine gets it again.
  */
 public class ScannerTool implements ToolModule {
 
     private static final String[] THRESHOLDS = {"DEFAULT", "OFF", "LOW", "MEDIUM", "HIGH"};
 
     private SuiteContext ctx;
-    private ZapApi api;
+    private volatile ZapEngine engine;   // set by the first load
+    private volatile ZapApi api;         // the engine's API the rules were loaded from
+    private volatile boolean stale;      // the engine went away; reload when it runs again
     private RuleTableModel model;
     private JTable table;
     private JTextField filterField;
@@ -161,13 +166,19 @@ public class ScannerTool implements ToolModule {
             status.setText("Scan engine (ZAP) not installed. Run 'just engine' to add it.");
             return;
         }
+        if (engine == null) {
+            engine = ze;
+            ze.addStateListener(this::engineChanged);
+        }
         status.setText("Starting scan engine and loading rules...");
         new Thread(() -> {
             try {
                 ze.start();
-                api = ze.api();
+                ZapApi a = ze.api();
+                if (a == null) throw new java.io.IOException("the scan engine stopped");
+                api = a;
                 List<Rule> rules = new ArrayList<>();
-                for (JsonValue s : api.passiveScanners()) {
+                for (JsonValue s : a.passiveScanners()) {
                     rules.add(new Rule(
                             toInt(ZapApi.str(s, "id")),
                             nz(ZapApi.str(s, "name")),
@@ -187,13 +198,32 @@ public class ScannerTool implements ToolModule {
         }, "pscan-rules-load").start();
     }
 
+    /**
+     * Reload once the engine runs again after it stopped or failed: a new
+     * engine has a new API, and its rules may have changed with the add-ons.
+     * Runs on the thread that changes the engine's state, so it only flags and
+     * hands the reload to the EDT.
+     */
+    private void engineChanged(EngineState s) {
+        if (s == EngineState.STOPPED || s == EngineState.FAILED) stale = true;
+        else if (s == EngineState.RUNNING && stale) {
+            stale = false;
+            SwingUtilities.invokeLater(this::load);
+        }
+    }
+
     private void bulkEnabled(boolean on) {
-        if (api == null) return;
+        ZapApi a = api;
+        if (a == null) return;
         List<Rule> visible = visibleRules();
         new Thread(() -> {
             int failed = 0;
             for (Rule r : visible) {
-                try { api.setPassiveEnabled(String.valueOf(r.id), on); r.enabled = on; }
+                try {
+                    a.setPassiveEnabled(String.valueOf(r.id), on);
+                    engine.ruleEdits().passiveEnabled(String.valueOf(r.id), on);
+                    r.enabled = on;
+                }
                 catch (Exception e) { failed++; Debug.log("passive rule " + r.id + " enable: " + e); }
             }
             reportApplyFailures("enabling or disabling passive rules", failed, visible.size());
@@ -202,12 +232,17 @@ public class ScannerTool implements ToolModule {
     }
 
     private void bulkThreshold(String t) {
-        if (api == null) return;
+        ZapApi a = api;
+        if (a == null) return;
         List<Rule> visible = visibleRules();
         new Thread(() -> {
             int failed = 0;
             for (Rule r : visible) {
-                try { api.setPassiveThreshold(String.valueOf(r.id), t); r.threshold = t; }
+                try {
+                    a.setPassiveThreshold(String.valueOf(r.id), t);
+                    engine.ruleEdits().passiveThreshold(String.valueOf(r.id), t);
+                    r.threshold = t;
+                }
                 catch (Exception e) { failed++; Debug.log("passive rule " + r.id + " threshold: " + e); }
             }
             reportApplyFailures("setting passive rule thresholds", failed, visible.size());
@@ -321,18 +356,20 @@ public class ScannerTool implements ToolModule {
             Rule m = rules.get(r);
             if (c == 0 && v instanceof Boolean on) {
                 m.enabled = on;
-                final int id = m.id;
+                final String id = String.valueOf(m.id);
+                final ZapApi a = api;
                 new Thread(() -> {
-                    try { api.setPassiveEnabled(String.valueOf(id), on); }
+                    try { a.setPassiveEnabled(id, on); engine.ruleEdits().passiveEnabled(id, on); }
                     catch (Exception e) { ruleApplyFailed("passive rule " + id, "enable", e); }
                 }, "pscan-set").start();
                 fireTableRowsUpdated(r, r);
                 refreshSummary();
             } else if (c == 4 && v instanceof String t) {
                 m.threshold = t;
-                final int id = m.id;
+                final String id = String.valueOf(m.id);
+                final ZapApi a = api;
                 new Thread(() -> {
-                    try { api.setPassiveThreshold(String.valueOf(id), t); }
+                    try { a.setPassiveThreshold(id, t); engine.ruleEdits().passiveThreshold(id, t); }
                     catch (Exception e) { ruleApplyFailed("passive rule " + id, "threshold", e); }
                 }, "pscan-set").start();
                 fireTableRowsUpdated(r, r);

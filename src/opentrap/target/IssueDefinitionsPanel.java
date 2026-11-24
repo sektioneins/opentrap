@@ -1,5 +1,6 @@
 package opentrap.target;
 
+import opentrap.engine.EngineState;
 import opentrap.engine.ZapApi;
 import opentrap.engine.ZapEngine;
 import opentrap.spider.Cdp.JsonValue;
@@ -14,7 +15,9 @@ import java.util.List;
 /**
  * The Target > Issues tab: a catalogue of every issue the scan engine can
  * detect, an "Issue definitions" reference. Populated from the engine's
- * active and passive scan rules, loaded lazily the first time it is shown.
+ * active and passive scan rules, loaded lazily the first time it is shown, and
+ * again whenever the engine comes back after a restart (its rules may have
+ * changed with the add-ons).
  */
 public class IssueDefinitionsPanel extends JPanel {
 
@@ -22,6 +25,8 @@ public class IssueDefinitionsPanel extends JPanel {
     private final JTextPane detail = new JTextPane();
     private JTable table;
     private boolean loaded;
+    private boolean subscribed;       // to the engine's state; EDT only
+    private volatile boolean stale;   // the engine went away; reload when it runs again
 
     public IssueDefinitionsPanel() {
         super(new BorderLayout());
@@ -66,10 +71,15 @@ public class IssueDefinitionsPanel extends JPanel {
                     + "Run 'just engine' to add it.</i></body></html>");
             return;
         }
+        if (!subscribed) {
+            subscribed = true;
+            ze.addStateListener(this::engineChanged);
+        }
         new Thread(() -> {
             try {
                 ze.start();
                 ZapApi api = ze.api();
+                if (api == null) throw new java.io.IOException("the scan engine stopped");
                 List<Def> defs = new ArrayList<>();
                 for (JsonValue s : api.activeScanners())
                     defs.add(new Def(nz(ZapApi.str(s, "name")), "active", nz(ZapApi.str(s, "id"))));
@@ -83,6 +93,19 @@ public class IssueDefinitionsPanel extends JPanel {
                         + opentrap.ui.Advisory.esc(ex.getMessage()) + "</i></body></html>"));
             }
         }, "issue-defs-load").start();
+    }
+
+    /**
+     * Reload once the engine runs again after it stopped or failed. Runs on the
+     * thread that changes the engine's state, so it only flags and hands the
+     * reload to the EDT.
+     */
+    private void engineChanged(EngineState s) {
+        if (s == EngineState.STOPPED || s == EngineState.FAILED) stale = true;
+        else if (s == EngineState.RUNNING && stale) {
+            stale = false;
+            SwingUtilities.invokeLater(this::load);
+        }
     }
 
     private void showDetail() {

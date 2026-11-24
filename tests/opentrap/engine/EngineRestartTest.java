@@ -1,5 +1,9 @@
 package opentrap.engine;
 
+import opentrap.core.Alert;
+import opentrap.core.HttpService;
+import opentrap.core.SuiteContext;
+import opentrap.core.UpstreamProxy;
 import opentrap.testkit.Expect;
 import opentrap.testkit.Harness;
 
@@ -9,6 +13,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -168,6 +173,59 @@ public final class EngineRestartTest {
             Expect.notNull(failure, "restart() after shutdown() throws");
         }));
 
+        Harness.test("the live audit routes through the new engine after a restart", body(() -> {
+            ZapEngine engine = ZapEngine.forLauncher("zap-0.0.0.jar", new FakeLauncher(Integer.MAX_VALUE));
+            SuiteContext ctx = new SuiteContext();
+            LivePassiveScanner scanner = new LivePassiveScanner(ctx, engine);
+            try {
+                scanner.setEnabled(true);
+                awaitAlert(ctx, "Live passive scanning is active");
+                Expect.equal(scanner.routeFor(SVC).port, port(engine), "the live audit routes through the engine");
+                engine.restart();
+                UpstreamProxy p = scanner.routeFor(SVC);
+                Expect.notNull(p, "the live audit still routes after the restart");
+                Expect.equal(p.port, port(engine), "through the restarted engine's port");
+                Expect.isTrue(hasAlert(ctx, "Live audit paused: the engine is restarting"), "the pause is logged: " + ctx.alerts());
+            } finally {
+                scanner.setEnabled(false);
+                engine.shutdown();
+            }
+        }));
+
+        Harness.test("the live audit stops routing when the engine fails", body(() -> {
+            ZapEngine engine = ZapEngine.forLauncher("zap-0.0.0.jar", new FakeLauncher(1));
+            SuiteContext ctx = new SuiteContext();
+            LivePassiveScanner scanner = new LivePassiveScanner(ctx, engine);
+            try {
+                scanner.setEnabled(true);
+                awaitAlert(ctx, "Live passive scanning is active");
+                Expect.notNull(scanner.routeFor(SVC), "the live audit routes through the engine");
+                try { engine.restart(); } catch (Exception e) { /* the failure this case is about */ }
+                Expect.isNull(scanner.routeFor(SVC), "traffic goes direct, not to the dead port");
+                Expect.isTrue(hasAlert(ctx, "Live audit paused: the engine failed: launch refused by the test"),
+                        "the failure is logged: " + ctx.alerts());
+            } finally {
+                scanner.setEnabled(false);
+                engine.shutdown();
+            }
+        }));
+
+        Harness.test("alert ids seen before a restart are mapped again after it", body(() -> {
+            ZapEngine engine = ZapEngine.forLauncher("zap-0.0.0.jar", new FakeLauncher(Integer.MAX_VALUE));
+            SuiteContext ctx = new SuiteContext();
+            LivePassiveScanner scanner = new LivePassiveScanner(ctx, engine);
+            try {
+                engine.start();
+                scanner.pollOnce();
+                Expect.equal(ctx.issues().size(), 1, "the first engine's alert 1 is an issue");
+                engine.restart();
+                scanner.pollOnce();
+                Expect.equal(ctx.issues().size(), 2, "the new engine's alert 1 is an issue too: " + ctx.issues());
+            } finally {
+                engine.shutdown();
+            }
+        }));
+
         Harness.test("rule edits keep the latest value per rule and setting, in first-edit order", body(() -> {
             FakeServer server = FakeServer.start(null);
             try {
@@ -189,6 +247,22 @@ public final class EngineRestartTest {
                 server.stop();
             }
         }));
+    }
+
+    private static final HttpService SVC = new HttpService("app.test", 80, false);
+
+    private static int port(ZapEngine engine) { return URI.create(engine.base()).getPort(); }
+
+    private static boolean hasAlert(SuiteContext ctx, String start) {
+        for (Alert a : ctx.alerts()) if (a.message.startsWith(start)) return true;
+        return false;
+    }
+
+    /** Wait, up to a deadline, for an event log entry starting with {@code start}. */
+    private static void awaitAlert(SuiteContext ctx, String start) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 2000;
+        while (!hasAlert(ctx, start) && System.currentTimeMillis() < deadline) Thread.sleep(2);
+        Expect.isTrue(hasAlert(ctx, start), "the event log says \"" + start + "\": " + ctx.alerts());
     }
 
     interface Body { void run() throws Exception; }
@@ -245,6 +319,9 @@ public final class EngineRestartTest {
                 requests.add(req);
                 String body;
                 if (req.startsWith("/JSON/core/view/version/")) body = silent ? "{}" : "{\"version\":\"0.0.0\"}";
+                // Every engine numbers its alerts from 1; the name tells the engines apart.
+                else if (req.startsWith("/JSON/core/view/alerts/")) body = "{\"alerts\":[{\"id\":\"1\",\"name\":\"Alert of "
+                        + base + "\",\"url\":\"http://app.test/\",\"risk\":\"Low\",\"confidence\":\"Medium\"}]}";
                 else if (refuse != null && req.contains(refuse)) body = "{\"code\":\"does_not_exist\",\"message\":\"Does Not Exist\"}";
                 else body = "{\"Result\":\"OK\"}";
                 byte[] b = body.getBytes(StandardCharsets.UTF_8);
