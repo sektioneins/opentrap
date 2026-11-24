@@ -32,7 +32,9 @@ final class ScopePath {
     }
 
     private static String form(String path, boolean unreservedOnly) {
-        if (path == null || path.indexOf('%') < 0 && path.indexOf('.') < 0) return path;
+        // Only an escape, a "/." (which also covers "/.." and "x/./y") or a
+        // leading "." can change a path; "x.js" cannot.
+        if (path == null || path.indexOf('%') < 0 && !path.startsWith(".") && !path.contains("/.")) return path;
         int q = path.indexOf('?');
         String p = q < 0 ? path : path.substring(0, q);
         String query = q < 0 ? null : path.substring(q);   // with the "?"
@@ -49,21 +51,22 @@ final class ScopePath {
      * of a path.
      */
     static String removeDotSegments(String path) {
-        String in = path;
-        StringBuilder out = new StringBuilder();
-        while (!in.isEmpty()) {
-            if (in.startsWith("../")) in = in.substring(3);
-            else if (in.startsWith("./")) in = in.substring(2);
-            else if (in.startsWith("/./")) in = in.substring(2);
-            else if (in.equals("/.")) in = "/";
-            else if (in.startsWith("/../")) { in = in.substring(3); dropLast(out); }
-            else if (in.equals("/..")) { in = "/"; dropLast(out); }
-            else if (in.equals(".") || in.equals("..")) in = "";
+        int n = path.length(), i = 0;
+        StringBuilder out = new StringBuilder(n);
+        while (i < n) {
+            int rest = n - i;
+            if (path.startsWith("../", i)) i += 3;
+            else if (path.startsWith("./", i)) i += 2;
+            else if (path.startsWith("/./", i)) i += 2;
+            else if (rest == 2 && path.startsWith("/.", i)) { out.append('/'); i = n; }
+            else if (path.startsWith("/../", i)) { i += 3; dropLast(out); }
+            else if (rest == 3 && path.startsWith("/..", i)) { dropLast(out); out.append('/'); i = n; }
+            else if (rest == 1 && path.charAt(i) == '.' || rest == 2 && path.startsWith("..", i)) i = n;
             else {
-                int end = in.indexOf('/', 1);
-                if (end < 0) end = in.length();
-                out.append(in, 0, end);
-                in = in.substring(end);
+                int end = path.indexOf('/', i + 1);
+                if (end < 0) end = n;
+                out.append(path, i, end);
+                i = end;
             }
         }
         return out.toString();
