@@ -20,6 +20,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -186,6 +187,7 @@ public final class EngineRestartTest {
                 Expect.notNull(p, "the live audit still routes after the restart");
                 Expect.equal(p.port, port(engine), "through the restarted engine's port");
                 Expect.isTrue(hasAlert(ctx, "Live audit paused: the engine is restarting"), "the pause is logged: " + ctx.alerts());
+                Expect.isTrue(hasAlert(ctx, "Live audit resumed"), "the resume is logged: " + ctx.alerts());
             } finally {
                 scanner.setEnabled(false);
                 engine.shutdown();
@@ -205,6 +207,40 @@ public final class EngineRestartTest {
                 Expect.isTrue(hasAlert(ctx, "Live audit paused: the engine failed: launch refused by the test"),
                         "the failure is logged: " + ctx.alerts());
             } finally {
+                scanner.setEnabled(false);
+                engine.shutdown();
+            }
+        }));
+
+        Harness.test("the live audit polls again after it is switched off and on", body(() -> {
+            FakeLauncher launcher = new FakeLauncher(Integer.MAX_VALUE);
+            CountDownLatch answer = new CountDownLatch(1);
+            launcher.nextHold = answer;   // the engine's start blocks until the test lets it answer
+            ZapEngine engine = ZapEngine.forLauncher("zap-0.0.0.jar", launcher);
+            SuiteContext ctx = new SuiteContext();
+            LivePassiveScanner scanner = new LivePassiveScanner(ctx, engine);
+            try {
+                scanner.setEnabled(true);
+                long deadline = System.currentTimeMillis() + 2000;
+                while (!engine.awaitingAnswer() && System.currentTimeMillis() < deadline) Thread.sleep(2);
+                Expect.isTrue(engine.awaitingAnswer(), "the engine is starting");
+                scanner.setEnabled(false);   // switched off while the engine starts
+                answer.countDown();
+                joinStartThreads();
+                Expect.isFalse(hasAlert(ctx, "Live passive scanning is active"),
+                        "a live audit switched off during the start does not report itself active: " + ctx.alerts());
+                Expect.isFalse(scanner.polling(), "nor polls");
+
+                scanner.setEnabled(true);
+                awaitAlert(ctx, "Live passive scanning is active");
+                awaitPolling(scanner);
+
+                scanner.setEnabled(false);
+                Expect.isFalse(scanner.polling(), "switching off stops the poller");
+                scanner.setEnabled(true);
+                awaitPolling(scanner);
+            } finally {
+                answer.countDown();
                 scanner.setEnabled(false);
                 engine.shutdown();
             }
@@ -265,6 +301,20 @@ public final class EngineRestartTest {
         Expect.isTrue(hasAlert(ctx, start), "the event log says \"" + start + "\": " + ctx.alerts());
     }
 
+    /** Wait, up to a deadline, for the scanner's poller to run. */
+    private static void awaitPolling(LivePassiveScanner scanner) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 2000;
+        while (!scanner.polling() && System.currentTimeMillis() < deadline) Thread.sleep(2);
+        Expect.isTrue(scanner.polling(), "the live audit polls");
+    }
+
+    /** Wait for every live audit start thread to finish. */
+    private static void joinStartThreads() throws InterruptedException {
+        for (Thread t : Thread.getAllStackTraces().keySet()) {
+            if (t.getName().equals("live-passive-start")) t.join(2000);
+        }
+    }
+
     interface Body { void run() throws Exception; }
 
     /** A case body that may throw; a checked exception fails the case. */
@@ -284,6 +334,7 @@ public final class EngineRestartTest {
         volatile String refuse;       // a query part whose action calls the servers refuse
         volatile boolean nextExits;   // the next launched process reports it exited at once
         volatile boolean nextSilent;  // the next launched server does not answer the version
+        volatile CountDownLatch nextHold;   // the next launched server answers the version once this opens
 
         FakeLauncher(int limit) { this.limit = limit; }
 
@@ -293,11 +344,13 @@ public final class EngineRestartTest {
             int at = launch.indexOf("-port");
             FakeServer s = FakeServer.start(refuse, Integer.parseInt(launch.get(at + 1)));
             s.silent = nextSilent;
+            s.hold = nextHold;
             homes.add(Path.of(launch.get(launch.indexOf("-dir") + 1)));
             servers.add(s);
             boolean exits = nextExits;
             nextExits = false;
             nextSilent = false;
+            nextHold = null;
             return new FakeProcess(s, exits);
         }
     }
@@ -309,6 +362,7 @@ public final class EngineRestartTest {
         final List<String> requests = new CopyOnWriteArrayList<>();
         volatile boolean alive = true;
         volatile boolean silent;   // answers the version without one, as an engine not yet up
+        volatile CountDownLatch hold;   // when set, the version is answered only once it opens
 
         private FakeServer(HttpServer http, String refuse) {
             this.http = http;
@@ -318,6 +372,10 @@ public final class EngineRestartTest {
                 String req = ex.getRequestURI().getPath() + "?" + (q == null ? "" : q);
                 requests.add(req);
                 String body;
+                CountDownLatch h = hold;
+                if (h != null && req.startsWith("/JSON/core/view/version/")) {
+                    try { h.await(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+                }
                 if (req.startsWith("/JSON/core/view/version/")) body = silent ? "{}" : "{\"version\":\"0.0.0\"}";
                 // Every engine numbers its alerts from 1; the name tells the engines apart.
                 else if (req.startsWith("/JSON/core/view/alerts/")) body = "{\"alerts\":[{\"id\":\"1\",\"name\":\"Alert of "

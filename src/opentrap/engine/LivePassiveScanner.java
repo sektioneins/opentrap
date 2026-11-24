@@ -79,6 +79,12 @@ public final class LivePassiveScanner {
         if (!on) stopPoller();
     }
 
+    /** Whether a poller thread runs, raising the engine's alerts as issues (for tests). */
+    boolean polling() {
+        Thread p = poller;
+        return p != null && p.isAlive();
+    }
+
     private void stopPoller() {
         Thread p = poller;
         poller = null;
@@ -132,8 +138,10 @@ public final class LivePassiveScanner {
             }
             try {
                 ze.start();   // the engine's RUNNING state gives this scanner its proxy
-                ctx.alert("scanner", "Live passive scanning is active (traffic routed through the engine)");
-                startPoller();
+                // Switched off while the engine started: neither active nor polling.
+                if (startPoller()) {
+                    ctx.alert("scanner", "Live passive scanning is active (traffic routed through the engine)");
+                }
             } catch (Exception e) {
                 ctx.alert("scanner", "Could not start live passive scanning: " + e.getMessage());
                 enabled = false;
@@ -143,24 +151,38 @@ public final class LivePassiveScanner {
         t.start();
     }
 
-    private synchronized void startPoller() {
-        if (poller != null) return;
+    /**
+     * Start the poller unless the live audit is off or one already runs.
+     * Returns whether it started one.
+     */
+    private synchronized boolean startPoller() {
+        if (!enabled || poller != null) return false;
         poller = new Thread(() -> {
-            while (enabled) {
-                try { Thread.sleep(3000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
-                try {
-                    pollOnce();
-                } catch (Exception e) {
-                    // A dead or restarting engine must not kill the poller, but
-                    // the failure is traced rather than dropped: with the loop
-                    // running every 3 s, a permanently failing poll is the only
-                    // sign the live audit quietly stopped finding anything.
-                    Debug.log("live passive scan poll failed: " + e);
+            try {
+                while (enabled) {
+                    try { Thread.sleep(3000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
+                    try {
+                        pollOnce();
+                    } catch (Exception e) {
+                        // A dead or restarting engine must not kill the poller, but
+                        // the failure is traced rather than dropped: with the loop
+                        // running every 3 s, a permanently failing poll is the only
+                        // sign the live audit quietly stopped finding anything.
+                        Debug.log("live passive scan poll failed: " + e);
+                    }
+                }
+            } finally {
+                // A poller that ends on its own must not stay in the field, or
+                // the next switch-on would take it for a running one and start
+                // none. One already replaced by a newer poller leaves that be.
+                synchronized (LivePassiveScanner.this) {
+                    if (poller == Thread.currentThread()) poller = null;
                 }
             }
         }, "live-passive-poll");
         poller.setDaemon(true);
         poller.start();
+        return true;
     }
 
     /** Map the running engine's alerts not mapped yet into issues; nothing while no engine runs. */
