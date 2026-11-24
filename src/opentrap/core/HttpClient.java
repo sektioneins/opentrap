@@ -280,7 +280,7 @@ public class HttpClient {
                 String why = opt.redirectPolicy.refusal(svc, next.service(), next.request());
                 if (why != null) {
                     r.redirectRefusal = why;
-                    Debug.log("not following a redirect from " + cur.url() + " to " + next.service().url() + ": " + why);
+                    Debug.log("not following a redirect from " + cur.url() + " to " + next.service().url() + next.request().path() + ": " + why);
                     break;
                 }
             }
