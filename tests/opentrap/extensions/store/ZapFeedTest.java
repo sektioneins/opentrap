@@ -20,6 +20,12 @@ public final class ZapFeedTest {
         return ZapFeed.parse(new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8)), SRC, ENGINE);
     }
 
+    private static Listing listing0(String xml, Source src) {
+        try {
+            return ZapFeed.parse(new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8)), src, ENGINE);
+        } catch (IOException e) { throw new UncheckedIOException(e); }
+    }
+
     /** The feed's entries for tests whose document is meant to be readable. */
     private static Listing listing(String xml) {
         try { return parse(xml); } catch (IOException e) { throw new UncheckedIOException(e); }
@@ -114,6 +120,20 @@ public final class ZapFeedTest {
             Listing l = listing(ZapFixtures.feed("<addon>../../x</addon>"));
             Expect.equal(l.entries().size(), 0, "no entry");
             Expect.isTrue(l.rejected().get(0).startsWith("../../x: "), "named: " + l.rejected());
+        });
+
+        Harness.test("a repeated add-on id is listed once", () -> {
+            Listing l = listing(ZapFixtures.feed(spider(), "<addon>spider</addon>"));
+            Expect.equal(l.entries().size(), 1, "one entry");
+            Expect.equal(l.rejected().size(), 1, "one rejected line");
+            Expect.equal(l.rejected().get(0), "spider: listed twice", "the repeat is named");
+        });
+
+        Harness.test("a source without a prefix takes no downloads", () -> {
+            Source none = new Source("local", "Local", SourceType.LOCAL_FOLDER, "/x", "", true);
+            Listing l = listing0(ZapFixtures.feed(spider()), none);
+            Expect.equal(l.entries().size(), 0, "no entry");
+            Expect.isTrue(l.rejected().get(0).startsWith("spider: "), "named: " + l.rejected());
         });
 
         Harness.test("a feed with a DOCTYPE is refused", () -> {

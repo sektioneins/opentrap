@@ -3,7 +3,11 @@ package opentrap.extensions.store;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilder;
@@ -32,13 +36,19 @@ public final class ZapFeed {
         List<Entry> entries = new ArrayList<>();
         List<String> rejected = new ArrayList<>();
         Element root = doc.getDocumentElement();
+        Map<String, Element> blocks = new HashMap<>();
+        for (Element c : children(root)) {
+            String name = c.getTagName();
+            if (name.startsWith("addon_")) blocks.putIfAbsent(name.substring(6), c);
+        }
+        Set<String> seen = new HashSet<>();
         for (Element e : children(root)) {
             if (!e.getTagName().equals("addon")) continue;
             String id = e.getTextContent().trim();
             try {
                 if (!ID.matcher(id).matches()) throw new IllegalArgumentException("not a valid add-on id");
-                Element block = null;
-                for (Element c : children(root)) if (c.getTagName().equals("addon_" + id)) { block = c; break; }
+                if (!seen.add(id)) throw new IllegalArgumentException("listed twice");
+                Element block = blocks.get(id);
                 if (block == null) throw new IllegalArgumentException("no details in the feed");
                 entries.add(entry(block, id, src, engine));
             } catch (IllegalArgumentException ex) {
