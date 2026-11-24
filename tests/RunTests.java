@@ -89,6 +89,7 @@ public final class RunTests {
         new opentrap.extensions.store.VersionTest().run();
         new opentrap.extensions.store.ZapFeedTest().run();
         new opentrap.extensions.store.ZapAddOnFileTest().run();
+        new opentrap.extensions.store.FetcherTest().run();
         new opentrap.extensions.store.StoreRecordTest().run();
         new opentrap.extensions.store.PendingApplyTest().run();
         new opentrap.extensions.store.BundledTest().run();

@@ -38,7 +38,11 @@ public final class ZapAddOnFile {
     private static final int MAX_MANIFEST = 1 << 20;
 
     public static AddOnInfo read(Path zap) throws IOException {
-        String fileName = zap.getFileName().toString();
+        return read(zap, zap.getFileName().toString());
+    }
+
+    /** Reads {@code zap} as if it were named {@code fileName}, for a download not yet renamed into place. */
+    static AddOnInfo read(Path zap, String fileName) throws IOException {
         Matcher m = FILE_NAME.matcher(fileName);
         if (!m.matches()) throw new IOException(fileName + ": file name is not <id>-<status>-<version>.zap");
         try (ZipFile zip = new ZipFile(zap.toFile())) {
@@ -100,7 +104,12 @@ public final class ZapAddOnFile {
 
     /** Refuses a file that is not the add-on, version and status the entry promised. */
     public static void check(Path file, Entry expected) throws IOException {
-        AddOnInfo i = read(file);
+        check(file, file.getFileName().toString(), expected);
+    }
+
+    /** {@link #check(Path, Entry)} for a file that is to be stored as {@code fileName}. */
+    static void check(Path file, String fileName, Entry expected) throws IOException {
+        AddOnInfo i = read(file, fileName);
         if (!i.id().equals(expected.id()) || !i.version().equals(expected.version()) || i.status() != expected.status()) {
             throw new IOException("The file is " + i.id() + " " + i.version() + " (" + i.status().label()
                     + "), not " + expected.id() + " " + expected.version() + " (" + expected.status().label() + ")");
