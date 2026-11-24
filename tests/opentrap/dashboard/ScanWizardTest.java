@@ -42,6 +42,17 @@ public final class ScanWizardTest {
     public void run() {
         Harness.suite("scan wizard");
 
+        check("a scan seed that leaves the scope once normalised is skipped and does not widen the scope", () -> {
+            opentrap.core.Scope scope = new opentrap.core.Scope();
+            scope.include().add(opentrap.core.Scope.Rule.prefix("https://a.test/app", false));
+            opentrap.core.HttpService a = new opentrap.core.HttpService("a.test", 443, true);
+            int before = scope.include().size();
+            Expect.isTrue(DashboardTool.leavesScopeWhenNormalised(scope, a, "/app/../admin"), "the probe is skipped");
+            Expect.isFalse(DashboardTool.leavesScopeWhenNormalised(scope, a, "/app/login"), "a path inside is scanned");
+            Expect.isFalse(DashboardTool.leavesScopeWhenNormalised(scope, a, "/admin"), "a path outside on both checks keeps its behaviour");
+            Expect.equal(scope.include().size(), before, "the include rules are unchanged");
+        });
+
         check("the configuration panel builds in every mode", () -> {
             for (ScanConfigPanel.Mode m : ScanConfigPanel.Mode.values()) {
                 ScanConfigPanel panel = new ScanConfigPanel(m);
