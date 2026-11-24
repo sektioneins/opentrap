@@ -37,6 +37,8 @@ public final class ThemeResolver {
         }
     }
 
+    /** The deepest chain of constants that refer to one another; a real theme stays far below it. */
+    private static final int MAX_DEPTH = 64;
     private static final Pattern WRONG_TYPE = Pattern.compile("(needs a \\w+), (@\\S+ is an? \\w+)");
     private static final KeyType.Number UNBOUNDED = new KeyType.Number(Integer.MIN_VALUE, Integer.MAX_VALUE);
 
@@ -137,6 +139,10 @@ public final class ThemeResolver {
             StringBuilder cycle = new StringBuilder("cycle: ");
             for (int i = at; i < visiting.size(); i++) cycle.append('@').append(visiting.get(i)).append(" -> ");
             throw new ThemeException(def.line(), cycle.append('@').append(name).toString());
+        }
+        if (visiting.size() >= MAX_DEPTH) {
+            throw new ThemeException(def.line(), "@" + name + " is more than " + MAX_DEPTH
+                + " constants deep; shorten the chain of constants that refer to each other");
         }
         visiting.add(name);
         try {

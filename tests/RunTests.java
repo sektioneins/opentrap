@@ -117,6 +117,7 @@ public final class RunTests {
         new opentrap.ui.QuitRequestTest().run();
         new opentrap.ui.theme.ThemeFileTest().run();
         new opentrap.ui.theme.ThemeResolverTest().run();
+        new opentrap.ui.theme.ContrastTest().run();
         new opentrap.ui.ThemeColourScanTest().run();
 
         // These two call Theme.configure and restore the light theme; they go
@@ -125,6 +126,7 @@ public final class RunTests {
 
         // Last: it installs the full theme, which changes UI defaults for the
         // rest of the JVM.
+        new opentrap.ui.ThemeCatalogTest().run();
         new opentrap.ui.ThemeHtmlTest().run();
 
         System.exit(Harness.report());

@@ -10,6 +10,7 @@ import javax.swing.plaf.metal.DefaultMetalTheme;
 import javax.swing.plaf.metal.MetalLookAndFeel;
 import java.awt.*;
 import java.lang.reflect.Field;
+import java.nio.file.Path;
 import java.util.Map;
 
 /**
@@ -268,9 +269,32 @@ public final class Theme {
 
     static { configure(false); }
 
+    private static String activeId = "light";
+    private static String startupNotice;
+
+    /** The id of the theme that is active: {@code light}, {@code dark} or a user theme. */
+    public static String activeId() { return activeId; }
+
+    /** The warning to show when the chosen theme could not be loaded, or null. */
+    public static String startupNotice() { return startupNotice; }
+
     /** Install the theme. Call once, before any component is created. */
     public static void install() {
-        configure(darkPreferred());
+        install(Path.of(System.getProperty("user.home"), ".opentrap", "themes"));
+    }
+
+    /**
+     * Install the theme the startup rule picks (see {@link ThemeCatalog#pick}),
+     * looking in {@code userThemes} for user themes. A built-in theme never
+     * reads the folder.
+     */
+    public static void install(Path userThemes) {
+        ThemeCatalog.Choice choice = ThemeCatalog.pick(new ThemeCatalog(userThemes),
+            System.getProperty("opentrap.theme"),
+            java.util.prefs.Preferences.userRoot().node("opentrap.v1"));
+        activeId = choice.id();
+        startupNotice = choice.notice();
+        configure(choice.resolved());
         MetalLookAndFeel.setCurrentTheme(new Palette());
         try { UIManager.setLookAndFeel(new MetalLookAndFeel()); } catch (Exception _) {}
 
