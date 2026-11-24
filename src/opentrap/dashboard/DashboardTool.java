@@ -170,6 +170,11 @@ public class DashboardTool implements ToolModule {
         // does nothing. Hand the context to every registered viewer now, so an
         // audit-item, scan or logger request reads the same as any other.
         for (MessageEditor m : editors) m.setContext(ctx);
+        // The scan log gets the same right-click menu and Send to shortcuts the
+        // proxy history has: send to Repeater, Intruder, add to scope, copy URL.
+        // No delete: the scan owns this log. It is built here, not with the
+        // table, because the menu and its shortcuts read the context.
+        new opentrap.proxy.HistoryContextMenu(ctx, scanLogTable, scanLogModel::at, null).install();
         // Let a right-click in the site map or history start a scan through us.
         ctx.setScanLauncher((url, audit) ->
                 startSpiderFor(url, audit, opentrap.engine.ScanConfig.preset("Balanced"), 10));
@@ -412,9 +417,7 @@ public class DashboardTool implements ToolModule {
         lightHeader(scanLogTable);
         scanLogTable.setRowSorter(new javax.swing.table.TableRowSorter<>(scanLogModel));
         Ui.newestFirst(scanLogTable, 0);
-        // The same right-click menu the proxy history has: send to Repeater,
-        // Intruder, add to scope, copy URL. No delete: the scan owns this log.
-        new opentrap.proxy.HistoryContextMenu(ctx, scanLogTable, scanLogModel::at, null).install();
+        // Its right-click menu needs the context, so init() installs it.
         scanReq  = newEditor(MessageEditor.REQUEST);
         scanResp = newEditor(MessageEditor.RESPONSE);
         scanLogTable.getSelectionModel().addListSelectionListener(e -> showScanSelected());
