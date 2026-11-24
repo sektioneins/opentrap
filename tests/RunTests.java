@@ -9,6 +9,8 @@ import opentrap.testkit.Harness;
 public final class RunTests {
 
     public static void main(String[] args) {
+        // As in Main: let java.net.http send Basic proxy logins on CONNECT, before it loads.
+        System.setProperty("jdk.http.auth.tunneling.disabledSchemes", "");
         // Preferences reads this once, when the class initialises, so it must come first.
         System.setProperty("java.util.prefs.PreferencesFactory", "opentrap.testkit.MemoryPreferencesFactory");
         if (!(java.util.prefs.Preferences.userRoot() instanceof opentrap.testkit.MemoryPreferences)) {

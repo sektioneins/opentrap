@@ -41,6 +41,12 @@ public class Main {
     public static volatile String[] launchArgs = new String[0];
 
     public static void main(String[] args) {
+        // The JDK's HTTP client never sends Basic credentials when it opens a
+        // CONNECT tunnel through a proxy, so the extension store could not use an
+        // upstream proxy that needs a login. The suite's own client already sends
+        // Basic on CONNECT. java.net.http reads this once, so it must come first.
+        System.setProperty("jdk.http.auth.tunneling.disabledSchemes", "");
+
         // Headless probe: print the scale this display should use and exit. The
         // AppImage launcher calls this to choose a scale before the real JVM
         // starts, so it never relaunches inside the AppImage (relaunching there

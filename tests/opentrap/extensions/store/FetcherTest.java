@@ -11,7 +11,15 @@ import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import javax.net.ssl.SSLContext;
@@ -34,6 +42,8 @@ public final class FetcherTest {
         Server(TestTls.Pair tls, HttpHandler handler) throws IOException {
             https = HttpsServer.create(new InetSocketAddress(IP, 0), 0);
             https.setHttpsConfigurator(new HttpsConfigurator(tls.server()));
+            // a thread per exchange, so a handler that blocks does not hold up the next request
+            https.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
             https.createContext("/", ex -> {
                 requests.incrementAndGet();
                 handler.handle(ex);
@@ -270,17 +280,44 @@ public final class FetcherTest {
 
         Harness.test("an HTTP upstream carries the fetch", () -> {
             TestTls.Pair tls = TestTls.pair(IP);
-            AtomicInteger connects = new AtomicInteger();
             try (Server s = new Server(tls, ex -> answer(ex, "<ZAP/>".getBytes()));
-                 ConnectProxy proxy = new ConnectProxy(connects)) {
-                UpstreamProxy http = new UpstreamProxy();
-                http.host = IP;
-                http.port = proxy.port();
+                 ConnectProxy proxy = new ConnectProxy(null)) {
                 String[] asked = { null };
-                Fetcher f = new Fetcher(tls.client(), host -> { asked[0] = host; return http; });
+                Fetcher f = new Fetcher(tls.client(), host -> { asked[0] = host; return upstream(proxy, "", ""); });
                 Expect.equal(new String(f.fetch(s.url("/feed.xml"), 1024)), "<ZAP/>", "body through the proxy");
                 Expect.equal(asked[0], IP, "upstream looked up by host");
-                Expect.equal(connects.get(), 1, "one CONNECT through the proxy");
+                Expect.equal(proxy.tunnels.get(), 1, "one CONNECT through the proxy");
+            } catch (IOException e) { throw new UncheckedIOException(e); }
+        });
+
+        Harness.test("an HTTP upstream that asks for a login gets it on the CONNECT only", () -> {
+            TestTls.Pair tls = TestTls.pair(IP);
+            List<String> seenByServer = Collections.synchronizedList(new ArrayList<>());
+            try (Server s = new Server(tls, ex -> {
+                     for (String h : List.of("Authorization", "Proxy-Authorization")) {
+                         if (ex.getRequestHeaders().containsKey(h)) seenByServer.add(h);
+                     }
+                     answer(ex, "<ZAP/>".getBytes());
+                 });
+                 ConnectProxy proxy = new ConnectProxy("tester:secret")) {
+                Fetcher f = new Fetcher(tls.client(), host -> upstream(proxy, "tester", "secret"));
+                Expect.equal(new String(f.fetch(s.url("/feed.xml"), 1024)), "<ZAP/>", "body through the proxy");
+                Expect.equal(proxy.tunnels.get(), 1, "the tunnel was opened");
+                Expect.isTrue(proxy.logins.contains("Basic " + Base64.getEncoder().encodeToString("tester:secret".getBytes())),
+                        "Basic login sent on the CONNECT: " + proxy.logins);
+                Expect.equal(seenByServer, List.of(), "no credentials reached the server");
+            } catch (IOException e) { throw new UncheckedIOException(e); }
+        });
+
+        Harness.test("an HTTP upstream login without credentials fails with the proxy named", () -> {
+            TestTls.Pair tls = TestTls.pair(IP);
+            try (Server s = new Server(tls, ex -> answer(ex, "<ZAP/>".getBytes()));
+                 ConnectProxy proxy = new ConnectProxy("tester:secret")) {
+                Fetcher f = new Fetcher(tls.client(), host -> upstream(proxy, "", ""));
+                String msg = failure("fetch", () -> f.fetch(s.url("/feed.xml"), 1024));
+                Expect.equal(msg, "The upstream proxy " + IP + ":" + proxy.port() + " asked for a login (HTTP 407)",
+                        "message");
+                Expect.equal(s.requests.get(), 0, "nothing reached the server");
             } catch (IOException e) { throw new UncheckedIOException(e); }
         });
 
@@ -288,23 +325,140 @@ public final class FetcherTest {
             TestTls.Pair tls = TestTls.pair(IP);
             try (Server s = new Server(tls, ex -> answer(ex, "<ZAP/>".getBytes()))) {
                 Fetcher f = new Fetcher(SSLContext.getDefault(), host -> null);
-                failure("fetch", () -> f.fetch(s.url("/feed.xml"), 1024));
+                String msg = failure("fetch", () -> f.fetch(s.url("/feed.xml"), 1024));
+                Expect.isTrue(msg.startsWith("Could not reach " + IP + ": "), "names the host: " + msg);
                 Expect.equal(s.requests.get(), 0, "no request was sent");
             } catch (IOException | NoSuchAlgorithmException e) { throw new RuntimeException(e); }
         });
+
+        Harness.test("a download cancelled while the server is silent stops at once", () -> {
+            TestTls.Pair tls = TestTls.pair(IP);
+            Path dir = tmp();
+            AtomicBoolean cancel = new AtomicBoolean();
+            CountDownLatch release = new CountDownLatch(1);
+            try (Server s = new Server(tls, ex -> {
+                ex.sendResponseHeaders(200, 100_000);
+                ex.getResponseBody().flush();
+                cancel.set(true);  // the client now waits on a body that does not come
+                await(release);
+                ex.close();
+            })) {
+                try {
+                    Entry e = entry("spider", "0.20.0", 100_000, s.url("/spider.zap"), "0".repeat(64));
+                    String msg = failure("download", () -> fetcher(tls).download(e, dir, NO_PROGRESS, cancel::get));
+                    Expect.equal(msg, "Download cancelled", "message");
+                    Expect.equal(names(dir), List.of(), "dir is empty");
+                } finally {
+                    release.countDown();
+                }
+            } catch (IOException e) { throw new UncheckedIOException(e); }
+        });
+
+        Harness.test("a download that stops sending is given up as stalled", () -> {
+            TestTls.Pair tls = TestTls.pair(IP);
+            Path dir = tmp();
+            CountDownLatch release = new CountDownLatch(1);
+            try (Server s = new Server(tls, ex -> {
+                ex.sendResponseHeaders(200, 100_000);
+                try (OutputStream o = ex.getResponseBody()) {
+                    o.write(new byte[1000]);
+                    o.flush();
+                    await(release);
+                }
+            })) {
+                try {
+                    Fetcher f = fetcher(tls);
+                    f.stallMs = 100;
+                    f.watchMs = 20;
+                    Entry e = entry("spider", "0.20.0", 100_000, s.url("/spider.zap"), "0".repeat(64));
+                    String msg = failure("download", () -> f.download(e, dir, NO_PROGRESS, () -> false));
+                    Expect.isTrue(msg.startsWith(e.location() + " stalled"), "says stalled: " + msg);
+                    Expect.equal(names(dir), List.of(), "dir is empty");
+                } finally {
+                    release.countDown();
+                }
+            } catch (IOException e) { throw new UncheckedIOException(e); }
+        });
+
+        Harness.test("two downloads of one id into one folder each stand on their own bytes", () -> {
+            TestTls.Pair tls = TestTls.pair(IP);
+            Path src = tmp();
+            Path dir = tmp();
+            Path zap = ZapFixtures.zap(src, "spider", "0.20.0", "release");
+            try {
+                byte[] good = Files.readAllBytes(zap);
+                byte[] junk = new byte[good.length];
+                Path junkFile = Files.write(src.resolve("junk"), junk);
+                CyclicBarrier bothMidway = new CyclicBarrier(2);
+                try (Server s = new Server(tls, ex -> {
+                    byte[] body = ex.getRequestURI().getPath().equals("/good.zap") ? good : junk;
+                    ex.sendResponseHeaders(200, body.length);
+                    try (OutputStream o = ex.getResponseBody()) {
+                        o.write(body, 0, body.length / 2);
+                        o.flush();
+                        // both part files exist and are half written before either download goes on
+                        try { bothMidway.await(2, TimeUnit.SECONDS); } catch (Exception e) { throw new IOException(e); }
+                        o.write(body, body.length / 2, body.length - body.length / 2);
+                    }
+                })) {
+                    Fetcher f = fetcher(tls);
+                    Entry goodEntry = entry("spider", "0.20.0", good.length, s.url("/good.zap"), ZapFixtures.sha256(zap));
+                    Entry junkEntry = entry("spider", "0.20.0", junk.length, s.url("/junk.zap"), ZapFixtures.sha256(junkFile));
+                    Object[] results = new Object[2];
+                    Thread a = Thread.ofVirtual().start(() -> results[0] = attempt(() -> f.download(goodEntry, dir, NO_PROGRESS, () -> false)));
+                    Thread b = Thread.ofVirtual().start(() -> results[1] = attempt(() -> f.download(junkEntry, dir, NO_PROGRESS, () -> false)));
+                    a.join();
+                    b.join();
+                    Expect.equal(results[0], dir.resolve("spider-release-0.20.0.zap"), "the good download is stored");
+                    Expect.isTrue(results[1] instanceof IOException ex && ex.getMessage().contains("not a readable zip"),
+                            "the junk download fails on its own bytes: " + results[1]);
+                    Expect.equal(names(dir), List.of("spider-release-0.20.0.zap"), "only the good file is left");
+                    Expect.isTrue(java.util.Arrays.equals(Files.readAllBytes(dir.resolve("spider-release-0.20.0.zap")), good),
+                            "the stored file holds the good bytes");
+                }
+            } catch (IOException | InterruptedException e) { throw new RuntimeException(e); }
+        });
     }
 
-    /** A minimal HTTP CONNECT proxy on loopback that counts tunnels and pipes bytes both ways. */
+    private interface IoCall { Object call() throws IOException; }
+
+    /** The call's result, or the IOException it threw. */
+    private static Object attempt(IoCall call) {
+        try { return call.call(); } catch (IOException e) { return e; }
+    }
+
+    private static void await(CountDownLatch latch) {
+        try { latch.await(5, TimeUnit.SECONDS); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+    }
+
+    private static UpstreamProxy upstream(ConnectProxy proxy, String user, String pass) {
+        UpstreamProxy p = new UpstreamProxy();
+        p.host = IP;
+        p.port = proxy.port();
+        p.user = user;
+        p.pass = pass;
+        return p;
+    }
+
+    /**
+     * A minimal HTTP CONNECT proxy on loopback that pipes bytes both ways. With a
+     * {@code user:pass} login it answers 407 to a CONNECT without that Basic login.
+     * It counts tunnels and keeps every Proxy-Authorization it was sent.
+     */
     private static final class ConnectProxy implements AutoCloseable {
         private final java.net.ServerSocket socket;
+        private final String required;
+        final AtomicInteger tunnels = new AtomicInteger();
+        final List<String> logins = Collections.synchronizedList(new ArrayList<>());
 
-        ConnectProxy(AtomicInteger connects) throws IOException {
+        ConnectProxy(String login) throws IOException {
+            required = login == null ? null : "Basic " + Base64.getEncoder().encodeToString(login.getBytes());
             socket = new java.net.ServerSocket(0, 50, java.net.InetAddress.getByName(IP));
             Thread.ofVirtual().start(() -> {
                 while (!socket.isClosed()) {
                     try {
                         java.net.Socket client = socket.accept();
-                        Thread.ofVirtual().start(() -> tunnel(client, connects));
+                        Thread.ofVirtual().start(() -> tunnel(client));
                     } catch (IOException e) {
                         return;
                     }
@@ -314,18 +468,26 @@ public final class FetcherTest {
 
         int port() { return socket.getLocalPort(); }
 
-        private static void tunnel(java.net.Socket client, AtomicInteger connects) {
+        private void tunnel(java.net.Socket client) {
             try (client) {
                 var in = client.getInputStream();
-                StringBuilder head = new StringBuilder();
-                while (!head.toString().endsWith("\r\n\r\n")) {
-                    int b = in.read();
-                    if (b < 0) return;
-                    head.append((char) b);
+                String head;
+                while (true) {
+                    head = head(in);
+                    if (head == null) return;
+                    String login = null;
+                    for (String line : head.split("\r\n")) {
+                        if (line.regionMatches(true, 0, "Proxy-Authorization:", 0, 20)) login = line.substring(20).trim();
+                    }
+                    if (login != null) logins.add(login);
+                    if (required == null || required.equals(login)) break;
+                    client.getOutputStream().write(("HTTP/1.1 407 Proxy Authentication Required\r\n"
+                            + "Proxy-Authenticate: Basic realm=\"test\"\r\nContent-Length: 0\r\n\r\n").getBytes());
+                    client.getOutputStream().flush();
                 }
-                String[] target = head.toString().split(" ")[1].split(":");
+                String[] target = head.split(" ")[1].split(":");
                 try (java.net.Socket upstream = new java.net.Socket(target[0], Integer.parseInt(target[1]))) {
-                    connects.incrementAndGet();
+                    tunnels.incrementAndGet();
                     client.getOutputStream().write("HTTP/1.1 200 Connection established\r\n\r\n".getBytes());
                     client.getOutputStream().flush();
                     Thread back = Thread.ofVirtual().start(() -> {
@@ -339,6 +501,17 @@ public final class FetcherTest {
             } catch (IOException | InterruptedException ignored) {
                 // the test sees a failed fetch
             }
+        }
+
+        /** One request head up to the blank line, or null at the end of the stream. */
+        private static String head(java.io.InputStream in) throws IOException {
+            StringBuilder head = new StringBuilder();
+            while (!head.toString().endsWith("\r\n\r\n")) {
+                int b = in.read();
+                if (b < 0) return null;
+                head.append((char) b);
+            }
+            return head.toString();
         }
 
         @Override public void close() throws IOException { socket.close(); }
