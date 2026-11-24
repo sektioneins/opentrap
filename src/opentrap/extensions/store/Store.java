@@ -13,11 +13,15 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 import opentrap.core.Debug;
 import opentrap.core.OwnerOnly;
@@ -35,10 +39,11 @@ import opentrap.engine.ZapEngine;
 public final class Store {
 
     /**
-     * A part file this old belongs to no running download: a download that
-     * receives nothing for a minute gives up and deletes its own.
+     * A part file or unqueued staged file this old belongs to no running
+     * download: a download that receives nothing for a minute gives up and
+     * deletes its own, and a finished one is queued at once.
      */
-    private static final Duration STALE_PART = Duration.ofMinutes(10);
+    private static final Duration STALE = Duration.ofMinutes(10);
 
     private static Store shared;
 
@@ -53,6 +58,8 @@ public final class Store {
     private volatile Map<String, Installed> installed = Map.of();
     private volatile List<Pending> pending = List.of();
     private volatile List<String> missing = List.of();
+    private volatile String lastStartError;
+    private volatile Map<String, String> applyErrors = Map.of();
 
     public Store(Path root, Fetcher fetcher) {
         this.root = root;
@@ -139,12 +146,23 @@ public final class Store {
      * Puts every entry's file into {@code staged/} (a download, a copy from a
      * local folder, or a link to the engine's own file) and then queues them
      * all. Nothing is queued when any of them fails.
+     *
+     * <p>{@code cancelled} is only asked on the calling thread: before each
+     * entry and at each block a download receives. The download's own watch
+     * thread reads a flag that those asks set, so the supplier need not be
+     * thread-safe. A download that receives nothing gives up after its stall
+     * time.
      */
     public void install(List<Entry> plan, Fetcher.Progress progress, BooleanSupplier cancelled) throws IOException {
         Opened o = opened();
+        AtomicBoolean stop = new AtomicBoolean();
+        Fetcher.Progress ticked = (done, total) -> {
+            if (cancelled.getAsBoolean()) stop.set(true);
+            progress.bytes(done, total);
+        };
         for (Entry e : plan) {
             if (cancelled.getAsBoolean()) throw new InterruptedIOException("Download cancelled");
-            stage(o, e, progress, cancelled);
+            stage(o, e, ticked, stop::get);
         }
         try (StoreLock _ = StoreLock.acquire(root)) {
             StoreRecord rec = StoreRecord.load(o.minorDir);
@@ -235,71 +253,155 @@ public final class Store {
             }
             publish(rec);
         }
+        Map<String, String> errs = new LinkedHashMap<>(applyErrors);
+        if (errs.remove(id) != null) applyErrors = Collections.unmodifiableMap(errs);
         fire();
     }
 
+    /**
+     * Hear every change. After an action on this store a listener runs on the
+     * thread that called it, once the lock is released. After an engine start
+     * it runs on a thread of its own, so it can never hold up or call back into
+     * the engine's start.
+     */
     public void addListener(Runnable l) { listeners.add(l); }
+
+    /**
+     * Why the last engine start could not use the store as it should, or null
+     * after a clean start. ZAP was still given {@code enabled/} unless the ZAP
+     * version could not be read.
+     */
+    public String lastStartError() { return lastStartError; }
+
+    /** Queued changes that failed at the last engine start, by add-on id, with the reason. They stay queued. */
+    public Map<String, String> applyErrors() { return applyErrors; }
+
+    /** Calls {@code c} each time {@link #lastStartError()} turns to a new failure. */
+    public void onStartError(Consumer<String> c) {
+        AtomicReference<String> last = new AtomicReference<>();
+        addListener(() -> {
+            String now = lastStartError;
+            String before = last.getAndSet(now);
+            if (now != null && !now.equals(before)) c.accept(now);
+        });
+    }
 
     /** What {@link ZapEngine} asks before each launch. */
     public ZapEngine.StartHook startHook() { return this::beforeLaunch; }
 
     /**
      * Brings the folders in line and applies every queued change, then names
-     * the folders ZAP is to use. A change that fails stays queued and the rest
-     * go on; any other failure is thrown, and the engine then starts without
-     * these arguments.
+     * the folders ZAP is to use. A step that fails is kept in
+     * {@link #lastStartError()} and the others still run: a queued change that
+     * fails stays queued, and ZAP is always given {@code enabled/}. It runs
+     * from the linked install only once the bundled add-ons are in the store's
+     * folders and the install is prepared; otherwise it runs from the engine's
+     * own install, whose {@code plugin/} it then loads as well. Only a ZAP
+     * version that cannot be read, so that no folder is known, is thrown, and
+     * the engine starts without these arguments.
      */
     private List<String> beforeLaunch(Path engineInstall, String zapVersion) throws IOException {
-        Version zap = Version.parse(zapVersion);
-        List<String> args = new ArrayList<>();
+        Version zap;
+        try {
+            zap = Version.parse(zapVersion);
+        } catch (IllegalArgumentException e) {
+            String why = "The add-on store was not used: ZAP version \"" + zapVersion + "\" cannot be read";
+            lastStartError = why;
+            fireApart();
+            throw new IOException(why, e);
+        }
+        Path minorDir = root.resolve(zap.part(0) + "." + zap.part(1));
+        ZapAddOnKind kind = new ZapAddOnKind(minorDir);
+        List<String> errors = new ArrayList<>();
+        Path runtime = null;
         try (StoreLock _ = StoreLock.acquire(root)) {
-            open(zap, engineInstall);
-            Opened o = opened();
-            ZapAddOnKind kind = o.kind;
-            StoreRecord rec = StoreRecord.load(o.minorDir);
-            // first, so files the record does not know are taken in before the bundled set is
-            kind.reconcile(rec);
-            List<String> dropped = Bundled.reconcile(engineInstall, zap, kind, rec);
-            if (!dropped.isEmpty()) {
-                Debug.log("bundled add-ons whose engine file is gone: " + String.join(", ", dropped));
+            try {
+                open(zap, engineInstall);
+            } catch (IOException | RuntimeException e) {
+                errors.add("the store could not be opened: " + why(e));
             }
-            missing = List.copyOf(dropped);
-            clearStaleParts(kind.stagingDir());
-            for (Pending p : List.copyOf(rec.pending())) {
+            boolean bundledInPlace = false;
+            try {
+                StoreRecord rec = StoreRecord.load(minorDir);
+                // first, so files the record does not know are taken in before the bundled set is
+                kind.reconcile(rec);
+                List<String> dropped = Bundled.reconcile(engineInstall, zap, kind, rec);
+                bundledInPlace = true;
+                if (!dropped.isEmpty()) {
+                    Debug.log("bundled add-ons whose engine file is gone: " + String.join(", ", dropped));
+                }
+                missing = List.copyOf(dropped);
+                Map<String, String> failed = new LinkedHashMap<>();
+                for (Pending p : List.copyOf(rec.pending())) {
+                    try {
+                        kind.apply(rec, p);
+                    } catch (IOException | RuntimeException e) {
+                        failed.put(p.id(), p.action().name().toLowerCase(Locale.ROOT) + ": " + why(e));
+                    }
+                }
+                applyErrors = Collections.unmodifiableMap(failed);
+                if (!failed.isEmpty()) {
+                    errors.add("queued changes failed and stay queued: " + String.join(", ", failed.keySet()));
+                }
+                kind.reconcile(rec);
+                rec.save();
+                publish(rec);
+                clearStale(kind.stagingDir(), rec);
+                OwnerOnly.directory(kind.enabledDir());
+            } catch (IOException | RuntimeException e) {
+                errors.add("the add-on folders could not be brought in line: " + why(e));
+            }
+            if (bundledInPlace && RuntimeInstall.linksSupported()) {
                 try {
-                    kind.apply(rec, p);
+                    runtime = RuntimeInstall.prepare(engineInstall, root.resolve("runtime"));
                 } catch (IOException | RuntimeException e) {
-                    Debug.log("queued " + p.action() + " of " + p.id() + " failed, kept for the next start: " + e);
+                    errors.add("the linked engine install could not be prepared: " + why(e));
                 }
             }
-            kind.reconcile(rec);
-            rec.save();
-            publish(rec);
-            OwnerOnly.directory(kind.enabledDir());
-            if (RuntimeInstall.linksSupported()) {
-                args.add("-installdir");
-                args.add(RuntimeInstall.prepare(engineInstall, root.resolve("runtime")).toString());
-            }
-            args.add("-config");
-            args.add("start.addonDirs=" + kind.enabledDir());
+        } catch (IOException | RuntimeException e) {
+            errors.add("the store could not be locked: " + why(e));
         }
-        fire();
+        String error = errors.isEmpty() ? null : "Add-on store at engine start: " + String.join("; ", errors);
+        if (error != null) Debug.log(error);
+        lastStartError = error;
+        List<String> args = new ArrayList<>();
+        if (runtime != null) {
+            args.add("-installdir");
+            args.add(runtime.toString());
+        }
+        args.add("-config");
+        args.add("start.addonDirs=" + kind.enabledDir());
+        fireApart();
         return args;
     }
 
-    /** Removes part files ({@code .<id>.<random>.part}) that a crash left behind. */
-    private static void clearStaleParts(Path staged) throws IOException {
+    /**
+     * Removes what no one will use, once it is older than {@link #STALE}:
+     * part files and their temp files ({@code .<name>.part}, {@code .<name>.tmp})
+     * a crash left behind, and staged files no queued change names. A younger
+     * one may belong to a download or install still on its way, in this or
+     * another instance.
+     */
+    private static void clearStale(Path staged, StoreRecord rec) throws IOException {
         if (!Files.isDirectory(staged)) return;
-        Instant before = Instant.now().minus(STALE_PART);
+        Set<String> named = new HashSet<>();
+        for (Pending p : rec.pending()) if (p.stagedFile() != null) named.add(p.stagedFile());
+        Instant before = Instant.now().minus(STALE);
         List<Path> list;
         try (Stream<Path> s = Files.list(staged)) { list = s.toList(); }
         for (Path p : list) {
             String n = p.getFileName().toString();
-            if (n.startsWith(".") && n.endsWith(".part") && Files.isRegularFile(p, LinkOption.NOFOLLOW_LINKS)
+            boolean leftover = n.startsWith(".") ? n.endsWith(".part") || n.endsWith(".tmp") : !named.contains(n);
+            boolean fileOrLink = Files.isRegularFile(p, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(p);
+            if (leftover && fileOrLink
                     && Files.getLastModifiedTime(p, LinkOption.NOFOLLOW_LINKS).toInstant().isBefore(before)) {
                 Files.deleteIfExists(p);
             }
         }
+    }
+
+    private static String why(Exception e) {
+        return e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
     }
 
     private Resolver resolver() {
@@ -318,6 +420,7 @@ public final class Store {
                 try {
                     return ZapAddOnFile.read(f).dependencies();
                 } catch (IOException e) {
+                    Debug.log("dependencies of " + in.id() + " read from its offer, its file is unreadable: " + e);
                     break;
                 }
             }
@@ -333,6 +436,11 @@ public final class Store {
     private void publish(StoreRecord rec) {
         installed = Collections.unmodifiableMap(new LinkedHashMap<>(rec.installed()));
         pending = List.copyOf(rec.pending());
+    }
+
+    /** {@link #fire()} on a thread of its own. */
+    private void fireApart() {
+        Thread.ofVirtual().name("addon-store-listeners").start(this::fire);
     }
 
     private void fire() {

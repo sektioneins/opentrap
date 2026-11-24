@@ -204,6 +204,26 @@ public final class EngineRestartTest {
             }
         }));
 
+        Harness.test("a restart asks the start hook again", body(() -> {
+            FakeLauncher launcher = new FakeLauncher(Integer.MAX_VALUE);
+            ZapEngine engine = ZapEngine.forLauncher("zap-0.0.0.jar", launcher);
+            List<String> asked = new CopyOnWriteArrayList<>();
+            ZapEngine.setStartHook((install, version) -> {
+                asked.add(version);
+                return List.of("-config", "start.addonDirs=/store/enabled-" + asked.size());
+            });
+            try {
+                engine.start();
+                engine.restart();
+                Expect.equal(asked, List.of("0.0.0", "0.0.0"), "the hook was asked for each start");
+                Expect.isTrue(launcher.launches.get(1).contains("start.addonDirs=/store/enabled-2"),
+                        "the new engine got the second answer: " + launcher.launches.get(1));
+            } finally {
+                ZapEngine.setStartHook(null);
+                engine.shutdown();
+            }
+        }));
+
         Harness.test("a start hook's install folder is where the engine jar is run from", body(() -> {
             FakeLauncher launcher = new FakeLauncher(Integer.MAX_VALUE);
             ZapEngine engine = ZapEngine.forLauncher("zap-0.0.0.jar", launcher);

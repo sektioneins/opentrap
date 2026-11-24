@@ -64,6 +64,9 @@ public final class StoreTest {
         return s;
     }
 
+    /** A store not opened yet, as the engine's start hook finds it. */
+    private static Store unopened(Path root) { return new Store(root, new Fetcher(null, host -> null)); }
+
     private static Entry offer(Store s, String id) {
         List<Entry> offers = s.catalogue().offers(id);
         Expect.isFalse(offers.isEmpty(), id + " is offered");
@@ -102,6 +105,47 @@ public final class StoreTest {
             Expect.equal(args, List.of("-installdir", runtime.toString(),
                     "-config", "start.addonDirs=" + minor.resolve("enabled")), "the engine arguments");
             Expect.isTrue(Files.isSymbolicLink(runtime.resolve("lib")), "the runtime folder links the install");
+            Expect.isNull(s.lastStartError(), "a clean start has no error");
+        }));
+
+        Harness.test("a corrupt sources file still names the add-on folder and reports the failure", () -> inTemp((root, engine, folder) -> {
+            ZapFixtures.zap(engine.resolve("plugin"), "foo", "1.0.0", "release");
+            Files.writeString(root.resolve("sources"), "count=many\n");
+            Store s = unopened(root);
+            List<String> args = s.startHook().beforeLaunch(engine, "2.17.0");
+            Path enabled = root.resolve("2.17/enabled");
+            Expect.isTrue(args.contains("start.addonDirs=" + enabled), "the add-on folder is named: " + args);
+            Expect.isTrue(args.contains("-installdir"), "the bundled set is in place, so the linked install is used");
+            Expect.equal(names(enabled), List.of("foo-release-1.0.0.zap"), "the bundled add-on is still linked in");
+            Expect.notNull(s.lastStartError(), "the failure is kept");
+            Expect.isTrue(s.lastStartError().contains("not a count"), "it says why: " + s.lastStartError());
+            Files.delete(root.resolve("sources"));
+            s.startHook().beforeLaunch(engine, "2.17.0");
+            Expect.isNull(s.lastStartError(), "a clean start clears it");
+        }));
+
+        Harness.test("a ZAP version that cannot be read gives no store arguments", () -> inTemp((root, engine, folder) -> {
+            Store s = store(root, engine);
+            Throwable failure = null;
+            try { s.startHook().beforeLaunch(engine, "weekly-D-2026"); } catch (IOException e) { failure = e; }
+            Expect.notNull(failure, "the hook throws, so the engine starts without its arguments");
+            Expect.notNull(s.lastStartError(), "the failure is kept");
+            Expect.isFalse(Files.exists(root.resolve("runtime")), "no runtime folder was made");
+        }));
+
+        Harness.test("a start error is told once, on a thread of its own", () -> inTemp((root, engine, folder) -> {
+            Store s = unopened(root);
+            List<String> told = new java.util.concurrent.CopyOnWriteArrayList<>();
+            List<Thread> on = new java.util.concurrent.CopyOnWriteArrayList<>();
+            java.util.concurrent.Semaphore runs = new java.util.concurrent.Semaphore(0);
+            s.onStartError(told::add);
+            s.addListener(() -> { on.add(Thread.currentThread()); runs.release(); });
+            Files.writeString(root.resolve("sources"), "count=many\n");
+            s.startHook().beforeLaunch(engine, "2.17.0");
+            s.startHook().beforeLaunch(engine, "2.17.0");
+            Expect.isTrue(runs.tryAcquire(2, 2, java.util.concurrent.TimeUnit.SECONDS), "listeners ran after both starts");
+            Expect.equal(told.size(), 1, "the same error is told once: " + told);
+            Expect.isFalse(on.contains(Thread.currentThread()), "listeners did not run on the starting thread");
         }));
 
         Harness.test("a pending change that fails stays queued and the rest are applied", () -> inTemp((root, engine, folder) -> {
@@ -115,16 +159,84 @@ public final class StoreTest {
             Expect.equal(names(root.resolve("2.17/enabled")), List.of("foo-release-1.0.0.zap"), "enabled/");
             Expect.equal(s.pending().stream().map(Pending::id).toList(), List.of("bar"), "bar stays pending");
             Expect.isTrue(args.contains("-installdir"), "the engine still gets the store's folders");
+            Expect.equal(List.copyOf(s.applyErrors().keySet()), List.of("bar"), "bar's failure is kept by id");
+            Expect.isTrue(s.lastStartError().contains("bar"), "the start error names bar: " + s.lastStartError());
+            s.undo("bar");
+            Expect.equal(s.applyErrors(), Map.of(), "undo drops bar's failure");
+            s.startHook().beforeLaunch(engine, "2.17.0");
+            Expect.isNull(s.lastStartError(), "the next start is clean");
         }));
 
-        Harness.test("the engine start hook clears part files left by a crash", () -> inTemp((root, engine, folder) -> {
-            Path staged = Files.createDirectories(root.resolve("2.17/staged"));
-            Path old = Files.write(staged.resolve(".foo.123.part"), new byte[1]);
-            Files.setLastModifiedTime(old, FileTime.from(Instant.now().minus(1, ChronoUnit.HOURS)));
-            Path live = Files.write(staged.resolve(".bar.456.part"), new byte[1]);
-            store(root, engine).startHook().beforeLaunch(engine, "2.17.0");
-            Expect.isFalse(Files.exists(old), "the old part file is gone");
+        Harness.test("an install is queued as install, update or switch by what is installed", () -> inTemp((root, engine, folder) -> {
+            ZapFixtures.zap(folder, "foo", "1.0.0", "release");
+            Store s = store(root, engine);
+            install(s, "foo");
+            s.startHook().beforeLaunch(engine, "2.17.0");
+            ZapFixtures.zap(folder, "foo", "2.0.0", "release");
+            Path other = Files.createDirectories(root.resolveSibling("other"));
+            ZapFixtures.zap(other, "foo", "3.0.0", "release");
+            SourceList sources = SourceList.load(root, "2.17");
+            sources.add(new Source("src-2", "Other", SourceType.LOCAL_FOLDER, other.toString(), "", true));
+            sources.save();
+            Store again = store(root, engine);
+            Entry same = again.catalogue().offers("foo").stream().filter(e -> e.sourceId().equals("src-1")).findFirst().get();
+            Entry elsewhere = again.catalogue().offers("foo").stream().filter(e -> e.sourceId().equals("src-2")).findFirst().get();
+            again.install(List.of(same), (d, t) -> {}, () -> false);
+            again.install(List.of(elsewhere), (d, t) -> {}, () -> false);
+            Expect.equal(again.pending().stream().map(p -> p.action() + " " + p.target().version()).toList(),
+                    List.of("UPDATE 2.0.0", "SWITCH 3.0.0"), "the queued actions");
+        }));
+
+        Harness.test("a bundled add-on is installed again as a link to the engine's file", () -> inTemp((root, engine, folder) -> {
+            Path foo = ZapFixtures.zap(engine.resolve("plugin"), "foo", "1.0.0", "release");
+            Store s = store(root, engine);
+            s.startHook().beforeLaunch(engine, "2.17.0");
+            s.remove("foo");
+            s.startHook().beforeLaunch(engine, "2.17.0");
+            Expect.isTrue(s.installed().isEmpty(), "foo is removed");
+            install(s, "foo");
+            Path staged = root.resolve("2.17/staged/foo-release-1.0.0.zap");
+            Expect.isTrue(Files.isSymbolicLink(staged), "the staged file is a link");
+            Expect.equal(Files.readSymbolicLink(staged), foo, "to the engine's file");
+            Expect.equal(s.pending().get(0).action(), Pending.Action.INSTALL, "queued as an install");
+            s.startHook().beforeLaunch(engine, "2.17.0");
+            Expect.isTrue(Files.isSymbolicLink(root.resolve("2.17/enabled/foo-release-1.0.0.zap")), "foo is linked in");
+        }));
+
+        Harness.test("a local file changed since its folder was read is refused", () -> inTemp((root, engine, folder) -> {
+            ZapFixtures.zap(folder, "foo", "1.0.0", "release");
+            Store s = store(root, engine);
+            Entry e = offer(s, "foo");
+            ZapFixtures.zap(folder, "foo", "1.0.0", "release", "bar", "");
+            Throwable failure = null;
+            try { s.install(List.of(e), (d, t) -> {}, () -> false); } catch (IOException ex) { failure = ex; }
+            Expect.notNull(failure, "the install fails");
+            Expect.isTrue(failure.getMessage().contains("has changed"), "it says why: " + failure.getMessage());
+            Expect.equal(names(root.resolve("2.17/staged")), List.of(), "nothing is left in staged/");
+            Expect.equal(s.pendingCount(), 0, "nothing is queued");
+        }));
+
+        Harness.test("the engine start hook clears what a crash left in staged/", () -> inTemp((root, engine, folder) -> {
+            ZapFixtures.zap(folder, "foo", "1.0.0", "release");
+            Store s = store(root, engine);
+            install(s, "foo");
+            Path staged = root.resolve("2.17/staged");
+            FileTime hourAgo = FileTime.from(Instant.now().minus(1, ChronoUnit.HOURS));
+            Files.setLastModifiedTime(staged.resolve("foo-release-1.0.0.zap"), hourAgo);
+            Path part = Files.write(staged.resolve(".bar.123.part"), new byte[1]);
+            Path tmp = Files.write(staged.resolve("..bar.123.part456.tmp"), new byte[1]);
+            Path unqueued = ZapFixtures.zap(staged, "baz", "1.0.0", "release");
+            for (Path p : List.of(part, tmp, unqueued)) Files.setLastModifiedTime(p, hourAgo);
+            Path live = Files.write(staged.resolve(".qux.456.part"), new byte[1]);
+            Path fresh = ZapFixtures.zap(staged, "quux", "1.0.0", "release");
+            // a folder in the way makes foo's install fail, so foo stays queued with its old staged file
+            Files.createDirectories(root.resolve("2.17/enabled/foo-release-1.0.0.zap"));
+            s.startHook().beforeLaunch(engine, "2.17.0");
+            Expect.equal(s.applyErrors().keySet(), java.util.Set.of("foo"), "foo's install failed");
+            for (Path p : List.of(part, tmp, unqueued)) Expect.isFalse(Files.exists(p), p.getFileName() + " is gone");
+            Expect.isTrue(Files.exists(staged.resolve("foo-release-1.0.0.zap")), "a staged file still queued is kept");
             Expect.isTrue(Files.exists(live), "a part file still being written is kept");
+            Expect.isTrue(Files.exists(fresh), "a staged file not yet queued is kept while it is young");
         }));
 
         Harness.test("a bundled add-on whose engine file is gone is named missing", () -> inTemp((root, engine, folder) -> {

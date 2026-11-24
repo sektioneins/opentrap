@@ -13,6 +13,8 @@ public final class Bootstrap {
         // store's queued changes and runs ZAP with the store's add-on folder.
         opentrap.extensions.store.Store.initShared(opentrap.extensions.store.Fetcher.forSuite(ctx));
         opentrap.engine.ZapEngine.setStartHook(opentrap.extensions.store.Store.shared().startHook());
+        // A start that could not use the store as it should goes to the event log.
+        opentrap.extensions.store.Store.shared().onStartError(msg -> ctx.alert("extensions", msg));
 
         // Top-level tabs, one per tool. WebSockets lives
         // under Proxy; session handling is a window from the menu; CSRF PoC and
