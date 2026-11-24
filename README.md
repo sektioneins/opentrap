@@ -67,11 +67,13 @@ For everything else, the original project is the place to go:
   origin. Repeater's "On-site only" and "In-scope only" modes stop at a redirect
   that leaves the site or the scope, and the status says why. Scope checks
   read a path the way most servers do: `..` segments and percent-escapes no
-  longer step out of a path prefix in scope or around an excluded path. The
-  proxy refuses to forward a request to itself. A cookie set without a `Domain`
-  goes back only to the host that set it, not to its subdomains, and the cookie
-  jar shows which cookies are host-only. The CA key and the saved application
-  logins are written readable by their owner only from the start.
+  longer step out of a path prefix in scope or around an excluded path. A
+  request whose path is in scope as sent is still recorded and kept, so
+  traversal probes stay in the history. The proxy refuses to forward a request
+  to itself. A cookie set without a `Domain` goes back only to the host that
+  set it, not to its subdomains, and the cookie jar shows which cookies are
+  host-only. The CA key and the saved application logins are written readable
+  by their owner only from the start.
   Stopping and restarting a Sequencer capture no longer leaves the old capture
   running and mixing its tokens into the new one.
 - **Scan engine scope.** The engine's crawl and scan are bound to no more than
