@@ -47,6 +47,35 @@ public final class ThemeStyleTest {
             }
         });
 
+        Harness.test("an unread tool's dot is a disc in the underline's accent, larger than the bullet glyph", () -> {
+            JTabbedPane tp = new JTabbedPane();
+            tp.setUI((javax.swing.plaf.TabbedPaneUI) FlatTabbedPaneUI.createUI(tp));
+            tp.addTab("Alpha", new JPanel());
+            tp.addTab("Beta" + FlatTabbedPaneUI.UNREAD_DOT, new JPanel());
+            BufferedImage img = paint(tp, 300, 100);
+            Rectangle r = tp.getUI().getTabBounds(tp, 1);
+            // The dot is the rightmost run of columns holding the accent's
+            // colour; the title's text is grey, so it never counts.
+            int maxX = -1, minX = -1, minY = Integer.MAX_VALUE, maxY = -1;
+            for (int x = r.x + r.width - 1; x >= r.x; x--) {
+                boolean hit = false;
+                for (int y = r.y; y < r.y + r.height; y++) {
+                    if (chroma(new Color(img.getRGB(x, y), true)) * 3 > chroma(Theme.ACCENT)) {
+                        hit = true;
+                        minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+                    }
+                }
+                if (hit) { if (maxX < 0) maxX = x; minX = x; }
+                else if (maxX >= 0) break;
+            }
+            Expect.isTrue(maxX >= 0, "accent pixels in the unread tab");
+            Expect.isTrue(maxX < r.x + r.width - 2, "the dot inside its tab");
+            java.awt.font.FontRenderContext frc = new java.awt.font.FontRenderContext(null, true, true);
+            double glyph = tp.getFont().createGlyphVector(frc, "\u2022").getVisualBounds().getWidth();
+            Expect.isTrue(maxX - minX + 1 > glyph, "dot width " + (maxX - minX + 1) + " over the glyph's " + glyph);
+            Expect.isTrue(Math.abs((maxX - minX) - (maxY - minY)) <= 1, "round, not a bar");
+        });
+
         Harness.test("a wider line keeps the border's insets", () -> {
             try {
                 RoundedBorder b = new RoundedBorder(Theme.BORDER, null, Theme.RADIUS, new Insets(4, 7, 4, 7));
@@ -115,6 +144,11 @@ public final class ThemeStyleTest {
         c.paint(g);
         g.dispose();
         return img;
+    }
+
+    /** How far from grey a colour is; anti-aliased edges keep a share of it. */
+    private static int chroma(Color c) {
+        return Math.max(c.getRed(), Math.max(c.getGreen(), c.getBlue())) - Math.min(c.getRed(), Math.min(c.getGreen(), c.getBlue()));
     }
 
     private static int alphaAt(RoundedBorder b, JComponent c, int x, int y) {
