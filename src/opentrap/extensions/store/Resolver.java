@@ -156,6 +156,33 @@ public final class Resolver {
         return out;
     }
 
+    /** Add-ons {@code id} depends on that are not installed at all. */
+    public List<String> notInstalledNeeds(String id) {
+        Installed in = installed.get(id);
+        if (in == null) return List.of();
+        List<String> out = new ArrayList<>();
+        for (Dependency d : depsOf.apply(in)) {
+            if (!installed.containsKey(d.id()) && !out.contains(d.id())) out.add(d.id());
+        }
+        out.sort(null);
+        return out;
+    }
+
+    /**
+     * What this ZAP version offers in place of {@code previous}, an add-on of
+     * the previous one: the newest entry on its own line that is no less
+     * stable than it, or null when no source offers one.
+     */
+    public Entry successor(Installed previous) {
+        int floor = statusOf(previous).rank();
+        Entry best = null;
+        for (Entry o : cat.offers(previous.id())) {
+            if (!sameLine(previous.sourceId(), o.sourceId()) || o.status().rank() < floor) continue;
+            if (best == null || o.version().compareTo(best.version()) > 0) best = o;
+        }
+        return best;
+    }
+
     private boolean names(Installed in, String id) {
         for (Dependency d : depsOf.apply(in)) if (d.id().equals(id)) return true;
         return false;

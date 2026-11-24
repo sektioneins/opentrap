@@ -45,6 +45,9 @@ public final class Store {
      */
     private static final Duration STALE = Duration.ofMinutes(10);
 
+    /** In a minor's folder once the previous minor's add-ons were offered for it. */
+    private static final String CARRYOVER_MARK = "carryover-offered";
+
     private static Store shared;
 
     /** What {@link #open} set up for one ZAP version and engine install. */
@@ -172,6 +175,34 @@ public final class Store {
 
     /** Disabled add-ons that {@code id} needs. */
     public List<String> needs(String id) { return resolver().needs(id); }
+
+    /** Add-ons that {@code id} needs and that are not installed at all. */
+    public List<String> notInstalledNeeds(String id) { return resolver().notInstalledNeeds(id); }
+
+    /** The ZAP minor version the store is open for, as "2.17". */
+    public String minor() { return opened().minor; }
+
+    /**
+     * The previous ZAP minor's add-ons that were not bundled with ZAP and are
+     * neither installed nor queued here, until {@link #carryoverOffered} has
+     * marked this minor; none after that, so they are offered once.
+     */
+    public List<Installed> carryover() throws IOException {
+        Opened o = opened();
+        if (Files.exists(o.minorDir.resolve(CARRYOVER_MARK), LinkOption.NOFOLLOW_LINKS)) return List.of();
+        Set<String> here = new HashSet<>(installed.keySet());
+        for (Pending p : pending) here.add(p.id());
+        return Carryover.fromPrevious(root, o.minor).stream().filter(in -> !here.contains(in.id())).toList();
+    }
+
+    /** Marks this minor's carry-over as offered, whatever the user answered. */
+    public void carryoverOffered() throws IOException {
+        OwnerOnly.write(opened().minorDir.resolve(CARRYOVER_MARK),
+                out -> out.write((Instant.now() + "\n").getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+    }
+
+    /** What this ZAP version offers in place of an add-on of the previous one, or null. */
+    public Entry successor(Installed previous) { return resolver().successor(previous); }
 
     /**
      * Puts every entry's file into {@code staged/} (a download, a copy from a

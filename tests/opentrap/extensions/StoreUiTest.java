@@ -26,6 +26,7 @@ import opentrap.extensions.store.Entry;
 import opentrap.extensions.store.Fetcher;
 import opentrap.extensions.store.Installed;
 import opentrap.extensions.store.Kind;
+import opentrap.extensions.store.Pending;
 import opentrap.extensions.store.Source;
 import opentrap.extensions.store.SourceList;
 import opentrap.extensions.store.SourceStatus;
@@ -361,6 +362,256 @@ public final class StoreUiTest {
                     Expect.equal(store.notActive(CoreAddOns.Feature.CRAWL), List.of(),
                             "nothing is named missing from the old record");
                 }));
+
+        Harness.test("a pending disable shows on its row", () -> {
+            Expect.equal(InstalledPanel.stateText(held("bundled", "spider", "1.0.0", "11"),
+                            new Pending(Pending.Action.DISABLE, "spider", null, null)),
+                    "Disabled at next engine start", "the row's state");
+        });
+
+        Harness.test("disabling a core add-on names the features that stop", () -> {
+            String w = InstalledPanel.disableWarning("spider", List.of(), List.of(CoreAddOns.Feature.CRAWL));
+            Expect.isTrue(w.contains("Crawl"), "the crawl is named: " + w);
+        });
+
+        Harness.test("disabling an add-on names those that need it", () -> {
+            String w = InstalledPanel.disableWarning("commonlib", List.of("retire"), List.of());
+            Expect.isTrue(w.contains("retire"), "the dependent is named: " + w);
+        });
+
+        Harness.test("a row's state says what the engine runs and what is queued", () -> {
+            Installed on = held("zap", "foo", "1.0.0", "11");
+            Installed off = new Installed(Kind.ZAP_ADDON, "foo", Version.parse("1.0.0"), "foo-release-1.0.0.zap",
+                    "zap", "zap", false, "11".repeat(32));
+            Expect.equal(InstalledPanel.stateText(on, null), "Active", "active");
+            Expect.equal(InstalledPanel.stateText(off, null), "Disabled", "disabled");
+            Expect.equal(InstalledPanel.stateText(off, new Pending(Pending.Action.ENABLE, "foo", null, null)),
+                    "Enabled at next engine start", "a queued enable");
+            Expect.equal(InstalledPanel.stateText(on, new Pending(Pending.Action.REMOVE, "foo", null, null)),
+                    "Removed at next engine start", "a queued removal");
+            Expect.equal(InstalledPanel.stateText(on, new Pending(Pending.Action.UPDATE, "foo",
+                            entry("zap", "foo", "2.0.0", "22"), "foo-release-2.0.0.zap")),
+                    "Update to 2.0.0 at next engine start", "a queued update");
+            Expect.equal(InstalledPanel.stateText(null, new Pending(Pending.Action.INSTALL, "foo",
+                            entry("zap", "foo", "2.0.0", "22"), "foo-release-2.0.0.zap")),
+                    "Install 2.0.0 at next engine start", "a queued install");
+        });
+
+        Harness.test("a queued change that failed at the engine start says why on its row", () -> {
+            Expect.equal(InstalledPanel.stateText(held("zap", "foo", "1.0.0", "11"),
+                            new Pending(Pending.Action.DISABLE, "foo", null, null), "disable: Permission denied"),
+                    "Disabled at next engine start (failed: Permission denied)", "the row's state");
+        });
+
+        Harness.test("removing a core add-on warns with the features and asks a second time", () -> {
+            String w = InstalledPanel.removeWarning("spider", List.of(), List.of(CoreAddOns.Feature.CRAWL));
+            Expect.isTrue(w.startsWith("Remove spider"), "it is about removing: " + w);
+            Expect.isTrue(w.contains("Crawl"), "the crawl is named: " + w);
+            String again = InstalledPanel.stopsAgain("Remove", "spider",
+                    List.of(CoreAddOns.Feature.CRAWL, CoreAddOns.Feature.AJAX_CRAWL));
+            Expect.isTrue(again.contains("Crawl, AJAX crawl"), "the second question names both: " + again);
+        });
+
+        Harness.test("the dependents of an add-on are followed to those that need them in turn", () -> {
+            java.util.Map<String, List<String>> needers = java.util.Map.of(
+                    "commonlib", List.of("foo", "bar"), "foo", List.of("baz"), "baz", List.of("bar"));
+            Expect.equal(InstalledPanel.closure("commonlib", id -> needers.getOrDefault(id, List.of())),
+                    List.of("foo", "bar", "baz"), "each once, in the order found, without the add-on itself");
+        });
+
+        Harness.test("the previous ZAP version's add-ons are offered once for a new one", () ->
+                StoreFixtures.inTemp(CRAWL, (store, engine) -> {
+                    Path root = engine.resolveSibling("addons");
+                    opentrap.extensions.store.StoreRecord old = opentrap.extensions.store.StoreRecord.load(
+                            Files.createDirectories(root.resolve("2.16")));
+                    old.installed().put("foo", held("src-1", "foo", "1.0.0", "11"));
+                    old.installed().put("spider", held("bundled", "spider", "1.0.0", "11"));
+                    old.save();
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    Expect.equal(store.carryover().stream().map(Installed::id).toList(), List.of("foo"),
+                            "the add-on not bundled is offered");
+                    store.carryoverOffered();
+                    Expect.equal(store.carryover(), List.of(), "not a second time");
+                    opentrap.extensions.store.Store again = new opentrap.extensions.store.Store(root,
+                            new Fetcher(null, host -> null));
+                    again.open(Version.parse("2.17.0"), engine);
+                    Expect.equal(again.carryover(), List.of(), "nor after OpenTRAP starts again");
+                }));
+
+        Harness.test("disabling a core add-on takes what needs it along after asking twice", () ->
+                StoreFixtures.inTemp(CRAWL, (store, engine) -> {
+                    Path folder = folderSource(engine, false);
+                    ZapFixtures.zap(folder, "foo", "1.0.0", "release", "commonlib", "");
+                    ZapFixtures.zap(folder, "bar", "1.0.0", "release", "foo", "");
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    install(store, offer(store, "bar", "1.0.0"));
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    Answers answers = new Answers(true);
+                    InstalledPanel panel = installed(store, answers);
+                    onEdt(() -> { panel.disableAddOn("commonlib"); return null; });
+                    await(() -> queued(store, Pending.Action.DISABLE).size() == 3,
+                            () -> "three disables are queued: " + store.pending());
+                    Expect.equal(queued(store, Pending.Action.DISABLE), List.of("foo", "bar", "commonlib"),
+                            "what needs it first, then the add-on itself");
+                    Expect.equal(answers.asked.size(), 2, "asked twice: " + answers.asked);
+                    Expect.isTrue(answers.asked.get(0).contains("foo, bar"), "the first names the dependents: "
+                            + answers.asked.get(0));
+                    Expect.isTrue(answers.asked.get(0).contains("Crawl"), "and the feature: " + answers.asked.get(0));
+                    Expect.isTrue(answers.asked.get(1).contains("anyway"),
+                            "the second asks again: " + answers.asked.get(1));
+                    await(() -> "Disabled at next engine start".equals(onEdt(() -> panel.stateOf("Add-on foo"))),
+                            () -> "the row shows its queued change: " + onEdt(() -> panel.stateOf("Add-on foo")));
+                }));
+
+        Harness.test("declining the second question about a feature queues nothing", () ->
+                StoreFixtures.started(CRAWL, List.of(), (store, engine) -> {
+                    Answers answers = new Answers(true, false);
+                    InstalledPanel panel = installed(store, answers);
+                    onEdt(() -> { panel.removeAddOn("spider"); return null; });
+                    Expect.equal(answers.asked.size(), 2, "asked twice: " + answers.asked);
+                    Expect.isTrue(answers.asked.get(0).contains("bundled with ZAP"),
+                            "removing a bundled add-on says it stays removed: " + answers.asked.get(0));
+                    // a change queued after it would come after anything this click queued
+                    store.disable("network");
+                    await(() -> !store.pending().isEmpty(), () -> "the later change is queued");
+                    Expect.equal(store.pending().stream().map(Pending::id).toList(), List.of("network"),
+                            "spider's removal was not queued");
+                }));
+
+        Harness.test("enabling an add-on enables what it needs and names what is not installed", () ->
+                StoreFixtures.inTemp(CRAWL, (store, engine) -> {
+                    Path folder = folderSource(engine, false);
+                    ZapFixtures.zap(folder, "foo", "1.0.0", "release", "commonlib", "", "absent", "");
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    store.install(List.of(offer(store, "foo", "1.0.0")), (d, t) -> {}, () -> false);
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    store.disable("foo");
+                    store.disable("commonlib");
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    Answers answers = new Answers(true);
+                    InstalledPanel panel = installed(store, answers);
+                    onEdt(() -> { panel.enableAddOn("foo"); return null; });
+                    await(() -> queued(store, Pending.Action.ENABLE).size() == 2,
+                            () -> "two enables are queued: " + store.pending());
+                    Expect.equal(queued(store, Pending.Action.ENABLE), List.of("commonlib", "foo"),
+                            "what it needs first");
+                    Expect.equal(answers.asked.size(), 1, "asked once: " + answers.asked);
+                    Expect.isTrue(answers.asked.get(0).contains("enables what it needs: commonlib"),
+                            "the need is named: " + answers.asked.get(0));
+                    Expect.isTrue(answers.asked.get(0).contains("absent, which is not installed. Install it from Store"),
+                            "the missing one is named: " + answers.asked.get(0));
+                }));
+
+        Harness.test("a bundled add-on whose engine file is gone is listed as missing", () ->
+                StoreFixtures.started(CRAWL, List.of(), (store, engine) -> {
+                    Files.delete(engine.resolve("plugin").resolve("spider-release-1.0.0.zap"));
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    Expect.equal(store.missing(), List.of("spider"), "the store names it");
+                    InstalledPanel panel = installed(store, new Answers());
+                    Expect.equal(onEdt(() -> panel.stateOf("spider")), InstalledPanel.MISSING, "its row");
+                    onEdt(() -> { panel.select("spider"); return null; });
+                    Expect.equal(onEdt(panel::buttons), "----", "nothing to enable, disable, remove or undo");
+                    onEdt(() -> { panel.filter("All", "Missing"); return null; });
+                    Expect.equal(onEdt(() -> panel.model().getRowCount()), 1, "the State filter finds it");
+                }));
+
+        Harness.test("a queued change that failed shows why on its row and can be undone", () ->
+                StoreFixtures.inTemp(CRAWL, (store, engine) -> {
+                    Path folder = folderSource(engine, false);
+                    ZapFixtures.zap(folder, "foo", "1.0.0", "release");
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    install(store, offer(store, "foo", "1.0.0"));
+                    Files.delete(engine.resolveSibling("addons").resolve("2.17").resolve("staged")
+                            .resolve("foo-release-1.0.0.zap"));
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    InstalledPanel panel = installed(store, new Answers());
+                    String state = onEdt(() -> panel.stateOf("Add-on foo"));
+                    Expect.equal(state, "Install 1.0.0 at next engine start"
+                            + " (failed: Staged file foo-release-1.0.0.zap is missing)", "the row's state");
+                    onEdt(() -> { panel.select("Add-on foo"); return null; });
+                    Expect.equal(onEdt(panel::buttons), "---U", "only Undo");
+                }));
+
+        Harness.test("the Kind and State filters narrow the list", () ->
+                StoreFixtures.started(CRAWL, List.of("spider"), (store, engine) -> {
+                    store.disable("network");
+                    InstalledPanel panel = installed(store, new Answers());
+                    Expect.equal(onEdt(() -> panel.model().getRowCount()), CRAWL.size(), "every add-on");
+                    Expect.equal(onEdt(() -> panel.model().getValueAt(0, 0)), "ZAP add-on", "the kind");
+                    onEdt(() -> { panel.filter("All", "Disabled"); return null; });
+                    Expect.equal(onEdt(() -> panel.model().getValueAt(0, 1)), "Add-on spider", "the disabled one");
+                    Expect.equal(onEdt(() -> panel.model().getRowCount()), 1, "only it");
+                    onEdt(() -> { panel.filter("All", "Pending"); return null; });
+                    Expect.equal(onEdt(() -> panel.model().getValueAt(0, 1)), "Add-on network", "the queued one");
+                    onEdt(() -> { panel.filter(InstalledPanel.JAR_KIND, "All"); return null; });
+                    Expect.equal(onEdt(() -> panel.model().getRowCount()), 0, "no jar is loaded");
+                    onEdt(() -> { panel.filter("ZAP add-on", "Active"); return null; });
+                    Expect.equal(onEdt(() -> panel.model().getRowCount()), CRAWL.size() - 2, "the active ones");
+                    Expect.equal(onEdt(() -> panel.model().getValueAt(0, 5)), "core", "a crawl add-on is marked core");
+                }));
+
+        Harness.test("declining the carry-over is kept, so it is not asked again", () ->
+                StoreFixtures.inTemp(CRAWL, (store, engine) -> {
+                    Path root = engine.resolveSibling("addons");
+                    opentrap.extensions.store.StoreRecord old = opentrap.extensions.store.StoreRecord.load(
+                            Files.createDirectories(root.resolve("2.16")));
+                    old.installed().put("foo", held("src-1", "foo", "1.0.0", "11"));
+                    old.save();
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    Answers answers = new Answers(false);
+                    InstalledPanel panel = installed(store, answers);
+                    onEdt(() -> { panel.offerCarryover(); return null; });
+                    await(() -> {
+                        try { return store.carryover().isEmpty(); }
+                        catch (java.io.IOException e) { throw new java.io.UncheckedIOException(e); }
+                    }, () -> "the answer is kept");
+                    Expect.equal(answers.asked.size(), 1, "asked once: " + answers.asked);
+                    Expect.isTrue(answers.asked.get(0).contains("foo"), "the add-on is named: " + answers.asked.get(0));
+                    Expect.equal(store.pending(), List.of(), "nothing is queued");
+                }));
+
+        Harness.test("the carry-over takes each add-on from its own line and names what is not offered", () ->
+                StoreFixtures.inTemp(CRAWL, (store, engine) -> {
+                    Path folder = folderSource(engine, false);
+                    ZapFixtures.zap(folder, "foo", "2.0.0", "release");
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    Installed foo = new Installed(Kind.ZAP_ADDON, "foo", Version.parse("1.0.0"),
+                            "foo-release-1.0.0.zap", "src-1", "Mine", false, "11".repeat(32));
+                    Installed gone = held("src-1", "gone", "1.0.0", "11");
+                    Installed elsewhere = held("src-9", "spider", "1.0.0", "11");
+                    InstalledPanel.CarryPlan cp = InstalledPanel.carryPlan(store, List.of(foo, gone, elsewhere));
+                    Expect.equal(cp.plan().stream().map(e -> e.id() + " " + e.version()).toList(), List.of("foo 2.0.0"),
+                            "foo from its own folder");
+                    Expect.equal(cp.keepOff(), List.of("foo"), "it stays disabled");
+                    Expect.equal(cp.unavailable(), List.of("gone", "spider"),
+                            "one nobody offers, one only another source offers");
+                    String text = InstalledPanel.carryoverText(cp, "2.17");
+                    Expect.isTrue(text.contains("Not available for ZAP 2.17:\n  gone\n  spider"), "the text: " + text);
+                }));
+    }
+
+    /** The answers an Installed tab gets, in turn (yes when they run out), and what it asked and told. */
+    private static final class Answers implements InstalledPanel.Dialogs {
+        final List<String> asked = new CopyOnWriteArrayList<>();
+        final List<String> told = new CopyOnWriteArrayList<>();
+        private final java.util.ArrayDeque<Boolean> next = new java.util.ArrayDeque<>();
+        Answers(Boolean... answers) { next.addAll(List.of(answers)); }
+        @Override public boolean confirm(String title, String text, String verb) {
+            asked.add(text);
+            Boolean a = next.poll();
+            return a == null || a;
+        }
+        @Override public void tell(String title, String text) { told.add(text); }
+    }
+
+    /** An Installed tab over an open store; it never looks for an engine. */
+    private static InstalledPanel installed(opentrap.extensions.store.Store store, Answers answers) {
+        return onEdt(() -> new InstalledPanel(new SuiteContext(), store, () -> null, answers));
+    }
+
+    /** The ids queued for {@code action}, in queue order. */
+    private static List<String> queued(opentrap.extensions.store.Store store, Pending.Action action) {
+        return store.pending().stream().filter(p -> p.action() == action).map(Pending::id).toList();
     }
 
     private static final String IP = "127.0.0.1";

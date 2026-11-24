@@ -735,9 +735,18 @@ public final class StorePanel extends JPanel {
         return c == 0;
     }
 
-    /** Downloads and queues {@code plan} off the EDT, with a progress dialog whose Cancel stops it. */
-    private void download(List<Entry> plan, String title) {
-        Window owner = SwingUtilities.getWindowAncestor(this);
+    private void download(List<Entry> plan, String title) { download(this, store, plan, title, null); }
+
+    /** A step that runs on the download's thread once everything is queued. */
+    interface AfterQueue { void run() throws java.io.IOException; }
+
+    /**
+     * Downloads and queues {@code plan} off the EDT, with a progress dialog
+     * whose Cancel stops it, then runs {@code after} (may be null) on the same
+     * thread. A failure of either is told over {@code parent}.
+     */
+    static void download(Component parent, Store store, List<Entry> plan, String title, AfterQueue after) {
+        Window owner = SwingUtilities.getWindowAncestor(parent);
         JDialog dlg = new JDialog(owner, title, Dialog.ModalityType.APPLICATION_MODAL);
         JProgressBar bar = new JProgressBar(0, 1000);
         bar.setIndeterminate(true);
@@ -774,6 +783,7 @@ public final class StorePanel extends JPanel {
         AtomicBoolean shown = new AtomicBoolean(true);
         Thread.ofVirtual().name("addon-store-install").start(() -> {
             String error = null;
+            boolean queued = false;
             try {
                 store.install(plan, (d, t) -> {
                     done.set(d);
@@ -785,17 +795,19 @@ public final class StorePanel extends JPanel {
                         if (tt > 0) bar.setValue((int) Math.min(1000, done.get() * 1000 / tt));
                     });
                 }, cancelled::get);
+                queued = true;
+                if (after != null) after.run();
             } catch (InterruptedIOException ex) {
                 if (!cancelled.get()) error = why(ex);
             } catch (Exception ex) {
                 error = why(ex);
             }
-            String failed = error;
+            String failed = error == null ? null : queued ? "The add-ons were queued, but then: " + error
+                    : "Nothing was queued: " + error;
             SwingUtilities.invokeLater(() -> {
                 dlg.dispose();
                 if (failed != null) {
-                    JOptionPane.showMessageDialog(this, Ui.note("Nothing was queued: " + failed), title,
-                            JOptionPane.ERROR_MESSAGE);
+                    JOptionPane.showMessageDialog(parent, Ui.note(failed), title, JOptionPane.ERROR_MESSAGE);
                 }
             });
         });
