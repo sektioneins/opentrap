@@ -65,12 +65,12 @@ For everything else, the original project is the place to go:
   rendered as HTML in tables and labels, "Copy as curl" quotes every part of the
   request, and redirects no longer carry cookies and credentials to another
   origin. Repeater's "On-site only" and "In-scope only" modes stop at a redirect
-  that leaves the site or the scope, and the status says why. Scope checks read a path the way the server
-  does, so `..` and percent-escapes can no longer step out of a path in scope or
-  around an excluded one. The proxy refuses
-  to forward a request to itself. A cookie set without a
-  `Domain` goes back only to the host that set it, not to its subdomains, and the
-  cookie jar shows which cookies are host-only. The CA key and the saved
+  that leaves the site or the scope, and the status says why. Scope checks read
+  a path the way the server does, so `..` and percent-escapes can no longer step
+  out of a path in scope or around an excluded one. The proxy refuses to forward
+  a request to itself. A cookie set without a `Domain` goes back only to the
+  host that set it, not to its subdomains, and the cookie jar shows which
+  cookies are host-only. The CA key and the saved
   application logins are written readable by their owner only from the start.
   Stopping and restarting a Sequencer capture no longer leaves the old capture
   running and mixing its tokens into the new one.
