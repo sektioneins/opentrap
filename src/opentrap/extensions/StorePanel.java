@@ -40,6 +40,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 /**
  * Extensions > Store: what the add-on sources offer, one row per add-on, and
@@ -65,6 +66,8 @@ public final class StorePanel extends JPanel {
 
     private final SuiteContext ctx;
     private final Store store;
+    /** The install and version of the engine a start would run, or null for none; read off the EDT. */
+    private final Supplier<ZapEngine.Install> engine;
     private final List<Row> rows = new ArrayList<>();
     private final Model model = new Model();
     private final JTable table = new JTable(model);
@@ -90,9 +93,18 @@ public final class StorePanel extends JPanel {
     private boolean reloading;
 
     public StorePanel(SuiteContext ctx, Store store) {
+        this(ctx, store, () -> {
+            ZapEngine ze = ZapEngine.shared();
+            return ze == null ? null : ze.install();
+        });
+    }
+
+    /** A Store tab that opens the store, when it is not open yet, for the engine {@code engine} names. */
+    StorePanel(SuiteContext ctx, Store store, Supplier<ZapEngine.Install> engine) {
         super(new BorderLayout());
         this.ctx = ctx;
         this.store = store;
+        this.engine = engine;
         setOpaque(false);
 
         // ---- filter bar ----
@@ -184,7 +196,7 @@ public final class StorePanel extends JPanel {
         reload();
         if (!store.isOpen()) {
             Thread.ofVirtual().name("addon-store-open").start(() -> {
-                String why = openFromEngine(store);
+                String why = openFromEngine(store, engine);
                 SwingUtilities.invokeLater(() -> {
                     notOpen = why;
                     reload();
@@ -216,11 +228,10 @@ public final class StorePanel extends JPanel {
      * hook does, reading only files: the sources, the cached lists and the
      * engine's own add-ons. Returns why it could not, or null once it is open.
      */
-    static String openFromEngine(Store store) {
+    static String openFromEngine(Store store, Supplier<ZapEngine.Install> engine) {
         try {
             if (store.isOpen()) return null;
-            ZapEngine ze = ZapEngine.shared();
-            ZapEngine.Install in = ze == null ? null : ze.install();
+            ZapEngine.Install in = engine.get();
             if (in == null) return "No scan engine is installed, so there is no ZAP version to list add-ons for.";
             store.open(Version.parse(in.version()), in.dir());
             return null;
@@ -237,8 +248,9 @@ public final class StorePanel extends JPanel {
             model.fireTableDataChanged();
             showDetail(null);
             emptyText.setText(notOpen != null ? notOpen : "Not fetched yet");
-            emptyRefresh.setVisible(notOpen == null);
-            refresh.setEnabled(notOpen == null);
+            // Refresh tries the open again, so it stays on after a failed one
+            emptyRefresh.setVisible(true);
+            refresh.setEnabled(refreshCancel == null || !refreshCancel.get());
             updateAll.setEnabled(false);
             sourcesLine.setText(" ");
             cards.show(body, "empty");
@@ -273,7 +285,10 @@ public final class StorePanel extends JPanel {
                 Entry best = best(offers, line, in, update);
                 if (!q.isEmpty() && !matches(best, q)) continue;
                 boolean newBuild = in != null && best.equals(update) && update.version().equals(in.version());
-                rows.add(new Row(id, best, in, rowAction(best, in, newBuild)));
+                String action = rowAction(best, in, newBuild);
+                // only what the store counts as an update is offered as one: never a less stable version
+                if (action.equals("Update") && !best.equals(update)) action = "Installed";
+                rows.add(new Row(id, best, in, action));
             }
             rows.sort(Comparator.comparing((Row r) -> r.best().name().toLowerCase(Locale.ROOT))
                     .thenComparing(Row::id));
@@ -451,7 +466,7 @@ public final class StorePanel extends JPanel {
         JLabel name = new JLabel(e.name());
         name.setFont(Fonts.ui(Font.BOLD, 17));
         title.add(name, BorderLayout.CENTER);
-        title.add(actionButton(r, cat), BorderLayout.EAST);
+        title.add(actionButton(r), BorderLayout.EAST);
         add(col, title);
 
         List<String> by = new ArrayList<>();
@@ -553,20 +568,53 @@ public final class StorePanel extends JPanel {
         return null;
     }
 
-    private JButton actionButton(Row r, Catalogue cat) {
+    /** Why a change to {@code id} cannot be queued now because one is queued already, or null. */
+    private String queued(String id) {
+        Pending p = pendingOf(id);
+        if (p == null) return null;
+        return "already queued for the next engine start: " + p.action().name().toLowerCase(Locale.ROOT)
+                + "; undo it in Installed first";
+    }
+
+    /** Why the row's action button is off, or null when it is on: installed, queued, or offline. */
+    String whyNot(String id) {
+        for (Row r : rows) {
+            if (!r.id().equals(id)) continue;
+            if (r.action().equals("Installed")) return "installed";
+            String q = queued(id);
+            return q != null ? q : unreachable(store.catalogue(), r.best().sourceId());
+        }
+        return "not listed";
+    }
+
+    /** Sets the Source filter to the source with this id, or to All for null; for tests. */
+    void showSource(String sourceId) {
+        for (int i = 0; i < sourceItems.getSize(); i++) {
+            SourceItem it = sourceItems.getElementAt(i);
+            if (java.util.Objects.equals(it.id(), sourceId)) { source.setSelectedItem(it); return; }
+        }
+        throw new IllegalArgumentException("No source " + sourceId + " in the Source filter");
+    }
+
+    /** The row's action for {@code id}, or null when it is not listed; for tests. */
+    String actionOf(String id) {
+        for (Row r : rows) if (r.id().equals(id)) return r.action();
+        return null;
+    }
+
+    private JButton actionButton(Row r) {
         String text = r.action().equals("New build") ? "Update" : r.action();
         JButton b = Ui.primaryButton(text, null);
-        Pending p = pendingOf(r.id());
-        String unreachable = unreachable(cat, r.best().sourceId());
+        String why = whyNot(r.id());
         if (r.action().equals("Installed")) {
             b.setEnabled(false);
-        } else if (p != null && p.target() != null) {
+        } else if (queued(r.id()) != null) {
             b.setText("Queued");
             b.setEnabled(false);
-            b.setToolTipText("takes effect when the engine restarts; undo it in Installed");
-        } else if (unreachable != null) {
+            b.setToolTipText(why);
+        } else if (why != null) {
             b.setEnabled(false);
-            b.setToolTipText(unreachable);
+            b.setToolTipText(why);
         } else {
             b.setToolTipText(r.action().equals("New build")
                     ? "the folder holds another build of the installed version"
@@ -577,7 +625,7 @@ public final class StorePanel extends JPanel {
     }
 
     /** Why entries of this source cannot be downloaded now, or null: only a feed needs the network. */
-    private static String unreachable(Catalogue cat, String sourceId) {
+    static String unreachable(Catalogue cat, String sourceId) {
         Source s = cat.source(sourceId).orElse(null);
         if (s == null || (s.type() != SourceType.ZAP_FEED && s.type() != SourceType.FEED_URL)) return null;
         String error = cat.status(sourceId).error();
@@ -600,12 +648,22 @@ public final class StorePanel extends JPanel {
         download(plan, verb + " " + r.best().name());
     }
 
-    private void updateAll() {
+    /** What Update all downloads, dependencies first and each id once, and one "name: reason" per update left out. */
+    record UpdatePlan(List<Entry> plan, List<String> leftOut) {}
+
+    /**
+     * Every update the store counts, with what it needs, except those whose
+     * source cannot be reached, whose dependencies cannot be met, or whose
+     * add-on has a change queued already: another update would be downloaded
+     * and queued twice, and one over a queued removal would bring it back.
+     */
+    UpdatePlan planUpdates() {
         Catalogue cat = store.catalogue();
         List<Entry> plan = new ArrayList<>();
         List<String> refused = new ArrayList<>();
-        for (Entry u : updates) {
-            String why = unreachable(cat, u.sourceId());
+        for (Entry u : store.updates()) {
+            String why = queued(u.id());
+            if (why == null) why = unreachable(cat, u.sourceId());
             if (why != null) { refused.add(u.name() + ": " + why); continue; }
             try {
                 for (Entry e : store.plan(u)) {
@@ -617,6 +675,13 @@ public final class StorePanel extends JPanel {
                 refused.add(u.name() + ": " + ex.getMessage());
             }
         }
+        return new UpdatePlan(List.copyOf(plan), List.copyOf(refused));
+    }
+
+    private void updateAll() {
+        UpdatePlan up = planUpdates();
+        List<Entry> plan = up.plan();
+        List<String> refused = up.leftOut();
         StringBuilder text = new StringBuilder();
         if (!plan.isEmpty()) text.append(listText("These add-ons are downloaded now and take effect when the engine restarts:", plan));
         if (!refused.isEmpty()) {
@@ -751,15 +816,26 @@ public final class StorePanel extends JPanel {
         updateAll.setEnabled(false);
         sourcesLine.setText("Refreshing...");
         Thread.ofVirtual().name("addon-store-refresh").start(() -> {
-            String why = openFromEngine(store);
-            if (why == null) store.refresh(cancel::get);
-            SwingUtilities.invokeLater(() -> {
-                refreshCancel = null;
-                refresh.setText("Refresh");
-                emptyRefresh.setEnabled(true);
-                notOpen = why;
-                reload();
-            });
+            String why = null;
+            String failed = null;
+            try {
+                why = openFromEngine(store, engine);
+                if (why == null) store.refresh(cancel::get);
+            } catch (RuntimeException e) {
+                failed = why(e);
+            } finally {
+                String notOpenNow = why;
+                String error = failed;
+                SwingUtilities.invokeLater(() -> {
+                    refreshCancel = null;
+                    refresh.setText("Refresh");
+                    refresh.setEnabled(true);
+                    emptyRefresh.setEnabled(true);
+                    notOpen = notOpenNow;
+                    reload();
+                    if (error != null) sourcesLine.setText("The refresh failed: " + error);
+                });
+            }
         });
     }
 

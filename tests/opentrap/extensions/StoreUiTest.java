@@ -7,6 +7,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
@@ -27,6 +28,7 @@ import opentrap.extensions.store.Installed;
 import opentrap.extensions.store.Kind;
 import opentrap.extensions.store.Source;
 import opentrap.extensions.store.SourceList;
+import opentrap.extensions.store.SourceStatus;
 import opentrap.extensions.store.SourceType;
 import opentrap.extensions.store.Status;
 import opentrap.extensions.store.Version;
@@ -206,9 +208,12 @@ public final class StoreUiTest {
                     String base = "https://" + IP + ":" + https.getAddress().getPort() + "/";
                     sources.add(new Source("src-1", "Mirror", SourceType.FEED_URL, base + "feed.xml", base, true));
                     sources.save();
-                    store.open(Version.parse("2.17.0"), engine);
-                    StorePanel panel = onEdt(() -> new StorePanel(new SuiteContext(), store));
-                    onEdt(() -> panel.model().getRowCount());
+                    Expect.isFalse(store.isOpen(), "the store is not open before the tab");
+                    StorePanel panel = onEdt(() -> new StorePanel(new SuiteContext(), store,
+                            () -> new ZapEngine.Install(engine, "2.17.0")));
+                    // the tab opens the store off the EDT, then lists the bundled add-ons
+                    await(() -> store.isOpen() && onEdt(() -> panel.model().getRowCount()) == CRAWL.size(),
+                            () -> "the tab opened the store and listed the bundled add-ons");
                     Expect.equal(requests.get(), 0, "no source is contacted by opening the tab");
                     store.refresh(() -> false);
                     Expect.equal(requests.get(), 1, "a refresh does contact the source");
@@ -217,6 +222,133 @@ public final class StoreUiTest {
                 https.stop(0);
             }
         });
+
+        Harness.test("a local folder's rebuild of the installed version shows as a new build", () ->
+                StoreFixtures.inTemp(CRAWL, (store, engine) -> {
+                    Path folder = folderSource(engine, false);
+                    ZapFixtures.zap(folder, "foo", "1.0.0", "release");
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    install(store, offer(store, "foo", "1.0.0"));
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    ZapFixtures.zap(folder, "foo", "1.0.0", "release", "commonlib", "");
+                    store.refresh(() -> false);
+                    StorePanel panel = panel(store);
+                    Expect.equal(onEdt(() -> panel.actionOf("foo")), "New build", "the row's action");
+                    Expect.equal(onEdt(() -> mark(panel, "Add-on foo")), "new build", "the row's mark");
+                    Expect.isNull(onEdt(() -> panel.whyNot("foo")), "a local folder needs no network");
+                }));
+
+        Harness.test("an installed release with only a newer beta on its line shows as installed", () ->
+                StoreFixtures.inTemp(CRAWL, (store, engine) -> {
+                    Path folder = folderSource(engine, false);
+                    Path old = ZapFixtures.zap(folder, "foo", "1.0.0", "release");
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    install(store, offer(store, "foo", "1.0.0"));
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    Files.delete(old);
+                    ZapFixtures.zap(folder, "foo", "2.0.0", "beta");
+                    store.refresh(() -> false);
+                    Expect.equal(store.updates(), List.of(), "the store counts no update");
+                    StorePanel panel = panel(store);
+                    Expect.equal(onEdt(() -> panel.actionOf("foo")), "Installed", "the row's action");
+                    Expect.equal(onEdt(() -> mark(panel, "Add-on foo")), "", "no update mark");
+                    Expect.equal(onEdt(panel::tabTitle), "Store", "no update in the tab title");
+                }));
+
+        Harness.test("an update from ZAP's feed shows on a bundled add-on's row and in the tab title", () ->
+                StoreFixtures.inTemp(CRAWL, (store, engine) -> {
+                    zapCache(engine, ZapFixtures.addon("spider", "2.0.0", "release", ZAP_URL + "spider.zap", HASH));
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    StorePanel panel = panel(store);
+                    Expect.equal(onEdt(() -> panel.actionOf("spider")), "Update", "the bundled spider's row");
+                    Expect.equal(onEdt(() -> mark(panel, "Add-on spider")), "update", "the row's mark");
+                    Expect.equal(onEdt(() -> panel.actionOf("network")), "Installed", "a bundled add-on without update");
+                    Expect.equal(onEdt(panel::tabTitle), "Store (1)", "the tab title counts the update");
+                }));
+
+        Harness.test("an add-on offered by two sources comes from ZAP's feed unless installed from the other", () ->
+                StoreFixtures.inTemp(CRAWL, (store, engine) -> {
+                    Path folder = folderSource(engine, true);
+                    zapCache(engine, ZapFixtures.addon("retire", "1.0.0", "release", ZAP_URL + "retire.zap", HASH));
+                    ZapFixtures.zap(folder, "retire", "2.0.0", "release");
+                    ZapFixtures.zap(folder, "mine", "1.0.0", "release");
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    StorePanel panel = panel(store);
+                    Expect.equal(onEdt(() -> panel.actionOf("retire")), "Install", "not installed");
+                    Expect.equal(onEdt(() -> version(panel, "Add-on retire")), "1.0.0",
+                            "offered from ZAP's feed, not the newer folder build");
+                    onEdt(() -> { panel.showSource("src-1"); return null; });
+                    Expect.equal(onEdt(() -> panel.model().getRowCount()), 2, "the Source filter keeps the folder's two");
+                    Expect.equal(onEdt(() -> version(panel, "Add-on retire")), "2.0.0", "the folder's retire");
+                    onEdt(() -> { panel.showSource(null); return null; });
+                    Expect.equal(onEdt(() -> panel.model().getRowCount()), CRAWL.size() + 2, "every add-on again");
+                    install(store, offer(store, "retire", "2.0.0"));
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    // the engine start tells its listeners on a thread of its own
+                    await(() -> "Installed".equals(onEdt(() -> panel.actionOf("retire"))),
+                            () -> "installed from the folder: " + onEdt(() -> panel.actionOf("retire")));
+                    Expect.equal(onEdt(() -> version(panel, "Add-on retire")), "2.0.0", "offered from its own source");
+                }));
+
+        Harness.test("entries of a source that could not be reached cannot be installed", () ->
+                StoreFixtures.inTemp(CRAWL, new Fetcher(defaultTls(), host -> null), (store, engine) -> {
+                    Path folder = folderSource(engine, false);
+                    ZapFixtures.zap(folder, "mine", "1.0.0", "release");
+                    String base = "https://" + IP + ":" + closedPort() + "/";
+                    SourceList sources = SourceList.load(engine.resolveSibling("addons"), "2.17");
+                    sources.add(new Source("src-2", "Mirror", SourceType.FEED_URL, base + "feed.xml", base, true));
+                    sources.save();
+                    cache(engine, "src-2", ZapFixtures.addon("far", "1.0.0", "release", base + "far.zap", HASH));
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    StorePanel panel = panel(store);
+                    Expect.isNull(onEdt(() -> panel.whyNot("far")), "the cached entry can be installed");
+                    store.refresh(() -> false);
+                    Expect.notNull(store.catalogue().status("src-2").error(), "the refresh failed");
+                    await(() -> onEdt(() -> panel.whyNot("far")) != null, () -> "the row hears the refresh");
+                    Expect.isTrue(onEdt(() -> panel.whyNot("far")).startsWith("could not reach Mirror"),
+                            "its source is named: " + onEdt(() -> panel.whyNot("far")));
+                    Expect.equal(onEdt(() -> panel.actionOf("far")), "Install", "still listed from the cache");
+                    Expect.isNull(onEdt(() -> panel.whyNot("mine")), "a local folder's entry still installs");
+                }));
+
+        Harness.test("a source's status line says when it was fetched and why its last try failed", () -> {
+            Instant now = Instant.parse("2026-11-24T12:00:00Z");
+            Source feed = new Source("src-2", "Mirror", SourceType.FEED_URL, "https://a.example/f.xml",
+                    "https://a.example/", true);
+            Source folder = new Source("src-1", "Mine", SourceType.LOCAL_FOLDER, "/tmp/x", "", true);
+            Expect.equal(StorePanel.statusText(feed, new SourceStatus(null, null, List.of()), now),
+                    "not fetched yet", "never fetched");
+            Expect.equal(StorePanel.statusText(feed, new SourceStatus(now.minusSeconds(7200), "connection refused",
+                            List.of("x: bad hash", "y: bad id")), now),
+                    "fetched 2 hours ago, last try failed: connection refused, 2 left out", "fetched, then failed");
+            Expect.equal(StorePanel.statusText(folder, new SourceStatus(now.minusSeconds(20), null, List.of()), now),
+                    "read just now", "a local folder is read");
+        });
+
+        Harness.test("update all leaves out add-ons with a change queued", () ->
+                StoreFixtures.inTemp(CRAWL, (store, engine) -> {
+                    Path folder = folderSource(engine, false);
+                    for (String id : List.of("foo", "bar", "baz")) ZapFixtures.zap(folder, id, "1.0.0", "release");
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    for (String id : List.of("foo", "bar", "baz")) install(store, offer(store, id, "1.0.0"));
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    for (String id : List.of("foo", "bar", "baz")) ZapFixtures.zap(folder, id, "2.0.0", "release");
+                    store.refresh(() -> false);
+                    store.remove("foo");
+                    install(store, offer(store, "bar", "2.0.0"));
+                    StorePanel panel = panel(store);
+                    StorePanel.UpdatePlan up = onEdt(panel::planUpdates);
+                    Expect.equal(up.plan().stream().map(Entry::id).toList(), List.of("baz"), "only baz is updated");
+                    Expect.equal(up.leftOut().size(), 2, "two are left out: " + up.leftOut());
+                    Expect.isTrue(up.leftOut().get(0).startsWith("Add-on bar: already queued")
+                            && up.leftOut().get(0).contains("update"), "bar's queued update: " + up.leftOut());
+                    Expect.isTrue(up.leftOut().get(1).startsWith("Add-on foo: already queued")
+                            && up.leftOut().get(1).contains("remove"), "foo's queued removal: " + up.leftOut());
+                    Expect.equal(onEdt(() -> panel.actionOf("foo")), "Update", "foo still has its update");
+                    Expect.isTrue(String.valueOf(onEdt(() -> panel.whyNot("foo"))).contains("remove"),
+                            "but its button is off over the queued removal");
+                    Expect.isNull(onEdt(() -> panel.whyNot("baz")), "baz's button is on");
+                }));
 
         Harness.test("an engine start that cannot bring the record in line stops it being trusted", () ->
                 StoreFixtures.started(CRAWL, List.of("spider"), (store, engine) -> {
@@ -249,6 +381,71 @@ public final class StoreUiTest {
             return https;
         } catch (java.io.IOException e) {
             throw new java.io.UncheckedIOException(e);
+        }
+    }
+
+    private static final String ZAP_URL = "https://github.com/zaproxy/zap-extensions/releases/download/x/";
+    private static final String HASH = "SHA-256:" + "a".repeat(64);
+
+    /** A Store tab over an open store; it never looks for an engine. */
+    private static StorePanel panel(opentrap.extensions.store.Store store) {
+        return onEdt(() -> new StorePanel(new SuiteContext(), store, () -> null));
+    }
+
+    /** Adds a local folder source "src-1" next to the engine and returns its folder; ZAP's feed on or off. */
+    private static Path folderSource(Path engine, boolean zapFeed) throws java.io.IOException {
+        Path folder = Files.createDirectories(engine.resolveSibling("mine"));
+        SourceList sources = SourceList.load(engine.resolveSibling("addons"), "2.17");
+        sources.update(Source.zapFeed("2.17", zapFeed));
+        sources.add(new Source("src-1", "Mine", SourceType.LOCAL_FOLDER, folder.toString(), "", true));
+        sources.save();
+        return folder;
+    }
+
+    /** ZAP's feed as if fetched just now, from the cache alone. */
+    private static void zapCache(Path engine, String... addons) throws java.io.IOException {
+        cache(engine, Source.ZAP_ID, addons);
+    }
+
+    private static void cache(Path engine, String sourceId, String... addons) throws java.io.IOException {
+        Path dir = Files.createDirectories(engine.resolveSibling("addons").resolve("2.17").resolve("cache"));
+        Files.writeString(dir.resolve(sourceId), Instant.now() + "\n" + ZapFixtures.feed(addons));
+    }
+
+    private static Entry offer(opentrap.extensions.store.Store store, String id, String version) {
+        for (Entry e : store.catalogue().offers(id)) if (e.version().toString().equals(version)) return e;
+        throw new AssertionError(id + " " + version + " is not offered");
+    }
+
+    private static void install(opentrap.extensions.store.Store store, Entry e) throws Exception {
+        store.install(store.plan(e), (done, total) -> {}, () -> false);
+    }
+
+    /** The model's cell in column {@code col} of the row named {@code name}. */
+    private static String cell(StorePanel panel, String name, int col) {
+        javax.swing.table.TableModel m = panel.model();
+        for (int r = 0; r < m.getRowCount(); r++) {
+            if (name.equals(m.getValueAt(r, 0))) return String.valueOf(m.getValueAt(r, col));
+        }
+        throw new AssertionError(name + " is not listed");
+    }
+
+    private static String version(StorePanel panel, String name) { return cell(panel, name, 1); }
+
+    private static String mark(StorePanel panel, String name) { return cell(panel, name, 3); }
+
+    private static javax.net.ssl.SSLContext defaultTls() {
+        try {
+            return javax.net.ssl.SSLContext.getDefault();
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /** A loopback port nothing listens on: bound once, then closed. */
+    private static int closedPort() throws java.io.IOException {
+        try (java.net.ServerSocket s = new java.net.ServerSocket(0, 0, java.net.InetAddress.getByName(IP))) {
+            return s.getLocalPort();
         }
     }
 
