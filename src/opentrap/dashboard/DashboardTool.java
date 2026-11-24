@@ -2359,24 +2359,63 @@ public class DashboardTool implements ToolModule {
         task.log("Starting scan engine (first run can take ~30s)...");
         ctx.taskChanged(task);
         final java.util.List<opentrap.engine.ZapScanner.Seed> fseeds = seeds;
-        Thread zth = new Thread(() -> {
-            try {
-                ze.start();
-                // Threads are set once here, not per target.
-                try { ze.api().setSpiderThreads(threads); ze.api().setActiveThreadPerHost(threads); }
-                catch (Exception _) {}
-                task.log("Engine ready. Crawling " + fseeds.size() + " target(s)");
-                ctx.taskChanged(task);
-                new opentrap.engine.ZapScanner(ctx, ze)
-                        .crawlAndAudit(fseeds, thenAudit, cfg, task);
-            } catch (Exception ex) {
-                task.log("Scan engine error: " + ex.getMessage());
-                task.setState(opentrap.core.ScanTask.State.FINISHED);
-                ctx.taskChanged(task);
-            }
-        }, "zap-scan");
+        Thread zth = new Thread(() -> runScan(ctx, ze, opentrap.extensions.store.Store.sharedIfSet(),
+                fseeds, thenAudit, cfg, threads, task), "zap-scan");
         zth.setDaemon(true);
         zth.start();
+    }
+
+    /**
+     * The crawl job on its own thread: start the engine, check that the
+     * add-ons the job needs are active, then crawl and audit. The check reads
+     * the store's record only once the engine is up, since the engine's start
+     * is what reads its add-ons into the record. A crawl or audit whose add-ons
+     * are missing does not start, and its task says which ones; an AJAX crawl
+     * whose add-ons are missing is left out of the crawl, as one that fails
+     * is. {@code store} is null when there is no add-on store to ask.
+     */
+    static void runScan(SuiteContext ctx, opentrap.engine.ZapEngine ze, opentrap.extensions.store.Store store,
+                        java.util.List<opentrap.engine.ZapScanner.Seed> seeds, boolean thenAudit,
+                        opentrap.engine.ScanConfig cfg, int threads, ScanTask task) {
+        try {
+            ze.start();
+            List<String> refused = new ArrayList<>();
+            refused.addAll(missing(store, opentrap.extensions.store.CoreAddOns.Feature.CRAWL));
+            if (thenAudit) refused.addAll(missing(store, opentrap.extensions.store.CoreAddOns.Feature.AUDIT));
+            if (!refused.isEmpty()) {
+                for (String line : refused) task.log(line);
+                task.setState(ScanTask.State.FINISHED);
+                ctx.taskChanged(task);
+                return;
+            }
+            if (cfg.ajaxSpider()) {
+                List<String> ajax = missing(store, opentrap.extensions.store.CoreAddOns.Feature.AJAX_CRAWL);
+                if (!ajax.isEmpty()) {
+                    for (String line : ajax) task.log(line);
+                    cfg = cfg.withoutAjaxCrawl();
+                }
+            }
+            // Threads are set once here, not per target.
+            try { ze.api().setSpiderThreads(threads); ze.api().setActiveThreadPerHost(threads); }
+            catch (Exception _) {}
+            task.log("Engine ready. Crawling " + seeds.size() + " target(s)");
+            ctx.taskChanged(task);
+            new opentrap.engine.ZapScanner(ctx, ze)
+                    .crawlAndAudit(seeds, thenAudit, cfg, task);
+        } catch (Exception ex) {
+            task.log("Scan engine error: " + ex.getMessage());
+            task.setState(ScanTask.State.FINISHED);
+            ctx.taskChanged(task);
+        }
+    }
+
+    /** The line a task logs when {@code f}'s add-ons are not active, as a list of none or one. */
+    private static List<String> missing(opentrap.extensions.store.Store store,
+                                        opentrap.extensions.store.CoreAddOns.Feature f) {
+        if (store == null) return List.of();
+        List<String> ids = store.notActive(f);
+        return ids.isEmpty() ? List.of()
+                : List.of(opentrap.extensions.store.CoreAddOns.missingMessage(f, ids));
     }
 
     // --------------------------------------------------------- table model

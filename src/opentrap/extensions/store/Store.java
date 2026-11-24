@@ -60,6 +60,7 @@ public final class Store {
     private volatile List<String> missing = List.of();
     private volatile String lastStartError;
     private volatile Map<String, String> applyErrors = Map.of();
+    private volatile boolean reflectsEngine;
 
     public Store(Path root, Fetcher fetcher) {
         this.root = root;
@@ -76,6 +77,9 @@ public final class Store {
         if (shared == null) throw new IllegalStateException("The add-on store is not set up yet");
         return shared;
     }
+
+    /** The store of {@code ~/.opentrap/addons}, or null before {@link #initShared}, as in tests. */
+    public static synchronized Store sharedIfSet() { return shared; }
 
     /**
      * Reads the sources, the cached lists and the record for this ZAP version.
@@ -113,6 +117,24 @@ public final class Store {
     public List<Pending> pending() { return pending; }
 
     public int pendingCount() { return pending.size(); }
+
+    /**
+     * Whether an engine start in this JVM has brought the record in line with
+     * the engine's add-ons. Before that the record may still lack the bundled
+     * add-ons (it is empty before the first start), so it cannot say what the
+     * running engine lacks.
+     */
+    public boolean reflectsEngine() { return reflectsEngine; }
+
+    /**
+     * The add-ons {@code f} needs that the engine does not run, by the record
+     * of the last engine start. None while the record does not reflect the
+     * engine yet: a check then lets the feature start.
+     */
+    public List<String> notActive(CoreAddOns.Feature f) {
+        if (!reflectsEngine) return List.of();
+        return CoreAddOns.missing(f, installed);
+    }
 
     /** Bundled add-ons the last engine start dropped because their engine file is gone. */
     public List<String> missing() { return missing; }
@@ -346,6 +368,7 @@ public final class Store {
                 kind.reconcile(rec);
                 rec.save();
                 publish(rec);
+                reflectsEngine = true;
                 clearStale(kind.stagingDir(), rec);
                 OwnerOnly.directory(kind.enabledDir());
             } catch (IOException | RuntimeException e) {

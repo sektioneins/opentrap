@@ -103,4 +103,11 @@ public record ScanConfig(
     public static ScanConfig crawlDefault() {
         return preset("Fast");
     }
+
+    /** This configuration with the AJAX crawl switched off, the rest unchanged. */
+    public ScanConfig withoutAjaxCrawl() {
+        return new ScanConfig(name, crawlDepth, crawlDurationMin, submitForms, false,
+                ajaxMaxDurationMin, ajaxMaxDepth, ajaxMaxStates, attackStrength, alertThreshold,
+                injectableMask, rpcMask, delayMs, scanDurationMin);
+    }
 }

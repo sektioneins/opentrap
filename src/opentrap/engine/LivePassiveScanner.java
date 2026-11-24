@@ -5,11 +5,15 @@ import opentrap.core.HttpService;
 import opentrap.core.Issue;
 import opentrap.core.SuiteContext;
 import opentrap.core.UpstreamProxy;
+import opentrap.extensions.store.CoreAddOns;
+import opentrap.extensions.store.Store;
 import opentrap.spider.Cdp.JsonValue;
 
 import java.net.URI;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 
 /**
  * Live passive scanning of proxy traffic. When enabled, in-scope
@@ -37,6 +41,7 @@ public final class LivePassiveScanner {
 
     private final SuiteContext ctx;
     private final ZapEngine engine;   // null when no scan engine is installed
+    private final Supplier<Store> store;   // the add-on store to check, or null for none
     private volatile boolean enabled;
     private volatile Live live;       // null while no engine runs: traffic goes direct
     private volatile boolean paused;  // the engine went away while the live audit routed through it
@@ -48,9 +53,13 @@ public final class LivePassiveScanner {
      * A scanner on {@code engine}. It hears the engine's states from here on, so
      * it is made before the engine starts, as the dashboard does.
      */
-    LivePassiveScanner(SuiteContext ctx, ZapEngine engine) {
+    LivePassiveScanner(SuiteContext ctx, ZapEngine engine) { this(ctx, engine, Store::sharedIfSet); }
+
+    /** A scanner on {@code engine} that checks its add-ons in the store {@code store} gives. */
+    LivePassiveScanner(SuiteContext ctx, ZapEngine engine, Supplier<Store> store) {
         this.ctx = ctx;
         this.engine = engine;
+        this.store = store;
         if (engine != null) engine.addStateListener(this::engineChanged);
     }
 
@@ -101,7 +110,15 @@ public final class LivePassiveScanner {
                 live = follow(engine.api());
                 if (paused) {
                     paused = false;
-                    if (enabled) ctx.alert("scanner", "Live audit resumed: traffic routed through the engine again");
+                    // The restarted engine may run without an add-on the live audit needs.
+                    String why = enabled ? missingAddOns() : null;
+                    if (why != null) {
+                        ctx.alert("scanner", why);
+                        enabled = false;
+                        stopPoller();
+                    } else if (enabled) {
+                        ctx.alert("scanner", "Live audit resumed: traffic routed through the engine again");
+                    }
                 }
             }
             case STOPPED, FAILED -> {
@@ -138,6 +155,13 @@ public final class LivePassiveScanner {
             }
             try {
                 ze.start();   // the engine's RUNNING state gives this scanner its proxy
+                // Checked once the engine is up: its start reads its add-ons into the store's record.
+                String why = missingAddOns();
+                if (why != null) {
+                    ctx.alert("scanner", why);
+                    enabled = false;
+                    return;
+                }
                 // Switched off while the engine started: neither active nor polling.
                 if (startPoller()) {
                     ctx.alert("scanner", "Live passive scanning is active (traffic routed through the engine)");
@@ -149,6 +173,14 @@ public final class LivePassiveScanner {
         }, "live-passive-start");
         t.setDaemon(true);
         t.start();
+    }
+
+    /** What the event log says when the engine lacks an add-on the live audit needs, or null. */
+    private String missingAddOns() {
+        Store s = store.get();
+        if (s == null) return null;
+        List<String> ids = s.notActive(CoreAddOns.Feature.LIVE_AUDIT);
+        return ids.isEmpty() ? null : CoreAddOns.missingMessage(CoreAddOns.Feature.LIVE_AUDIT, ids);
     }
 
     /**

@@ -52,4 +52,10 @@ public final class CoreAddOns {
         }
         return out;
     }
+
+    /** What a feature says where it is started when {@code ids} are not active. */
+    public static String missingMessage(Feature f, List<String> ids) {
+        return f.label() + " needs the add-on(s) " + String.join(", ", ids)
+                + ", which are not active. Enable them in Extensions > Installed.";
+    }
 }

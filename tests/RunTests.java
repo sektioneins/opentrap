@@ -98,6 +98,8 @@ public final class RunTests {
         new opentrap.extensions.store.CatalogueTest().run();
         new opentrap.extensions.store.ResolverTest().run();
         new opentrap.extensions.store.StoreTest().run();
+        new opentrap.extensions.StoreUiTest().run();
+        new opentrap.dashboard.ScanAddOnCheckTest().run();
         new opentrap.ui.ProjectTasksTest().run();
         new opentrap.ui.ProjectSlimTest().run();
         new opentrap.ui.ProjectFileTest().run();
