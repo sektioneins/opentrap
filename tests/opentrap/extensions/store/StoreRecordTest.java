@@ -1,6 +1,9 @@
 package opentrap.extensions.store;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
@@ -29,6 +32,33 @@ public final class StoreRecordTest {
         } finally {
             if (dir != null) delete(dir);
         }
+    }
+
+    /**
+     * Run in a second JVM by the cross-process case: holds the store lock on
+     * {@code args[0]}, says "held", and lets go once its stdin closes, after
+     * writing {@link #DONE} while it still holds the lock.
+     */
+    public static final class HoldLock {
+        static final String DONE = "child-done";
+
+        public static void main(String[] args) throws IOException {
+            Path root = Path.of(args[0]);
+            try (StoreLock l = StoreLock.acquire(root)) {
+                System.out.println("held");
+                System.out.flush();
+                while (System.in.read() >= 0) { }
+                Files.writeString(root.resolve(DONE), "done");
+            }
+        }
+    }
+
+    /** Whether {@code t} is inside {@code FileChannel.lock}, waiting for a file lock. */
+    private static boolean inFileLock(Thread t) {
+        for (StackTraceElement f : t.getStackTrace()) {
+            if (f.getClassName().endsWith("FileChannelImpl") && f.getMethodName().equals("lock")) return true;
+        }
+        return false;
     }
 
     private static void delete(Path dir) {
@@ -187,6 +217,41 @@ public final class StoreRecordTest {
             other.join();
             if (failure.get() != null) throw new AssertionError("other failed: " + failure.get(), failure.get());
             Expect.isTrue(got.get(), "the other thread got the lock after the outer one closed");
+        }));
+
+        Harness.test("another process holding the store lock keeps this one waiting until it lets go", () -> inTemp(root -> {
+            String launcher = ProcessHandle.current().info().command().orElseThrow();
+            Process child = new ProcessBuilder(launcher, "-cp", System.getProperty("java.class.path"),
+                    HoldLock.class.getName(), root.toString()).redirectErrorStream(true).start();
+            try {
+                BufferedReader out = new BufferedReader(new InputStreamReader(child.getInputStream(),
+                        StandardCharsets.UTF_8));
+                // the JVM may print notices first, as for JAVA_TOOL_OPTIONS
+                StringBuilder said = new StringBuilder();
+                for (String line; (line = out.readLine()) != null && !line.equals("held"); ) said.append(line).append('\n');
+                Expect.isTrue(child.isAlive(), "the other process holds the lock: " + said);
+                AtomicBoolean sawDone = new AtomicBoolean();
+                AtomicReference<Throwable> failure = new AtomicReference<>();
+                Thread waiter = Thread.ofPlatform().start(() -> {
+                    try (StoreLock l = StoreLock.acquire(root)) {
+                        sawDone.set(Files.exists(root.resolve(HoldLock.DONE)));
+                    } catch (Throwable e) {
+                        failure.set(e);
+                    }
+                });
+                // only once this process waits on the file itself is the other told to let go
+                long end = System.currentTimeMillis() + 2000;
+                while (waiter.isAlive() && !inFileLock(waiter) && System.currentTimeMillis() < end) Thread.sleep(1);
+                child.getOutputStream().close();
+                waiter.join(2000);
+                Expect.isFalse(waiter.isAlive(), "this process got the lock in the end");
+                if (failure.get() != null) throw new AssertionError("the waiter failed: " + failure.get(), failure.get());
+                Expect.isTrue(sawDone.get(), "and only after the other process let go");
+                Expect.isTrue(child.waitFor(2, java.util.concurrent.TimeUnit.SECONDS), "the other process ended");
+                Expect.equal(child.exitValue(), 0, "cleanly");
+            } finally {
+                child.destroyForcibly();
+            }
         }));
 
         Harness.test("a corrupt store file is an IOException that names the file and the key", () -> inTemp(root -> {
