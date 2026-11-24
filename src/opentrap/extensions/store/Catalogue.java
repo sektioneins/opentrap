@@ -122,6 +122,9 @@ public final class Catalogue {
         return Set.copyOf(out);
     }
 
+    /** The sources as last loaded or refreshed, in their order; the bundled source is not among them. */
+    public List<Source> sources() { return state.sources; }
+
     /** The source with this id, if the catalogue knows it. */
     public java.util.Optional<Source> source(String sourceId) {
         for (Source s : state.sources) if (s.id().equals(sourceId)) return java.util.Optional.of(s);

@@ -31,6 +31,12 @@ public final class StoreFixtures {
 
     /** Runs {@code body} with a store not used yet and an engine install that bundles {@code bundled}. */
     public static void inTemp(List<String> bundled, Body body) {
+        // every source is the engine's plugin folder, so the fetcher is never used
+        inTemp(bundled, new Fetcher(null, host -> null), body);
+    }
+
+    /** As {@link #inTemp(List, Body)}, with a store that fetches through {@code fetcher}. */
+    public static void inTemp(List<String> bundled, Fetcher fetcher, Body body) {
         Path tmp = null;
         try {
             tmp = Files.createTempDirectory("opentrap-store");
@@ -39,8 +45,7 @@ public final class StoreFixtures {
             Path plugin = Files.createDirectories(engine.resolve("plugin"));
             Files.write(engine.resolve("zap-2.17.0.jar"), new byte[0]);
             for (String id : bundled) ZapFixtures.zap(plugin, id, "1.0.0", "release");
-            // every source is the engine's plugin folder, so the fetcher is never used
-            body.run(new Store(tmp.resolve("addons"), new Fetcher(null, host -> null)), engine);
+            body.run(new Store(tmp.resolve("addons"), fetcher), engine);
         } catch (RuntimeException | AssertionError e) {
             throw e;
         } catch (Exception e) {

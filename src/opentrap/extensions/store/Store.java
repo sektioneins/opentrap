@@ -108,6 +108,9 @@ public final class Store {
         return o;
     }
 
+    /** Whether {@link #open} has run, so the catalogue and the actions can be used. */
+    public boolean isOpen() { return opened != null; }
+
     public Catalogue catalogue() { return opened().catalogue; }
 
     /** The installed add-ons as last read. */

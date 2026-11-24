@@ -80,7 +80,7 @@ public final class ZapEngine {
             kill -KILL -"$zap" 2>/dev/null
             """;
 
-    private String jar;             // path to the engine jar; null until a bundled engine is extracted
+    private volatile String jar;    // path to the engine jar; null until a bundled engine is extracted
     private final boolean bundled;  // engine.zip is embedded in this application jar
     // base and api are swapped by restart() under the monitor and read without
     // it through base() and api(), so they are volatile.
@@ -222,6 +222,29 @@ public final class ZapEngine {
     }
 
     public boolean available() { return jar != null || bundled; }
+
+    /** An engine install folder and the ZAP version of its jar, as the start hook is given them. */
+    public record Install(Path dir, String version) {}
+
+    /**
+     * The install folder and ZAP version a start hands the start hook, without
+     * starting or unpacking anything. A bundled engine not unpacked yet names
+     * the folder it is unpacked to and the version it carries. Null when
+     * neither is known.
+     */
+    public Install install() {
+        String j = jar;
+        if (j != null) return installOf(j);
+        if (!bundled) return null;
+        String v = readResource(BUNDLE_VERSION);
+        return v == null || v.isEmpty() ? null : new Install(extractDir().toAbsolutePath(), v);
+    }
+
+    private static Install installOf(String jar) {
+        Path p = Path.of(jar).toAbsolutePath();
+        return new Install(p.getParent(), p.getFileName().toString().replaceFirst("^zap-(.*)\\.jar$", "$1"));
+    }
+
     public ZapApi api() { return api; }
     public String base() { return base; }
 
@@ -414,9 +437,8 @@ public final class ZapEngine {
         StartHook h = startHook;
         if (h == null) return List.of();
         try {
-            Path install = Path.of(jar).toAbsolutePath().getParent();
-            String version = Path.of(jar).getFileName().toString().replaceFirst("^zap-(.*)\\.jar$", "$1");
-            return List.copyOf(h.beforeLaunch(install, version));
+            Install in = installOf(jar);
+            return List.copyOf(h.beforeLaunch(in.dir(), in.version()));
         } catch (Exception e) {
             Debug.log("engine start hook failed, starting without its arguments: " + e);
             return List.of();
