@@ -127,7 +127,7 @@ public final class ZapAddOnFile {
         return List.copyOf(out);
     }
 
-    private static String sha256(Path file) throws IOException {
+    static String sha256(Path file) throws IOException {
         try (InputStream in = Files.newInputStream(file)) {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
             byte[] buf = new byte[8192];
