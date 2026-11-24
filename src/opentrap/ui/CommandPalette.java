@@ -142,7 +142,7 @@ public final class CommandPalette {
                 "Sessions",
                 "Network > Connections", "Network > DNS", "Network > TLS", "Network > HTTP",
                 "User interface > Side panel", "User interface > Message editor", "User interface > Hotkeys", "User interface > Display",
-                "Suite > REST API", "Suite > Updates", "Suite > Performance", "Suite > Temporary files location", "Suite > Startup behavior", "Suite > Shutdown behavior",
+                "Suite > REST API", "Suite > Updates", "Suite > Temporary files location", "Suite > Startup behavior", "Suite > Shutdown behavior",
                 "Extensions > Core extension settings", "Configuration library");
     }
 }

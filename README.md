@@ -104,6 +104,9 @@ For everything else, the original project is the place to go:
   Hotkeys settings page lists the suite's real shortcuts and rebinds them.
 - **No roadmap.** The in-app roadmap, the "not yet implemented" dialog and
   `ROADMAP.md` are gone; the Discover tab keeps the getting-started page.
+- **No Performance settings page.** Its feedback, local logging and
+  maximum memory options were saved but never used: nothing was sent or
+  logged, and the heap limit stays at half of system memory.
 - **Smaller things.** Quitting with Cmd-Q asks to save like closing the window
   does, the scan engine starts on systems without `setsid`, typing in the
   Decoder no longer moves the focus away after each character, the live audit

@@ -8,7 +8,7 @@ import opentrap.ui.Ui;
 import javax.swing.*;
 import java.awt.*;
 
-/** Settings > Suite pages: REST API, Updates, Performance, Temporary files location, Startup behavior, Shutdown behavior. */
+/** Settings > Suite pages: REST API, Updates, Temporary files location, Startup behavior, Shutdown behavior. */
 public final class SuitePages {
     private SuitePages() {}
 
@@ -48,35 +48,6 @@ public final class SuitePages {
                 SettingsPage.check(s, "updates.auto", false, "Enable auto-updates (requires restart)"),
                 SettingsPage.labelled("Channel:", SettingsPage.combo(s, "updates.channel", new String[]{"No Channel Selected", "Stable", "Early adopter"}, "No Channel Selected")),
                 check);
-        return p;
-    }
-
-    public static SettingsPage performance(SuiteContext ctx) {
-        Settings s = ctx.settings();
-        SettingsPage p = new SettingsPage();
-        String id = s.get("perf.debugId", "");
-        if (id.isEmpty()) { id = java.util.UUID.randomUUID().toString(); s.set("perf.debugId", id); }
-        JTextField debugId = Ui.field(id);
-        debugId.setEditable(false);
-        JButton copy = Ui.button("Copy");
-        copy.addActionListener(e -> Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new java.awt.datatransfer.StringSelection(debugId.getText()), null));
-        JButton email = Ui.button("Email support to report a bug");
-        email.addActionListener(e -> opentrap.ui.Upstream.open(email));
-        p.block("Performance feedback", SettingsPage.Kind.USER,
-                "Help improve OpenTRAP by sharing anonymous performance data, or log it locally to attach to a bug report.",
-                () -> { s.setBool("perf.submit", false); s.setBool("perf.logLocal", false); },
-                SettingsPage.check(s, "perf.submit", false, "Automatically submit feedback about OpenTRAP's performance"),
-                Ui.row(Ui.label("Debug ID:"), debugId, copy), email,
-                SettingsPage.check(s, "perf.logLocal", false, "Log performance data to a local directory:"),
-                SettingsPage.pathRow(s, "perf.logDir", System.getProperty("user.home") + "/.opentrap/logs", true, "Choose folder ..."));
-        long maxMb = Runtime.getRuntime().maxMemory() / (1024 * 1024);
-        JRadioButton[] r = SettingsPage.radios(s, "perf.memory.mode", "half", new String[]{"half", "custom"}, "Set to half of system memory", "Set custom value:");
-        JTextField custom = SettingsPage.number(s, "perf.memory.mb", (int) maxMb, 8);
-        p.block("Maximum memory usage", SettingsPage.Kind.USER,
-                "The most memory the Java runtime may use. Takes effect on the next launch (the launcher reads it). Currently allowed: " + maxMb + " MB.",
-                () -> { s.set("perf.memory.mode", "half"); },
-                Ui.note("More memory lets large projects and long audits run without the suite slowing to a crawl; too much starves the rest of the machine."),
-                r[0], Ui.row(r[1], custom, Ui.label("MB")));
         return p;
     }
 
