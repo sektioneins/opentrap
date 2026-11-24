@@ -208,8 +208,11 @@ public final class StorePanel extends JPanel {
     /** The rows as listed, for tests. */
     TableModel model() { return model; }
 
-    /** The Store tab's title: with the number of updates when there are any. */
-    String tabTitle() { return updates.isEmpty() ? "Store" : "Store (" + updates.size() + ")"; }
+    /** The Store tab's title: with the number of updates not queued yet, when there are any. */
+    String tabTitle() {
+        long open = updates.stream().filter(u -> pendingOf(u.id()) == null).count();
+        return open == 0 ? "Store" : "Store (" + open + ")";
+    }
 
     /**
      * What a row offers to do with {@code best}, given what is installed of

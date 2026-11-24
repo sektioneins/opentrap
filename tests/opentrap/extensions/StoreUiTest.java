@@ -268,6 +268,22 @@ public final class StoreUiTest {
                     Expect.equal(onEdt(panel::tabTitle), "Store (1)", "the tab title counts the update");
                 }));
 
+        Harness.test("an update queued already is not counted in the tab title", () ->
+                StoreFixtures.inTemp(CRAWL, (store, engine) -> {
+                    Path folder = folderSource(engine, false);
+                    ZapFixtures.zap(folder, "foo", "1.0.0", "release");
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    install(store, offer(store, "foo", "1.0.0"));
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    ZapFixtures.zap(folder, "foo", "2.0.0", "release");
+                    store.refresh(() -> false);
+                    StorePanel panel = panel(store);
+                    Expect.equal(onEdt(panel::tabTitle), "Store (1)", "the update is counted");
+                    // the store tells the panel before install returns, and the panel reloads on the EDT before this read
+                    install(store, offer(store, "foo", "2.0.0"));
+                    Expect.equal(onEdt(panel::tabTitle), "Store", "not once it is queued");
+                }));
+
         Harness.test("an add-on offered by two sources comes from ZAP's feed unless installed from the other", () ->
                 StoreFixtures.inTemp(CRAWL, (store, engine) -> {
                     Path folder = folderSource(engine, true);
