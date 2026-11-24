@@ -33,6 +33,7 @@ public final class RunTests {
         new opentrap.core.ScopeDisplayTest().run();
         new opentrap.core.ScopePrefixTest().run();
         new opentrap.core.ScopeUrlRegexTest().run();
+        new opentrap.core.ScopePathTest().run();
         new opentrap.core.MessageStoreCapTest().run();
         new opentrap.core.ProjectStoreTest().run();
         new opentrap.core.ProjectSerialTest().run();

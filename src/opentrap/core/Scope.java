@@ -4,6 +4,7 @@ import java.io.Serializable;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
@@ -67,7 +68,7 @@ public class Scope implements Serializable {
 
         // The parsed prefix, rebuilt when the text changes.
         private transient String parsedFor;
-        private transient String pScheme, pHost, pPath;
+        private transient String pScheme, pHost, pPath, pPathCanonical, pPathDecoded;
         private transient int pPort;
 
         public Rule() {}
@@ -88,19 +89,37 @@ public class Scope implements Serializable {
         public boolean isPrefix() { return prefix != null; }
 
         boolean matches(HttpService svc, String path) {
+            return matches(svc, path, ScopePath.Form.RAW);
+        }
+
+        /**
+         * As {@link #matches(HttpService, String)}, with {@code path} read in
+         * {@code form}. A prefix rule compares it with its own path in that
+         * same form; an advanced rule ignores the form and applies its patterns
+         * to {@code path}.
+         */
+        boolean matches(HttpService svc, String path, ScopePath.Form form) {
+            return matches(svc, () -> path, form);
+        }
+
+        /** As above, reading the path only when the rule looks at it. */
+        boolean matches(HttpService svc, Supplier<String> path, ScopePath.Form form) {
             if (!enabled) return false;
-            if (prefix != null) return matchesPrefix(svc, path);
+            if (prefix != null) return matchesPrefix(svc, path, form);
             if (!"any".equalsIgnoreCase(protocol)) {
                 boolean wantSecure = "https".equalsIgnoreCase(protocol);
                 if (svc.secure() != wantSecure) return false;
             }
             if (!matchHost(svc.host())) return false;
             if (!matchPort(String.valueOf(svc.port()))) return false;
-            if (!matchFile(path == null ? "" : path)) return false;
+            if (!blank(file)) {
+                String p = path.get();
+                if (!matchFile(p == null ? "" : p)) return false;
+            }
             return true;
         }
 
-        private synchronized boolean matchesPrefix(HttpService svc, String path) {
+        private synchronized boolean matchesPrefix(HttpService svc, Supplier<String> path, ScopePath.Form form) {
             if (!prefix.equals(parsedFor)) parsePrefix();
             if (pHost == null) return false;
             if (pScheme != null && svc.secure() != "https".equals(pScheme)) return false;
@@ -110,12 +129,15 @@ public class Scope implements Serializable {
             if (pPath.isEmpty() || pPath.equals("/")) return true;
             // A plain prefix, as the reference matches it: /app covers /app,
             // /app/login and /application alike.
-            return (path == null ? "/" : path).startsWith(pPath);
+            String want = form == ScopePath.Form.RAW ? pPath
+                    : form == ScopePath.Form.CANONICAL ? pPathCanonical : pPathDecoded;
+            String p = path.get();
+            return (p == null ? "/" : p).startsWith(want);
         }
 
         private void parsePrefix() {
             parsedFor = prefix;
-            pScheme = null; pHost = null; pPath = ""; pPort = 0;
+            pScheme = null; pHost = null; pPath = ""; pPathCanonical = ""; pPathDecoded = ""; pPort = 0;
             try {
                 String s = prefix;
                 boolean hasScheme = s.contains("://");
@@ -126,6 +148,8 @@ public class Scope implements Serializable {
                 pPort = u.getPort() > 0 ? u.getPort()
                         : (pScheme == null ? 0 : ("https".equals(pScheme) ? 443 : 80));
                 pPath = u.getRawPath() == null ? "" : u.getRawPath();
+                pPathCanonical = ScopePath.canonical(pPath);
+                pPathDecoded = ScopePath.decoded(pPath);
             } catch (Exception e) {
                 pHost = null;
             }
@@ -358,13 +382,47 @@ public class Scope implements Serializable {
         return s.replace("\\Q", "").replace("\\E", "");
     }
 
+    /**
+     * Whether a request is in scope. The path is judged as a server may read
+     * it: as written, with unreserved escapes decoded and dot segments
+     * removed, and fully decoded (see {@link ScopePath}). Each reading is
+     * compared with a prefix rule's path in the same reading, so a prefix that
+     * holds an escape such as {@code /my%20docs} still covers its own paths.
+     * An include rule must match the raw and the canonical reading, or
+     * {@code /app/../admin} would pass a prefix {@code /app}, and a prefix rule
+     * the decoded one as well; an advanced rule's regex is written against the
+     * path as sent, so it is not applied to the decoded reading. An exclude
+     * rule takes the path out when it matches any reading, or
+     * {@code /%6cogout} would slip past the {@code logout} exclude.
+     */
     public boolean isInScope(HttpService svc, String path) {
         if (svc == null) return false;
+        // Built on first use: a rule that does not look at the path, or that
+        // fails on the host, never causes the forms to be computed.
+        Supplier<String> canonical = lazy(() -> ScopePath.canonical(path));
+        Supplier<String> decoded = lazy(() -> ScopePath.decoded(path));
         boolean in = false;
-        for (Rule r : include) if (r.matches(svc, path)) { in = true; break; }
+        for (Rule r : include) {
+            if (r.matches(svc, () -> path, ScopePath.Form.RAW)
+                    && r.matches(svc, canonical, ScopePath.Form.CANONICAL)
+                    && (!r.isPrefix() || r.matches(svc, decoded, ScopePath.Form.DECODED))) { in = true; break; }
+        }
         if (!in) return false;
-        for (Rule r : exclude) if (r.matches(svc, path)) return false;
+        for (Rule r : exclude) {
+            if (r.matches(svc, () -> path, ScopePath.Form.RAW)
+                    || r.matches(svc, canonical, ScopePath.Form.CANONICAL)
+                    || r.matches(svc, decoded, ScopePath.Form.DECODED)) return false;
+        }
         return true;
+    }
+
+    private static Supplier<String> lazy(Supplier<String> compute) {
+        String[] box = new String[1];
+        boolean[] done = new boolean[1];
+        return () -> {
+            if (!done[0]) { box[0] = compute.get(); done[0] = true; }
+            return box[0];
+        };
     }
 
     public boolean isInScope(LogEntry e) {
