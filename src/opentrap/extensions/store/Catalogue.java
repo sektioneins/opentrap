@@ -122,6 +122,15 @@ public final class Catalogue {
         return Set.copyOf(out);
     }
 
+    /** The source with this id, if the catalogue knows it. */
+    public java.util.Optional<Source> source(String sourceId) {
+        for (Source s : state.sources) if (s.id().equals(sourceId)) return java.util.Optional.of(s);
+        if (Source.BUNDLED_ID.equals(sourceId) && state.bundled != null) {
+            return java.util.Optional.of(new Source(Source.BUNDLED_ID, "Bundled", SourceType.BUNDLED, "", "", true));
+        }
+        return java.util.Optional.empty();
+    }
+
     /** The source's status; never fetched, no error for a source the catalogue does not know. */
     public SourceStatus status(String sourceId) {
         State st = state;
