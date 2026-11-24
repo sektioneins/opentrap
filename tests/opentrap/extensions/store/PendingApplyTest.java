@@ -185,7 +185,18 @@ public final class PendingApplyTest {
             Expect.isFalse(rec.installed().containsKey("gone"), "record dropped");
         }));
 
-        Harness.test("a file with no record entry is taken in as unknown", () -> inTemp((minor, k, rec) -> {
+        Harness.test("a folder named like an add-on file is ignored", () -> inTemp((minor, k, rec) -> {
+            Files.createDirectories(k.enabledDir().resolve("x-release-1.zap"));
+            ZapFixtures.zap(k.enabledDir(), "foo", "1.0.0", "release");
+            Expect.equal(k.reconcile(rec).size(), 1, "only the file");
+            Expect.isFalse(rec.installed().containsKey("x"), "folder not taken in");
+            Pending p = new Pending(Pending.Action.REMOVE, "x", null, null);
+            rec.pending().add(p);
+            k.apply(rec, p);
+            Expect.isTrue(Files.isDirectory(k.enabledDir().resolve("x-release-1.zap")), "folder not deleted by a remove");
+        }));
+
+        Harness.test("a file with no record entry is taken in as unknown",() -> inTemp((minor, k, rec) -> {
             Path z = ZapFixtures.zap(k.enabledDir(), "foo", "1.2.0", "beta");
             Path target = ZapFixtures.zap(minor, "lnk", "3.0.0", "release");
             Files.createSymbolicLink(k.enabledDir().resolve(target.getFileName()), target);

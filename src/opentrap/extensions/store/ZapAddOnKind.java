@@ -115,7 +115,7 @@ public final class ZapAddOnKind implements KindHandler {
             Path dir = active ? enabledDir() : disabledDir();
             if (!Files.isDirectory(dir)) continue;
             List<Path> list;
-            try (Stream<Path> s = Files.list(dir)) { list = s.sorted().toList(); }
+            try (Stream<Path> s = Files.list(dir)) { list = s.filter(ZapAddOnKind::isFileOrLink).sorted().toList(); }
             for (Path f : list) {
                 Matcher m = ANY_ADDON.matcher(f.getFileName().toString());
                 if (!m.matches() || found.containsKey(m.group(1))) continue;
@@ -148,23 +148,29 @@ public final class ZapAddOnKind implements KindHandler {
         return new Installed(Kind.ZAP_ADDON, m.group(1), version, name, "unknown", "unknown", active, sha);
     }
 
+    /** A regular file or a link (even a dangling one); a folder is never an add-on. */
+    private static boolean isFileOrLink(Path f) {
+        return Files.isSymbolicLink(f) || Files.isRegularFile(f, LinkOption.NOFOLLOW_LINKS);
+    }
+
     private static Pattern idFile(String id) {
         return Pattern.compile(Pattern.quote(id) + "-(release|beta|alpha)-[A-Za-z0-9._]+\\.zap");
     }
 
     /** Entries (files or links) of the id in a folder; none when the folder does not exist. */
-    private static List<Path> files(Path dir, String id) throws IOException {
+    static List<Path> files(Path dir, String id) throws IOException {
         List<Path> out = new ArrayList<>();
         if (!Files.isDirectory(dir)) return out;
         Pattern p = idFile(id);
         try (Stream<Path> s = Files.list(dir)) {
-            s.filter(f -> p.matcher(f.getFileName().toString()).matches()).sorted().forEach(out::add);
+            s.filter(f -> p.matcher(f.getFileName().toString()).matches() && isFileOrLink(f)).sorted()
+                    .forEach(out::add);
         }
         return out;
     }
 
     /** Deletes the id's entries in enabled/ and disabled/ (links themselves), except the one named {@code keep}. */
-    private void deleteIdFiles(String id, String keep) throws IOException {
+    void deleteIdFiles(String id, String keep) throws IOException {
         for (Path dir : new Path[] {enabledDir(), disabledDir()}) {
             for (Path f : files(dir, id)) {
                 if (!f.getFileName().toString().equals(keep)) Files.delete(f);
