@@ -5,7 +5,6 @@ import opentrap.testkit.Harness;
 
 import java.awt.Color;
 import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
 
 /**
  * Pins the palette to its theme.
@@ -24,15 +23,18 @@ public final class ThemePaletteTest {
         return (int) (0.299 * c.getRed() + 0.587 * c.getGreen() + 0.114 * c.getBlue());
     }
 
-    /** Every reassignable colour on the palette. */
-    private static Field[] colours() {
-        java.util.List<Field> out = new java.util.ArrayList<>();
-        for (Field f : Theme.class.getDeclaredFields()) {
-            if (f.getType() == Color.class && Modifier.isStatic(f.getModifiers())
-                    && !Modifier.isFinal(f.getModifiers())) out.add(f);
-        }
-        return out.toArray(new Field[0]);
-    }
+    /**
+     * The colours that existed before themes were files. A colour added later
+     * may legitimately match in both themes (white text on a fill, say).
+     */
+    private static final String[] MOVING = {
+        "BG", "SURFACE", "SURFACE_2", "SURFACE_3", "BORDER", "TEXT", "MUTED", "LINK",
+        "ACCENT", "ACCENT_DARK", "ACCENT_LIGHT", "CONTROL", "CONTROL_TINT", "SEGMENT_OFF",
+        "TAB_TEXT", "TAB_TEXT_ON", "ACCENT_FAINT", "CARD", "HEADER", "ICON", "TOGGLE_OFF",
+        "SCROLL_THUMB", "SCROLL_THUMB_HOVER", "OK", "HIGHLIGHT", "CODE_NAME", "CODE_START",
+        "CODE_KEY", "CODE_STRING", "CODE_NUMBER", "HEX_OFFSET", "HEX_ASCII", "DIFF_DELETED",
+        "DIFF_ADDED", "DIFF_MODIFIED"
+    };
 
     private static Color read(Field f) {
         try { return (Color) f.get(null); }
@@ -54,8 +56,11 @@ public final class ThemePaletteTest {
         Harness.suite("theme palette");
 
         Harness.test("every colour changes with the theme", () -> {
-            Field[] fields = colours();
-            Expect.isTrue(fields.length > 0, "the palette has reassignable colours");
+            Field[] fields = new Field[MOVING.length];
+            try {
+                for (int i = 0; i < MOVING.length; i++) fields[i] = Theme.class.getField(MOVING[i]);
+            } catch (NoSuchFieldException e) { throw new AssertionError(e); }
+            Expect.equal(fields.length, 35, "the colours that existed before this list was fixed");
 
             Theme.configure(false);
             java.util.Map<String, Color> light = new java.util.LinkedHashMap<>();

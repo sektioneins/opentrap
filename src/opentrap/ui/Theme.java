@@ -96,6 +96,44 @@ public final class Theme {
     public static Color DIFF_ADDED;
     public static Color DIFF_MODIFIED;
 
+    // ---- shared UI: severity, text on fills, site map, empty states ----
+    /** Errors: failed requests, invalid input. */
+    public static Color ERROR;
+    /** The warning icon of a dialog. */
+    public static Color WARN;
+    /** The error icon of a dialog. */
+    public static Color DIALOG_ERROR;
+    /** Issue severity in tables and badges. */
+    public static Color SEVERITY_HIGH;
+    public static Color SEVERITY_MEDIUM;
+    public static Color SEVERITY_LOW;
+    public static Color SEVERITY_INFO;
+    /** Issue severity in the advisory text; kept apart from SEVERITY_*, which differs today. */
+    public static Color ADVISORY_HIGH;
+    public static Color ADVISORY_MEDIUM;
+    public static Color ADVISORY_LOW;
+    public static Color ADVISORY_INFO;
+    /** Text and icons on an ACCENT or ACCENT_DARK fill. */
+    public static Color TEXT_ON_ACCENT;
+    /** Text and icons on a CONTROL fill. */
+    public static Color TEXT_ON_CONTROL;
+    /** Text and icons on a selected list row (ACCENT_LIGHT). */
+    public static Color TEXT_ON_SELECTION;
+    /** The glyph on a round severity or dialog badge. */
+    public static Color TEXT_ON_BADGE;
+    /** Site map: the open padlock of a plain-text host. */
+    public static Color SITE_INSECURE;
+    /** Site map: the folder body. */
+    public static Color SITE_FOLDER;
+    /** Site map: the folder front. */
+    public static Color SITE_FOLDER_LIGHT;
+    /** Site map: the keyhole drawn over a padlock (alpha derived at the call site). */
+    public static Color SITE_OVERLAY;
+    /** Site map: the sheet of a request icon. */
+    public static Color SITE_PAGE;
+    /** The icon of an empty-state panel. */
+    public static Color EMPTY_ICON;
+
     /** Whether the dark palette is active (set by {@link #configure}). */
     public static boolean dark = false;
 
@@ -106,6 +144,11 @@ public final class Theme {
         try { return "dark".equalsIgnoreCase(
                 java.util.prefs.Preferences.userRoot().node("opentrap.v1").get("ui.theme", "light")); }
         catch (Exception e) { return false; }
+    }
+
+    /** The colour with its alpha channel set to {@code alpha} (0 to 255). */
+    public static Color alpha(Color c, int alpha) {
+        return new Color(c.getRed(), c.getGreen(), c.getBlue(), alpha);
     }
 
     /** A colour as CSS hex ({@code #RRGGBB}), for the HTML that follows the theme. */

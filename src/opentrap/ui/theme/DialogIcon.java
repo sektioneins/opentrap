@@ -25,8 +25,8 @@ public class DialogIcon implements Icon, UIResource {
         g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         Color fill = switch (kind) {
             case INFO, QUESTION -> Theme.ACCENT;
-            case WARNING -> new Color(0xE0, 0x8A, 0x1E);
-            case ERROR -> new Color(0xD3, 0x3C, 0x3C);
+            case WARNING -> Theme.WARN;
+            case ERROR -> Theme.DIALOG_ERROR;
         };
         g2.setColor(fill);
         g2.fillOval(x, y, SIZE, SIZE);
@@ -35,7 +35,7 @@ public class DialogIcon implements Icon, UIResource {
             case QUESTION -> "?";
             case WARNING, ERROR -> "!";
         };
-        g2.setColor(Color.WHITE);
+        g2.setColor(Theme.TEXT_ON_BADGE);
         g2.setFont(new Font("Dialog", Font.BOLD, 20));
         FontMetrics fm = g2.getFontMetrics();
         int tx = x + (SIZE - fm.stringWidth(glyph)) / 2;

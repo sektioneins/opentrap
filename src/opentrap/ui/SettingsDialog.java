@@ -385,7 +385,7 @@ public final class SettingsDialog {
                 g2.fillRoundRect(0, 0, getWidth(), getHeight(), 12, 12);
                 g2.setColor(isSelected() ? Theme.CONTROL : Theme.BORDER);
                 g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 12, 12);
-                g2.setColor(isSelected() ? java.awt.Color.WHITE : Theme.TEXT);
+                g2.setColor(isSelected() ? Theme.TEXT_ON_CONTROL : Theme.TEXT);
                 g2.setFont(getFont());
                 java.awt.FontMetrics fm = g2.getFontMetrics();
                 g2.drawString(getText(), (getWidth() - fm.stringWidth(getText())) / 2f,

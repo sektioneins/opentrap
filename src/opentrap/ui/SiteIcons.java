@@ -40,7 +40,7 @@ public final class SiteIcons {
     /** The tone a muted (out-of-scope) icon takes. */
     private static Color tone(Color c, boolean muted) {
         if (!muted) return c;
-        return new Color(c.getRed(), c.getGreen(), c.getBlue(), 110);
+        return Theme.alpha(c, 110);
     }
 
     /**
@@ -49,7 +49,7 @@ public final class SiteIcons {
      */
     public static Icon host(boolean secure, boolean muted) {
         return cached("host:" + secure + ":" + muted, g -> {
-            Color body = tone(secure ? Theme.TEXT : new Color(0xD5, 0x1F, 0x3D), muted);
+            Color body = tone(secure ? Theme.TEXT : Theme.SITE_INSECURE, muted);
             g.setColor(body);
             g.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
             // Shackle: an arc over the body; the open one swings up to the left.
@@ -64,7 +64,7 @@ public final class SiteIcons {
             }
             // Body with a keyhole.
             g.fill(new RoundRectangle2D.Float(3f, 7f, 10f, 8f, 2.5f, 2.5f));
-            g.setColor(new Color(255, 255, 255, muted ? 150 : 230));
+            g.setColor(Theme.alpha(Theme.SITE_OVERLAY, muted ? 150 : 230));
             g.fillOval(7, 9, 2, 2);
             g.fillRect(7, 10, 2, 3);
         });
@@ -73,11 +73,11 @@ public final class SiteIcons {
     /** A path segment: a flat folder. */
     public static Icon folder(boolean muted) {
         return cached("folder:" + muted, g -> {
-            Color c = tone(new Color(0xE8, 0xA2, 0x3B), muted);
+            Color c = tone(Theme.SITE_FOLDER, muted);
             g.setColor(c);
             g.fill(new RoundRectangle2D.Float(1f, 3f, 6.5f, 4f, 2f, 2f));      // tab
             g.fill(new RoundRectangle2D.Float(1f, 5f, 14f, 9f, 2f, 2f));       // body
-            g.setColor(tone(new Color(0xF4, 0xC2, 0x6B), muted));
+            g.setColor(tone(Theme.SITE_FOLDER_LIGHT, muted));
             g.fill(new RoundRectangle2D.Float(1f, 7f, 14f, 7f, 2f, 2f));       // front
         });
     }
@@ -86,7 +86,7 @@ public final class SiteIcons {
     public static Icon page(boolean muted) {
         return cached("page:" + muted, g -> {
             Color edge = tone(Theme.MUTED, muted);
-            g.setColor(tone(Color.WHITE, muted));
+            g.setColor(tone(Theme.SITE_PAGE, muted));
             g.fillRect(3, 1, 10, 14);
             g.setColor(edge);
             g.setStroke(new BasicStroke(1.2f));

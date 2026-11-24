@@ -23,10 +23,10 @@ public final class Advisory {
 
     private static String colourFor(Issue.Severity s) {
         return switch (s) {
-            case HIGH        -> "#E0474C";
-            case MEDIUM      -> "#7E57C2";
-            case LOW         -> "#4477CC";
-            case INFORMATION -> "#888888";
+            case HIGH        -> Theme.css(Theme.ADVISORY_HIGH);
+            case MEDIUM      -> Theme.css(Theme.ADVISORY_MEDIUM);
+            case LOW         -> Theme.css(Theme.ADVISORY_LOW);
+            case INFORMATION -> Theme.css(Theme.ADVISORY_INFO);
         };
     }
 

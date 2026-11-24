@@ -281,7 +281,7 @@ public class MessageEditor extends JPanel {
             SettingsDialog.open(w, ctx, "User interface > Message editor");
         });
         wrapToggle = new JToggleButton(Glyphs.wrap(16, Theme.ICON), true);
-        wrapToggle.setSelectedIcon(Glyphs.wrap(16, Color.WHITE));
+        wrapToggle.setSelectedIcon(Glyphs.wrap(16, Theme.TEXT_ON_CONTROL));
         wrapToggle.setToolTipText("Word wrap");
         wrapToggle.setFocusable(false);
         wrapToggle.setBorder(BorderFactory.createEmptyBorder(3, 5, 3, 5));

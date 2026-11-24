@@ -64,7 +64,7 @@ public class FlatButtonUI extends BasicButtonUI {
         ButtonModel m = b.getModel();
         boolean primary = Boolean.TRUE.equals(b.getClientProperty(Theme.PRIMARY))
                 || (b instanceof JToggleButton && m.isSelected());
-        Color fg = !m.isEnabled() ? Theme.MUTED : primary ? Color.WHITE : b.getForeground();
+        Color fg = !m.isEnabled() ? Theme.MUTED : primary ? Theme.TEXT_ON_ACCENT : b.getForeground();
         Graphics2D g2 = (Graphics2D) g.create();
         g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         FontMetrics fm = g2.getFontMetrics(b.getFont());

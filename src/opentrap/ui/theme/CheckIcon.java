@@ -41,7 +41,7 @@ public class CheckIcon implements Icon, UIResource {
         g2.draw(box);
 
         if (on) {
-            g2.setColor(Color.WHITE);
+            g2.setColor(Theme.TEXT_ON_CONTROL);
             if (round) {
                 g2.fill(new Ellipse2D.Float(x + 4.5f, y + 4.5f, SIZE - 9, SIZE - 9));
             } else {
