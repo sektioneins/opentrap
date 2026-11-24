@@ -8,6 +8,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -78,13 +80,15 @@ public final class ZapEngine {
             kill -KILL -"$zap" 2>/dev/null
             """;
 
-    private String jar;             // path to the engine jar; null until a bundled engine is extracted
+    private volatile String jar;    // path to the engine jar; null until a bundled engine is extracted
     private final boolean bundled;  // engine.zip is embedded in this application jar
-    private String base;            // http://127.0.0.1:<port>
+    // base and api are swapped by restart() under the monitor and read without
+    // it through base() and api(), so they are volatile.
+    private volatile String base;   // http://127.0.0.1:<port>
     private String apiKey;
     private Process proc;
     private java.io.OutputStream lifeline;   // write end of the watchdog's stdin pipe
-    private ZapApi api;
+    private volatile ZapApi api;
     private Path home;              // the engine's scratch directory, ours to clean up
     private boolean hookInstalled;  // one shutdown hook per engine, not per start
 
@@ -106,10 +110,42 @@ public final class ZapEngine {
      */
     private final java.util.concurrent.atomic.AtomicInteger imported = new java.util.concurrent.atomic.AtomicInteger();
 
-    private ZapEngine(String jar, boolean bundled) { this.jar = jar; this.bundled = bundled; }
+    private volatile EngineState state = EngineState.NOT_STARTED;
+    private volatile String lastError;
+    private final List<Consumer<EngineState>> stateListeners = new CopyOnWriteArrayList<>();
+    private final RuleEdits ruleEdits = new RuleEdits();
+
+    /** Starts the engine's command line as a process; a seam so tests can stand in for ZAP. */
+    interface Launcher { Process launch(List<String> launch) throws IOException; }
+
+    private final Launcher launcher;
+
+    private ZapEngine(String jar, boolean bundled) { this(jar, bundled, ZapEngine::launchProcess); }
+
+    private ZapEngine(String jar, boolean bundled, Launcher launcher) {
+        this.jar = jar; this.bundled = bundled; this.launcher = launcher;
+    }
+
+    /**
+     * Asked before each engine launch for extra command-line arguments, such as
+     * the add-on store's folders. {@code installDir} is the folder of the
+     * engine jar. When the arguments name {@code -installdir}, the jar is run
+     * from that folder.
+     */
+    public interface StartHook {
+        List<String> beforeLaunch(Path installDir, String zapVersion) throws IOException;
+    }
+
+    private static volatile StartHook startHook;
+
+    /** The hook every engine asks before it launches; null for none. */
+    public static void setStartHook(StartHook h) { startHook = h; }
 
     /** An engine for a given jar on disk, for tests. */
     static ZapEngine forJar(String jar) { return new ZapEngine(jar, false); }
+
+    /** An engine whose process {@code l} starts, for tests. */
+    static ZapEngine forLauncher(String jar, Launcher l) { return new ZapEngine(jar, false, l); }
 
     /** The shared read position into this engine's message history. */
     public java.util.concurrent.atomic.AtomicInteger importedMessages() { return imported; }
@@ -186,8 +222,57 @@ public final class ZapEngine {
     }
 
     public boolean available() { return jar != null || bundled; }
+
+    /** An engine install folder and the ZAP version of its jar, as the start hook is given them. */
+    public record Install(Path dir, String version) {}
+
+    /**
+     * The install folder and ZAP version a start hands the start hook, without
+     * starting or unpacking anything. A bundled engine not unpacked yet names
+     * the folder it is unpacked to and the version it carries. Null when
+     * neither is known.
+     */
+    public Install install() {
+        String j = jar;
+        if (j != null) return installOf(j);
+        if (!bundled) return null;
+        String v = readResource(BUNDLE_VERSION);
+        return v == null || v.isEmpty() ? null : new Install(extractDir().toAbsolutePath(), v);
+    }
+
+    private static Install installOf(String jar) {
+        Path p = Path.of(jar).toAbsolutePath();
+        return new Install(p.getParent(), p.getFileName().toString().replaceFirst("^zap-(.*)\\.jar$", "$1"));
+    }
+
     public ZapApi api() { return api; }
     public String base() { return base; }
+
+    /** Where the engine is in its life. */
+    public EngineState state() { return state; }
+
+    /** Why the last start failed, or which rule edits a start could not send again; null when neither. */
+    public String lastError() { return lastError; }
+
+    /** The rule edits of this run, sent again to every engine this one starts. */
+    public RuleEdits ruleEdits() { return ruleEdits; }
+
+    /**
+     * Hear every state change. {@code l} is called on the thread that changes
+     * the state (often the one inside {@link #start()} or {@link #restart()}),
+     * possibly while that thread holds this engine's monitor. So a listener
+     * must not block or call {@code start()} or {@code restart()}; one that
+     * touches Swing or does more work hops to the EDT or its own thread.
+     */
+    public void addStateListener(Consumer<EngineState> l) { stateListeners.add(l); }
+
+    private void setState(EngineState s) {
+        state = s;
+        for (Consumer<EngineState> l : stateListeners) {
+            try { l.accept(s); }
+            catch (RuntimeException e) { Debug.log("engine state listener: " + e); }
+        }
+    }
 
     /** Start the daemon if not already running, and block until its API answers. */
     public synchronized void start() throws Exception {
@@ -199,9 +284,64 @@ public final class ZapEngine {
         }
     }
 
+    /**
+     * Stop the running engine and start a fresh one, within this session: a new
+     * port, API key and temp home, with the rule edits of this run sent again.
+     * An engine never started is simply started. Unlike {@link #shutdown()}
+     * this is not final; after a shutdown it throws.
+     */
+    public synchronized void restart() throws Exception {
+        starter = Thread.currentThread();
+        try {
+            checkNotStopping();
+            if (state != EngineState.NOT_STARTED) {
+                stopEngine();
+                api = null;   // the stopped engine's; startEngine must not reuse it
+                setState(EngineState.STOPPED);
+            }
+            startEngine();
+        } finally {
+            starter = null;
+        }
+    }
+
     private void startEngine() throws Exception {
         checkNotStopping();
-        if (api != null && responds()) return;
+        if (api != null && responds()) {
+            // Already up. A start that gave up before its engine answered, or an
+            // attached engine, has not been reported running yet; do so now.
+            if (state != EngineState.RUNNING) running();
+            return;
+        }
+        // A failed start can leave its engine behind (launched, never
+        // answered): stop it and remove its home before a new one replaces
+        // proc, lifeline and home.
+        if (state == EngineState.FAILED) stopEngine();
+        lastError = null;
+        setState(EngineState.STARTING);
+        try {
+            launchEngine();
+        } catch (Exception e) {
+            lastError = (e.getMessage() == null) ? e.toString() : e.getMessage();
+            setState(EngineState.FAILED);
+            throw e;
+        }
+        running();
+    }
+
+    /** Send this run's rule edits to the engine that now answers, then report it running. */
+    private void running() {
+        ready = true;   // so stopEngine() also asks an engine that answered late to shut down
+        lastError = null;
+        List<String> failed = ruleEdits.replay(api);
+        if (!failed.isEmpty()) {
+            lastError = "Rule edits could not be applied again, rules missing or refused: " + String.join(", ", failed);
+            Debug.log(lastError);
+        }
+        setState(EngineState.RUNNING);
+    }
+
+    private void launchEngine() throws Exception {
         ready = false;
 
         // First run of a release jar: unpack the embedded engine to ~/.opentrap/engine.
@@ -214,14 +354,23 @@ public final class ZapEngine {
         apiKey = Long.toHexString(new java.security.SecureRandom().nextLong());
         Path home = this.home = Files.createTempDirectory("opentrap-zap-");
 
+        List<String> extra = hookArguments();
+        checkNotStopping();   // the hook may have waited for the store's lock
+        String runJar = jar;
+        int installDir = extra.indexOf("-installdir");
+        if (installDir >= 0 && installDir + 1 < extra.size()) {
+            runJar = Path.of(extra.get(installDir + 1)).resolve(Path.of(jar).getFileName()).toString();
+        }
+
         List<String> cmd = new ArrayList<>(List.of(
-                javaBin(), "-jar", jar, "-daemon",
+                javaBin(), "-jar", runJar, "-daemon",
                 "-host", "127.0.0.1", "-port", String.valueOf(port),
                 "-config", "api.key=" + apiKey,
                 "-config", "api.addrs.addr.name=127.0.0.1",
                 "-config", "api.addrs.addr.regex=false",
                 "-silent",
                 "-dir", home.toString()));
+        cmd.addAll(extra);
 
         // Point ZAP's Selenium/AJAX-spider at the Chromium and chromedriver we
         // bundle (or the ones on the system), and drive it headless. When either
@@ -253,11 +402,7 @@ public final class ZapEngine {
                 "/bin/sh", "-c", WATCHDOG, "opentrap-engine-watchdog"));
         launch.addAll(cmd);
 
-        ProcessBuilder pb = new ProcessBuilder(launch);
-        pb.redirectInput(ProcessBuilder.Redirect.PIPE);    // the lifeline
-        pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
-        pb.redirectError(ProcessBuilder.Redirect.DISCARD);
-        proc = pb.start();
+        proc = launcher.launch(launch);
         // Hold the write end open for the engine's lifetime; never write to it.
         // When this JVM ends, the OS closes it and the watchdog fires.
         lifeline = proc.getOutputStream();
@@ -282,6 +427,31 @@ public final class ZapEngine {
             awaitingAnswer = false;
         }
         throw new IOException("Scan engine did not become ready in time");
+    }
+
+    /**
+     * The start hook's arguments for this launch. A hook that fails costs only
+     * its arguments: the engine starts as it would without one.
+     */
+    private List<String> hookArguments() {
+        StartHook h = startHook;
+        if (h == null) return List.of();
+        try {
+            Install in = installOf(jar);
+            return List.copyOf(h.beforeLaunch(in.dir(), in.version()));
+        } catch (Exception e) {
+            Debug.log("engine start hook failed, starting without its arguments: " + e);
+            return List.of();
+        }
+    }
+
+    /** The real launcher: the watchdog command line as a child process, its stdin the lifeline. */
+    private static Process launchProcess(List<String> launch) throws IOException {
+        ProcessBuilder pb = new ProcessBuilder(launch);
+        pb.redirectInput(ProcessBuilder.Redirect.PIPE);    // the lifeline
+        pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
+        pb.redirectError(ProcessBuilder.Redirect.DISCARD);
+        return pb.start();
     }
 
     /** Whether start() has launched the engine and is waiting for it to answer (for tests). */

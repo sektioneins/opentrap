@@ -7,8 +7,10 @@ import opentrap.ui.Hotkeys;
 
 import javax.swing.JComponent;
 import javax.swing.JTable;
+import javax.swing.SwingUtilities;
 import java.awt.Component;
 import java.awt.Container;
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -31,13 +33,31 @@ public final class DashboardContextTest {
         });
 
         Harness.test("the request log gets the Send to shortcuts once the context arrives", () -> {
-            DashboardTool d = new DashboardTool();
-            d.init(new SuiteContext());
-            List<JTable> withShortcuts = new ArrayList<>();
-            for (JTable t : tables(d.tabs()[0].component()))
-                if (t.getActionMap().get(SEND_TO_REPEATER) != null) withShortcuts.add(t);
-            Expect.equal(withShortcuts.size(), 1, "dashboard tables with the Send to shortcuts");
+            // on the EDT, as the frame does it: init() queues a task list refresh there,
+            // which raced a build on this thread over the same table
+            onEdt(() -> {
+                DashboardTool d = new DashboardTool();
+                d.init(new SuiteContext());
+                List<JTable> withShortcuts = new ArrayList<>();
+                for (JTable t : tables(d.tabs()[0].component()))
+                    if (t.getActionMap().get(SEND_TO_REPEATER) != null) withShortcuts.add(t);
+                Expect.equal(withShortcuts.size(), 1, "dashboard tables with the Send to shortcuts");
+            });
         });
+    }
+
+    /** Runs {@code r} on the EDT; what it throws is thrown here. */
+    private static void onEdt(Runnable r) {
+        try {
+            SwingUtilities.invokeAndWait(r);
+        } catch (InvocationTargetException e) {
+            if (e.getCause() instanceof RuntimeException x) throw x;
+            if (e.getCause() instanceof Error x) throw x;
+            throw new RuntimeException(e.getCause());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        }
     }
 
     private static List<JTable> tables(Component c) {

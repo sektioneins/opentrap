@@ -800,11 +800,12 @@ public final class Ui {
     }
 
     /**
-     * Assemble a filter bar: the clickable filter button stretched across, then
-     * the quick-search label and field on the right, all at one uniform height.
-     * Used by the proxy history and the site map so both bars look identical.
+     * Assemble a filter bar: the clickable filter button (or a search field)
+     * stretched across, then the quick-search label and field on the right,
+     * all at one uniform height. Used by the proxy history and the site map so
+     * both bars look identical.
      */
-    public static JPanel filterBar(JButton filterButton, JComponent... right) {
+    public static JPanel filterBar(JComponent filterButton, JComponent... right) {
         JPanel bar = new JPanel(new GridBagLayout());
         bar.setOpaque(false);
         bar.setBorder(pad(4, 4, 4, 4));

@@ -10,6 +10,7 @@ import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManagerFactory;
 import java.math.BigInteger;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -25,7 +26,9 @@ import java.util.Date;
  * <p>A {@code CertificateAuthority} generates two RSA-2048 key pairs, which
  * takes 100 to 400 ms and varies from run to run. This makes one self-signed
  * EC P-256 certificate instead, in a few milliseconds. The suite's clients
- * trust any certificate, so self-signed is enough.
+ * trust any certificate, so self-signed is enough. A client that checks
+ * certificates takes the client context of a {@link #pair}, which trusts only
+ * that one certificate.
  */
 public final class TestTls {
 
@@ -33,8 +36,16 @@ public final class TestTls {
 
     private static final char[] PASSWORD = "test".toCharArray();
 
+    /** A server context and a client context that trusts only the server's certificate. */
+    public record Pair(SSLContext server, SSLContext client) {}
+
     /** A server context presenting a self-signed certificate for this IP address. */
     public static SSLContext serverContext(String ip) {
+        return pair(ip).server();
+    }
+
+    /** A self-signed certificate for this IP address, with a client context that trusts it and nothing else. */
+    public static Pair pair(String ip) {
         try {
             KeyPairGenerator g = KeyPairGenerator.getInstance("EC");
             g.initialize(256);
@@ -53,9 +64,17 @@ public final class TestTls {
             ks.setKeyEntry("server", kp.getPrivate(), PASSWORD, new Certificate[]{ cert });
             KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
             kmf.init(ks, PASSWORD);
-            SSLContext ctx = SSLContext.getInstance("TLS");
-            ctx.init(kmf.getKeyManagers(), null, null);
-            return ctx;
+            SSLContext server = SSLContext.getInstance("TLS");
+            server.init(kmf.getKeyManagers(), null, null);
+
+            KeyStore trusted = KeyStore.getInstance("PKCS12");
+            trusted.load(null, PASSWORD);
+            trusted.setCertificateEntry("server", cert);
+            TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+            tmf.init(trusted);
+            SSLContext client = SSLContext.getInstance("TLS");
+            client.init(null, tmf.getTrustManagers(), null);
+            return new Pair(server, client);
         } catch (Exception e) {
             throw new IllegalStateException("could not build a test TLS context", e);
         }

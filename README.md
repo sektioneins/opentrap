@@ -84,6 +84,19 @@ For everything else, the original project is the place to go:
   the includes, widened in the excludes and named in the task log; a scope with no
   include it can bind refuses the scan. When a target is an IPv6 literal, the task
   log also names the host-pattern rules that cannot meet it.
+- **A real extension store.** Extensions > Store installs and updates real ZAP
+  add-ons from ZAP's own feed, from feeds you add and from local folders of
+  `.zap` files, and Installed enables, disables and removes them, the add-ons
+  that ship with the engine included. Store shows for each add-on whether it
+  is installed, disabled or has a change queued. A download must match its feed's sha256
+  and download prefix, and adding a source asks first. Changes wait for Restart
+  engine, a real engine restart that keeps the session, the live audit and your
+  rule edits, and stops only the crawls and audits running on the engine.
+  Nothing is fetched unless you click Refresh, Install, Update, Update all,
+  Switch source or, for a new ZAP version, Look them up, or switch on the
+  startup check. A crawl or audit whose add-ons are disabled says which ones
+  instead of failing on an engine error, and the rule tabs report a rule change
+  the engine refuses instead of showing it as applied.
 - **Fonts.** The interface uses the system's own UI font, and both the UI font
   and the monospace font can be changed in Settings, with a reset to the
   default.
@@ -92,10 +105,14 @@ For everything else, the original project is the place to go:
   Hotkeys settings page lists the suite's real shortcuts and rebinds them.
 - **No roadmap.** The in-app roadmap, the "not yet implemented" dialog and
   `ROADMAP.md` are gone; the Discover tab keeps the getting-started page.
+- **No Performance settings page.** Its feedback, local logging and
+  maximum memory options were saved but never used: nothing was sent or
+  logged, and the heap limit stays at half of system memory.
 - **Smaller things.** Quitting with Cmd-Q asks to save like closing the window
   does, the scan engine starts on systems without `setsid`, typing in the
-  Decoder no longer moves the focus away after each character, and the test suite
-  runs in about 3 seconds instead of 24.
+  Decoder no longer moves the focus away after each character, the live audit
+  still raises its findings after it is switched off and on again, and the test
+  suite runs in about 3 seconds instead of 24.
 
 ## Licence
 

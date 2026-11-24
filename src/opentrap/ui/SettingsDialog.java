@@ -103,7 +103,6 @@ public final class SettingsDialog {
         // Suite
         out.add(new Page("Suite", "REST API", () -> SuitePages.restApi(ctx)));
         out.add(new Page("Suite", "Updates", () -> SuitePages.updates(ctx)));
-        out.add(new Page("Suite", "Performance", () -> SuitePages.performance(ctx)));
         out.add(new Page("Suite", "Temporary files location", () -> SuitePages.tempFiles(ctx)));
         out.add(new Page("Suite", "Startup behavior", () -> SuitePages.startup(ctx)));
         out.add(new Page("Suite", "Shutdown behavior", () -> SuitePages.shutdown(ctx)));
@@ -133,7 +132,7 @@ public final class SettingsDialog {
             case "Collaborator" -> "Project > Collaborator";
             case "Tasks" -> "Project > Tasks";
             case "Sessions" -> "Sessions";
-            case "Suite" -> "Suite > Performance";
+            case "Suite" -> "Suite > REST API";
             case "Extensions" -> "Extensions > Core extension settings";
             case "Configuration library" -> "Configuration library";
             default -> category.contains(" > ") ? category : "Tools > Proxy";

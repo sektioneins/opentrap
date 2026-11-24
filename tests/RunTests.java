@@ -9,6 +9,8 @@ import opentrap.testkit.Harness;
 public final class RunTests {
 
     public static void main(String[] args) {
+        // As in Main: let java.net.http send Basic proxy logins on CONNECT, before it loads.
+        System.setProperty("jdk.http.auth.tunneling.disabledSchemes", "");
         // Preferences reads this once, when the class initialises, so it must come first.
         System.setProperty("java.util.prefs.PreferencesFactory", "opentrap.testkit.MemoryPreferencesFactory");
         if (!(java.util.prefs.Preferences.userRoot() instanceof opentrap.testkit.MemoryPreferences)) {
@@ -63,6 +65,7 @@ public final class RunTests {
         new opentrap.proxy.ProxyLoopTest().run();
         new opentrap.engine.ScanConfigStoreTest().run();
         new opentrap.engine.EngineShutdownTest().run();
+        new opentrap.engine.EngineRestartTest().run();
         new opentrap.ui.SendToComparerTest().run();
         new opentrap.ui.CurlCommandTest().run();
         new opentrap.ui.FontsTest().run();
@@ -85,6 +88,18 @@ public final class RunTests {
         new opentrap.proxy.CertificateModeTest().run();
         new opentrap.proxy.CertificateAuthorityIsolationTest().run();
         new opentrap.core.OwnerOnlyTest().run();
+        new opentrap.extensions.store.VersionTest().run();
+        new opentrap.extensions.store.ZapFeedTest().run();
+        new opentrap.extensions.store.ZapAddOnFileTest().run();
+        new opentrap.extensions.store.FetcherTest().run();
+        new opentrap.extensions.store.StoreRecordTest().run();
+        new opentrap.extensions.store.PendingApplyTest().run();
+        new opentrap.extensions.store.BundledTest().run();
+        new opentrap.extensions.store.CatalogueTest().run();
+        new opentrap.extensions.store.ResolverTest().run();
+        new opentrap.extensions.store.StoreTest().run();
+        new opentrap.extensions.StoreUiTest().run();
+        new opentrap.dashboard.ScanAddOnCheckTest().run();
         new opentrap.ui.ProjectTasksTest().run();
         new opentrap.ui.ProjectSlimTest().run();
         new opentrap.ui.ProjectFileTest().run();

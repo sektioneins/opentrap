@@ -225,6 +225,7 @@ public final class ZapScanner {
         ScanTask auditTask = new ScanTask(ScanTask.Type.AUDIT,
                 "Audit of " + targetLabel(seeds), "Audit - " + cfg.name());
         auditTask.setScope(seeds.size() == 1 ? seeds.get(0).service().url() : seeds.size() + " targets");
+        auditTask.markEngineScan();
         auditTask.setDiscoveredLocations(crawlTask.discoveredLocations());
         try {
             int rules = 0;

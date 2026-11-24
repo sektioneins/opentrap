@@ -2,6 +2,7 @@ package opentrap.scanner;
 
 import opentrap.core.Debug;
 import opentrap.core.SuiteContext;
+import opentrap.engine.EngineState;
 import opentrap.engine.ZapApi;
 import opentrap.engine.ZapEngine;
 import opentrap.spider.Cdp.JsonValue;
@@ -17,7 +18,9 @@ import java.util.List;
  * The active scan-rule policy tab: lists ZAP's active rules and lets the tester
  * enable/disable them and set each rule's attack strength and alert threshold,
  * through ZAP's API, so the policy governs the audits the dashboard runs. Loads
- * lazily the first time it is shown.
+ * lazily the first time it is shown, and again whenever the engine comes back
+ * after a restart. Each edit the engine accepts is kept in the engine's
+ * {@link ZapEngine#ruleEdits()}, so a restarted engine gets it again.
  */
 public class ActiveScanPanel extends JPanel {
 
@@ -28,7 +31,9 @@ public class ActiveScanPanel extends JPanel {
     private JTable table;
     private final JLabel status = Ui.label("");
     private final JLabel summary = Ui.label("");
-    private ZapApi api;
+    private volatile ZapEngine engine;   // set by the first load
+    private volatile ZapApi api;         // the engine's API the rules were loaded from
+    private volatile boolean stale;      // the engine went away; reload when it runs again
     private boolean loadStarted;
     private final SuiteContext ctx;
 
@@ -86,13 +91,19 @@ public class ActiveScanPanel extends JPanel {
             status.setText("Scan engine (ZAP) not installed. Run 'just engine' to add it.");
             return;
         }
+        if (engine == null) {
+            engine = ze;
+            ze.addStateListener(this::engineChanged);
+        }
         status.setText("Starting scan engine and loading active rules...");
         new Thread(() -> {
             try {
                 ze.start();
-                api = ze.api();
+                ZapApi a = ze.api();
+                if (a == null) throw new java.io.IOException("the scan engine stopped");
+                api = a;
                 List<Rule> rules = new ArrayList<>();
-                for (JsonValue s : api.activeScanners()) {
+                for (JsonValue s : a.activeScanners()) {
                     rules.add(new Rule(
                             nz(ZapApi.str(s, "id")),
                             nz(ZapApi.str(s, "name")),
@@ -107,13 +118,28 @@ public class ActiveScanPanel extends JPanel {
         }, "ascan-rules-load").start();
     }
 
+    /**
+     * Reload once the engine runs again after it stopped or failed: a new
+     * engine has a new API, and its rules may have changed with the add-ons.
+     * Runs on the thread that changes the engine's state, so it only flags and
+     * hands the reload to the EDT.
+     */
+    private void engineChanged(EngineState s) {
+        if (s == EngineState.STOPPED || s == EngineState.FAILED) stale = true;
+        else if (s == EngineState.RUNNING && stale) {
+            stale = false;
+            SwingUtilities.invokeLater(this::load);
+        }
+    }
+
     private void bulkEnabled(boolean on) {
-        if (api == null) return;
+        ZapApi a = api;
+        if (a == null) return;
         List<Rule> all = model.rules;
         new Thread(() -> {
             int failed = 0;
             for (Rule r : all) {
-                try { api.setActiveEnabled(r.id, on); r.enabled = on; }
+                try { a.setActiveEnabled(r.id, on); engine.ruleEdits().activeEnabled(r.id, on); r.enabled = on; }
                 catch (Exception e) { failed++; Debug.log("active rule " + r.id + " enable: " + e); }
             }
             if (failed > 0) ctx.alert("scanner", "could not enable or disable "
@@ -160,18 +186,24 @@ public class ActiveScanPanel extends JPanel {
             Rule m = rules.get(r);
             if (c == 0 && v instanceof Boolean on) {
                 m.enabled = on;
-                run(() -> api.setActiveEnabled(m.id, on));
+                run(a -> { a.setActiveEnabled(m.id, on); engine.ruleEdits().activeEnabled(m.id, on); });
                 fireTableRowsUpdated(r, r); refreshSummary();
             } else if (c == 3 && v instanceof String s) {
-                m.strength = s; run(() -> api.setActiveStrength(m.id, s)); fireTableRowsUpdated(r, r);
+                m.strength = s;
+                run(a -> { a.setActiveStrength(m.id, s); engine.ruleEdits().activeStrength(m.id, s); });
+                fireTableRowsUpdated(r, r);
             } else if (c == 4 && v instanceof String t) {
-                m.threshold = t; run(() -> api.setActiveThreshold(m.id, t)); fireTableRowsUpdated(r, r);
+                m.threshold = t;
+                run(a -> { a.setActiveThreshold(m.id, t); engine.ruleEdits().activeThreshold(m.id, t); });
+                fireTableRowsUpdated(r, r);
             }
         }
-        private void run(ThrowingRunnable action) {
-            if (api == null) return;
+        /** Send one edit to the engine the rules were loaded from, off the EDT. */
+        private void run(ApiEdit action) {
+            ZapApi a = api;
+            if (a == null) return;
             new Thread(() -> {
-                try { action.run(); }
+                try { action.run(a); }
                 catch (Exception e) {
                     // The table already shows the edit; if the engine refused
                     // it, say so rather than leaving the screen asserting a
@@ -184,5 +216,5 @@ public class ActiveScanPanel extends JPanel {
         }
     }
 
-    private interface ThrowingRunnable { void run() throws Exception; }
+    private interface ApiEdit { void run(ZapApi api) throws Exception; }
 }

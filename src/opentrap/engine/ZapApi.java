@@ -326,7 +326,7 @@ public final class ZapApi {
     }
 
     public void setPassiveEnabled(String id, boolean enabled) throws Exception {
-        call("pscan", "action", enabled ? "enableScanners" : "disableScanners", p("ids", id));
+        checked(call("pscan", "action", enabled ? "enableScanners" : "disableScanners", p("ids", id)));
     }
 
     public void setAllPassiveEnabled(boolean enabled) throws Exception {
@@ -335,7 +335,7 @@ public final class ZapApi {
 
     /** threshold is one of OFF, DEFAULT, LOW, MEDIUM, HIGH. */
     public void setPassiveThreshold(String id, String threshold) throws Exception {
-        call("pscan", "action", "setScannerAlertThreshold", p("id", id, "alertThreshold", threshold));
+        checked(call("pscan", "action", "setScannerAlertThreshold", p("id", id, "alertThreshold", threshold)));
     }
 
     // -------------------------------------------------- active scan-rule config
@@ -346,17 +346,17 @@ public final class ZapApi {
     }
 
     public void setActiveEnabled(String id, boolean enabled) throws Exception {
-        call("ascan", "action", enabled ? "enableScanners" : "disableScanners", p("ids", id));
+        checked(call("ascan", "action", enabled ? "enableScanners" : "disableScanners", p("ids", id)));
     }
 
     /** strength is one of LOW, MEDIUM, HIGH, INSANE, DEFAULT. */
     public void setActiveStrength(String id, String strength) throws Exception {
-        call("ascan", "action", "setScannerAttackStrength", p("id", id, "attackStrength", strength));
+        checked(call("ascan", "action", "setScannerAttackStrength", p("id", id, "attackStrength", strength)));
     }
 
     /** threshold is one of OFF, DEFAULT, LOW, MEDIUM, HIGH. */
     public void setActiveThreshold(String id, String threshold) throws Exception {
-        call("ascan", "action", "setScannerAlertThreshold", p("id", id, "alertThreshold", threshold));
+        checked(call("ascan", "action", "setScannerAlertThreshold", p("id", id, "alertThreshold", threshold)));
     }
 
     /**
