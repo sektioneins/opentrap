@@ -115,6 +115,7 @@ public final class RunTests {
         new opentrap.dashboard.PhaseHtmlTest().run();
         new opentrap.dashboard.DashboardContextTest().run();
         new opentrap.ui.QuitRequestTest().run();
+        new opentrap.ui.theme.ThemeFileTest().run();
 
         // These two call Theme.configure and restore the light theme; they go
         // just before the suite that installs the full theme.
