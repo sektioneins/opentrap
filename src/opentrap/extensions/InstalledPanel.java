@@ -86,8 +86,20 @@ public final class InstalledPanel extends JPanel {
                        boolean core, String group, String id, Installed have, List<Pending> queued,
                        String error, Loaded jar) {}
 
-    /** What carrying the previous ZAP version's add-ons over queues, which stay off, and which cannot come. */
-    record CarryPlan(List<Entry> plan, List<String> keepOff, List<String> unavailable) {}
+    /**
+     * What carrying the previous ZAP version's add-ons over queues, which stay
+     * off, which cannot come, and which installed add-ons the active ones need
+     * are kept running.
+     */
+    record CarryPlan(List<Entry> plan, List<String> keepOff, List<String> unavailable, List<String> keepOn) {
+        /** What runs once the plan is queued: the keep-off disables, then the needs kept running. */
+        StorePanel.AfterQueue after(Store store) {
+            return () -> {
+                for (String id : keepOff) store.disable(id);
+                StorePanel.keepOnStep(store, keepOn).run();
+            };
+        }
+    }
 
     /** One store change queued for one add-on. */
     interface Change { void queue(String id) throws IOException; }
@@ -741,21 +753,31 @@ public final class InstalledPanel extends JPanel {
         List<Entry> plan = new ArrayList<>();
         List<String> off = new ArrayList<>();
         List<String> none = new ArrayList<>();
+        // what the active ones bring, which must run with them whatever it was before
+        List<Entry> running = new ArrayList<>();
+        Set<String> needed = new HashSet<>();
         for (Installed in : carry) {
             Entry e = store.successor(in);
             if (e == null) { none.add(in.id()); continue; }
             String why = StorePanel.unreachable(cat, e.sourceId());
             if (why != null) { none.add(in.id() + " (" + why + ")"); continue; }
             try {
-                for (Entry x : store.plan(e)) {
+                List<Entry> brings = store.plan(e);
+                for (Entry x : brings) {
                     if (plan.stream().noneMatch(p -> p.id().equals(x.id()))) plan.add(x);
                 }
-                if (!in.active()) off.add(in.id());
+                if (!in.active()) {
+                    off.add(in.id());
+                } else {
+                    running.addAll(brings);
+                    for (Entry x : brings) if (!x.id().equals(in.id())) needed.add(x.id());
+                }
             } catch (Resolver.Unresolvable ex) {
                 none.add(in.id() + " (" + ex.getMessage() + ")");
             }
         }
-        return new CarryPlan(List.copyOf(plan), List.copyOf(off), List.copyOf(none));
+        off.removeIf(needed::contains);
+        return new CarryPlan(List.copyOf(plan), List.copyOf(off), List.copyOf(none), store.keptOff(running));
     }
 
     /** What the carry-over says before it downloads. */
@@ -770,6 +792,7 @@ public final class InstalledPanel extends JPanel {
             if (!cp.keepOff().isEmpty()) {
                 b.append("These stay disabled: ").append(String.join(", ", cp.keepOff())).append(".\n");
             }
+            if (!cp.keepOn().isEmpty()) b.append(StorePanel.keepOnText(cp.keepOn())).append('\n');
         }
         if (!cp.unavailable().isEmpty()) {
             if (!b.isEmpty()) b.append('\n');
@@ -786,9 +809,7 @@ public final class InstalledPanel extends JPanel {
             return;
         }
         if (!dialogs.confirm(title, text, "Queue")) return;
-        StorePanel.download(this, store, cp.plan(), title, () -> {
-            for (String id : cp.keepOff()) store.disable(id);
-        });
+        StorePanel.download(this, store, cp.plan(), title, cp.after(store));
     }
 
     // ---- extension jars ----

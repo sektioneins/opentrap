@@ -645,11 +645,32 @@ public final class StorePanel extends JPanel {
         }
         String verb = r.action().equals("New build") ? "Update" : r.action();
         if (!confirm(verb + " " + r.best().name(), confirmText(r, ip), verb)) return;
-        download(ip.plan(), verb + " " + r.best().name());
+        download(this, store, ip.plan(), verb + " " + r.best().name(), ip.after(store));
     }
 
-    /** What Install, Update or Switch source downloads, and one "name (action)" per entry already queued. */
-    record InstallPlan(List<Entry> plan, List<String> queued) {}
+    /**
+     * What Install, Update or Switch source downloads, one "name (action)" per
+     * entry already queued, and the installed add-ons it needs that are kept
+     * running with it.
+     */
+    record InstallPlan(List<Entry> plan, List<String> queued, List<String> keepOn) {
+        /** What runs once the plan is queued. */
+        AfterQueue after(Store store) { return keepOnStep(store, keepOn); }
+    }
+
+    /** Keeps each of {@code ids} running at the next engine start; the step after a download is queued. */
+    static AfterQueue keepOnStep(Store store, List<String> ids) {
+        return () -> {
+            for (String id : ids) store.keepActive(id);
+        };
+    }
+
+    /** What a confirmation says about the add-ons {@link #keepOnStep} keeps running, or "" for none. */
+    static String keepOnText(List<String> ids) {
+        if (ids.isEmpty()) return "";
+        return "These installed add-ons are needed but disabled, or queued to be disabled or removed; they are"
+                + " enabled at the next engine start as well: " + String.join(", ", ids) + ".";
+    }
 
     /**
      * The chosen entry with what it needs, without what already has a
@@ -665,7 +686,7 @@ public final class StorePanel extends JPanel {
             if (p == null) plan.add(e);
             else queued.add(e.name() + " (" + p.action().name().toLowerCase(Locale.ROOT) + ")");
         }
-        return new InstallPlan(List.copyOf(plan), List.copyOf(queued));
+        return new InstallPlan(List.copyOf(plan), List.copyOf(queued), store.keptOff(plan));
     }
 
     /** The queued changes that put a downloaded file in place, by add-on id. */
@@ -679,7 +700,10 @@ public final class StorePanel extends JPanel {
     }
 
     /** What Update all downloads, dependencies first and each id once, and one "name: reason" per update left out. */
-    record UpdatePlan(List<Entry> plan, List<String> leftOut) {}
+    record UpdatePlan(List<Entry> plan, List<String> leftOut, List<String> keepOn) {
+        /** What runs once the plan is queued. */
+        AfterQueue after(Store store) { return keepOnStep(store, keepOn); }
+    }
 
     /**
      * Every update the store counts, with what it needs, except those whose
@@ -707,7 +731,7 @@ public final class StorePanel extends JPanel {
                 refused.add(u.name() + ": " + ex.getMessage());
             }
         }
-        return new UpdatePlan(List.copyOf(plan), List.copyOf(refused));
+        return new UpdatePlan(List.copyOf(plan), List.copyOf(refused), store.keptOff(plan));
     }
 
     private void updateAll() {
@@ -716,6 +740,7 @@ public final class StorePanel extends JPanel {
         List<String> refused = up.leftOut();
         StringBuilder text = new StringBuilder();
         if (!plan.isEmpty()) text.append(listText("These add-ons are downloaded now and take effect when the engine restarts:", plan));
+        if (!plan.isEmpty() && !up.keepOn().isEmpty()) text.append(keepOnText(up.keepOn())).append('\n');
         if (!refused.isEmpty()) {
             if (!text.isEmpty()) text.append("\n\n");
             text.append("Left out:\n");
@@ -726,7 +751,7 @@ public final class StorePanel extends JPanel {
             return;
         }
         if (!confirm("Update all", text.toString().strip(), "Update all")) return;
-        download(plan, "Update all");
+        download(this, store, plan, "Update all", up.after(store));
     }
 
     /** What the confirmation says before anything is downloaded: every entry, dependencies first. */
@@ -742,11 +767,19 @@ public final class StorePanel extends JPanel {
             if (e.version().compareTo(in.version()) < 0) b.append(" This is an older version.");
             b.append("\n\n");
         }
+        b.append(confirmText(ip));
+        return b.toString().strip();
+    }
+
+    /** What the confirmation says of the plan itself: every entry, dependencies first, and what it keeps running. */
+    String confirmText(InstallPlan ip) {
+        StringBuilder b = new StringBuilder();
         b.append(listText("These add-ons are downloaded now and take effect when the engine restarts:", ip.plan()));
         if (!ip.queued().isEmpty()) {
             b.append("\nAlready queued for the next engine start, so not downloaded again: ")
                     .append(String.join(", ", ip.queued())).append('.');
         }
+        if (!ip.keepOn().isEmpty()) b.append("\n").append(keepOnText(ip.keepOn()));
         return b.toString().strip();
     }
 
@@ -770,8 +803,6 @@ public final class StorePanel extends JPanel {
                 JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
         return c == 0;
     }
-
-    private void download(List<Entry> plan, String title) { download(this, store, plan, title, null); }
 
     /** A step that runs on the download's thread once everything is queued. */
     interface AfterQueue { void run() throws java.io.IOException; }

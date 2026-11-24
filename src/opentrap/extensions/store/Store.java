@@ -242,6 +242,9 @@ public final class Store {
 
     public List<Entry> updates() { return resolver().updates(); }
 
+    /** Installed add-ons {@code plan} needs that would not run after it, by {@link Resolver#keptOff}. */
+    public List<String> keptOff(List<Entry> plan) { return resolver().keptOff(plan, pending); }
+
     /** Active add-ons that need {@code id}. */
     public List<String> dependents(String id) { return resolver().dependents(id); }
 
@@ -374,6 +377,29 @@ public final class Store {
         try (StoreLock _ = StoreLock.acquire(root)) {
             StoreRecord rec = StoreRecord.load(o.minorDir);
             rec.pending().add(p);
+            rec.save();
+            publish(rec);
+        }
+        fire();
+    }
+
+    /**
+     * Makes {@code id} run after the next engine start, for an add-on that
+     * something queued needs: drops its queued disable or removal and queues
+     * an enable when it is installed disabled.
+     */
+    public void keepActive(String id) throws IOException {
+        Opened o = opened();
+        try (StoreLock _ = StoreLock.acquire(root)) {
+            StoreRecord rec = StoreRecord.load(o.minorDir);
+            rec.pending().removeIf(p -> p.id().equals(id)
+                    && (p.action() == Pending.Action.DISABLE || p.action() == Pending.Action.REMOVE));
+            Installed in = rec.installed().get(id);
+            boolean enabling = rec.pending().stream()
+                    .anyMatch(p -> p.id().equals(id) && p.action() == Pending.Action.ENABLE);
+            if (in != null && !in.active() && !enabling) {
+                rec.pending().add(new Pending(Pending.Action.ENABLE, id, null, null));
+            }
             rec.save();
             publish(rec);
         }

@@ -1,10 +1,14 @@
 package opentrap.extensions.store;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.regex.Matcher;
@@ -83,6 +87,48 @@ public final class Resolver {
             visit(pick, chosen, planned, neededBy, out);
         }
         out.add(e);
+    }
+
+    /**
+     * Installed add-ons that {@code plan} needs, directly or through each
+     * other, and that would not run after it: those installed disabled (an
+     * update keeps that state) and those with a disable or a removal in
+     * {@code pending}. Only what a planned add-on that runs afterwards needs
+     * counts; an update of a disabled add-on leaves it and its needs off.
+     * Each once, in the order found.
+     */
+    public List<String> keptOff(List<Entry> plan, List<Pending> pending) {
+        Set<String> going = new HashSet<>();
+        for (Pending p : pending) {
+            if (p.action() == Pending.Action.DISABLE || p.action() == Pending.Action.REMOVE) going.add(p.id());
+        }
+        Map<String, Entry> planned = new HashMap<>();
+        for (Entry e : plan) planned.put(e.id(), e);
+        Deque<Dependency> todo = new ArrayDeque<>();
+        for (Entry e : plan) if (runsAfter(e, going)) todo.addAll(e.dependencies());
+        List<String> out = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        while (!todo.isEmpty()) {
+            String id = todo.poll().id();
+            if (!seen.add(id)) continue;
+            Entry next = planned.get(id);
+            Installed have = installed.get(id);
+            if (next != null) {
+                if (!runsAfter(next, going)) out.add(id);
+                todo.addAll(next.dependencies());
+            } else if (have != null) {
+                if (!have.active() || going.contains(id)) out.add(id);
+                todo.addAll(depsOf.apply(have));
+            }
+        }
+        return out;
+    }
+
+    /** Whether a planned entry runs after it is applied: an update keeps the installed state, the rest turn on. */
+    private boolean runsAfter(Entry e, Set<String> going) {
+        Installed have = installed.get(e.id());
+        if (have == null || !sameLine(have.sourceId(), e.sourceId())) return true;
+        return have.active() && !going.contains(e.id());
     }
 
     private static String rangeText(Dependency d) {

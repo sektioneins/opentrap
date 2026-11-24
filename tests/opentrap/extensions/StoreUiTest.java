@@ -386,6 +386,59 @@ public final class StoreUiTest {
                             "foo without lib, whose update is queued");
                 }));
 
+        Harness.test("an install enables what it needs that is disabled or queued to go", () ->
+                StoreFixtures.inTemp(CRAWL, (store, engine) -> {
+                    Path folder = folderSource(engine, false);
+                    ZapFixtures.zap(folder, "foo", "1.0.0", "release", "commonlib", "");
+                    ZapFixtures.zap(folder, "bar", "1.0.0", "release", "network", "");
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    store.disable("commonlib");
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    store.remove("network");
+                    StorePanel panel = panel(store);
+                    for (String id : List.of("foo", "bar")) {
+                        StorePanel.InstallPlan ip = onEdt(() -> {
+                            try { return panel.planInstall(offer(store, id, "1.0.0")); }
+                            catch (opentrap.extensions.store.Resolver.Unresolvable e) { throw new AssertionError(e); }
+                        });
+                        Expect.equal(ip.keepOn(), List.of(id.equals("foo") ? "commonlib" : "network"),
+                                id + " names what it needs");
+                        Expect.isTrue(onEdt(() -> panel.confirmText(ip)).contains("enabled at the next engine start as well: "
+                                + ip.keepOn().get(0)), "the confirmation names it: " + onEdt(() -> panel.confirmText(ip)));
+                        store.install(ip.plan(), (d, t) -> {}, () -> false);
+                        ip.after(store).run();
+                    }
+                    Expect.equal(queued(store, Pending.Action.REMOVE), List.of(), "network's removal is dropped");
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    for (String id : List.of("foo", "bar", "commonlib", "network")) {
+                        Expect.isTrue(store.installed().stream().anyMatch(in -> in.id().equals(id) && in.active()),
+                                id + " is active: " + store.installed());
+                    }
+                }));
+
+        Harness.test("update all enables a disabled dependency it updates", () ->
+                StoreFixtures.inTemp(CRAWL, (store, engine) -> {
+                    Path folder = folderSource(engine, false);
+                    ZapFixtures.zap(folder, "lib", "1.0.0", "release");
+                    ZapFixtures.zap(folder, "foo", "1.0.0", "release", "lib", "");
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    install(store, offer(store, "foo", "1.0.0"));
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    store.disable("lib");
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    ZapFixtures.zap(folder, "lib", "2.0.0", "release");
+                    ZapFixtures.zap(folder, "foo", "2.0.0", "release", "lib", ">= 2.0.0");
+                    store.refresh(() -> false);
+                    StorePanel panel = panel(store);
+                    StorePanel.UpdatePlan up = onEdt(panel::planUpdates);
+                    Expect.equal(up.keepOn(), List.of("lib"), "lib is named");
+                    store.install(up.plan(), (d, t) -> {}, () -> false);
+                    up.after(store).run();
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    Expect.isTrue(store.installed().stream().anyMatch(in -> in.id().equals("lib") && in.active()
+                            && in.version().toString().equals("2.0.0")), "lib 2.0.0 runs: " + store.installed());
+                }));
+
         Harness.test("an engine start that cannot bring the record in line stops it being trusted", () ->
                 StoreFixtures.started(CRAWL, List.of("spider"), (store, engine) -> {
                     Expect.isTrue(store.reflectsEngine(), "the first starts brought the record in line");
@@ -638,6 +691,32 @@ public final class StoreUiTest {
                             "one nobody offers, one only another source offers");
                     String text = InstalledPanel.carryoverText(cp, "2.17");
                     Expect.isTrue(text.contains("Not available for ZAP 2.17:\n  gone\n  spider"), "the text: " + text);
+                }));
+
+        Harness.test("the carry-over keeps on what an active add-on needs", () ->
+                StoreFixtures.inTemp(CRAWL, (store, engine) -> {
+                    Path folder = folderSource(engine, false);
+                    ZapFixtures.zap(folder, "b", "1.0.0", "release");
+                    ZapFixtures.zap(folder, "a", "1.0.0", "release", "b", "", "commonlib", "");
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    store.disable("commonlib");
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    Installed a = held("src-1", "a", "0.9.0", "11");
+                    Installed b = new Installed(Kind.ZAP_ADDON, "b", Version.parse("0.9.0"), "b-release-0.9.0.zap",
+                            "src-1", "Mine", false, "11".repeat(32));
+                    InstalledPanel.CarryPlan cp = InstalledPanel.carryPlan(store, List.of(a, b));
+                    Expect.equal(cp.plan().stream().map(Entry::id).toList(), List.of("b", "a"), "both come");
+                    Expect.equal(cp.keepOff(), List.of(), "b is not kept off: a needs it");
+                    Expect.equal(cp.keepOn(), List.of("commonlib"), "the disabled bundled one a needs is named");
+                    String text = InstalledPanel.carryoverText(cp, "2.17");
+                    Expect.isTrue(text.contains("enabled at the next engine start as well: commonlib"), "the text: " + text);
+                    store.install(cp.plan(), (d, t) -> {}, () -> false);
+                    cp.after(store).run();
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    for (String id : List.of("a", "b", "commonlib")) {
+                        Expect.isTrue(store.installed().stream().anyMatch(in -> in.id().equals(id) && in.active()),
+                                id + " is active: " + store.installed());
+                    }
                 }));
 
         Harness.test("a feed source must be HTTPS", () -> {

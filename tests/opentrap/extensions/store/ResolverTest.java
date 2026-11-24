@@ -67,6 +67,14 @@ public final class ResolverTest {
                 List.of(new Dependency(depId, range)));
     }
 
+    private static Entry withNeeds(Entry e, String... depIds) {
+        List<Dependency> deps = new ArrayList<>();
+        for (String d : depIds) deps.add(new Dependency(d, VersionRange.ANY));
+        return new Entry(e.kind(), e.sourceId(), e.id(), e.name(), e.description(), e.author(), e.version(),
+                e.status(), e.date(), e.changes(), e.infoUrl(), e.size(), e.file(), e.location(), e.sha256(),
+                List.copyOf(deps));
+    }
+
     private static List<Entry> plan(Resolver r, Entry e) {
         try { return r.plan(e); }
         catch (Resolver.Unresolvable x) { throw new AssertionError(x.getMessage(), x); }
@@ -298,6 +306,38 @@ public final class ResolverTest {
                     in.id().equals("retire") ? List.of(new Dependency("commonlib", COMMON)) : List.of());
             Expect.equal(r.needs("retire"), List.of("commonlib"), "needs");
             Expect.equal(r.needs("commonlib"), List.of(), "none");
+        });
+
+        Harness.test("an install names the add-ons it needs that would not run", () -> {
+            World w = new World("mine");
+            w.offer("mine", "foo", "1.0.0", "release");
+            w.have("lib", "1.0.0", "release", "mine", false, ZERO);
+            w.have("gone", "1.0.0", "release", "mine", true, ZERO);
+            w.have("fine", "1.0.0", "release", "mine", true, ZERO);
+            w.have("deep", "1.0.0", "release", "mine", false, ZERO);
+            Catalogue c = w.catalogue();
+            Resolver r = new Resolver(c, w.installed, in ->
+                    in.id().equals("lib") ? List.of(new Dependency("deep", VersionRange.ANY)) : List.of());
+            Entry foo = withNeeds(offered(c, "foo", "mine"), "lib", "gone", "fine");
+            Expect.equal(r.keptOff(List.of(foo), List.of(new Pending(Pending.Action.REMOVE, "gone", null, null))),
+                    List.of("lib", "gone", "deep"), "disabled, queued to go, and what a disabled one needs");
+        });
+
+        Harness.test("an update names a disabled dependency it updates, but not for a disabled add-on", () -> {
+            World w = new World("mine");
+            w.offer("mine", "lib", "2.0.0", "release");
+            w.offer("mine", "foo", "2.0.0", "release");
+            w.offer("mine", "bar", "2.0.0", "release");
+            w.have("lib", "1.0.0", "release", "mine", false, ZERO);
+            w.have("foo", "1.0.0", "release", "mine", true, ZERO);
+            w.have("bar", "1.0.0", "release", "mine", false, ZERO);
+            Catalogue c = w.catalogue();
+            Resolver r = w.resolver(c);
+            Entry lib = offered(c, "lib", "mine");
+            Expect.equal(r.keptOff(List.of(lib, withNeeds(offered(c, "foo", "mine"), "lib")), List.of()),
+                    List.of("lib"), "an update keeps lib disabled, and foo runs");
+            Expect.equal(r.keptOff(List.of(lib, withNeeds(offered(c, "bar", "mine"), "lib")), List.of()),
+                    List.of(), "bar stays disabled, so lib need not run");
         });
 
         Harness.test("same line means equal sources or ZAP's feed with the bundled set", () -> {
