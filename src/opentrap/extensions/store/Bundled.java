@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,35 +35,46 @@ public final class Bundled {
      */
     public static List<String> reconcile(Path engineInstall, Version zap, ZapAddOnKind kind, StoreRecord rec)
             throws IOException {
+        // where each bundled add-on is, before its link may go: a renamed engine file keeps that state
+        Map<String, Boolean> wasActive = new LinkedHashMap<>();
+        for (Installed in : rec.installed().values()) {
+            if (!Source.BUNDLED_ID.equals(in.sourceId())) continue;
+            if (!ZapAddOnKind.files(kind.disabledDir(), in.id()).isEmpty()) wasActive.put(in.id(), false);
+            else if (!ZapAddOnKind.files(kind.enabledDir(), in.id()).isEmpty()) wasActive.put(in.id(), true);
+        }
         for (Path dir : new Path[] {kind.enabledDir(), kind.disabledDir()}) removeDangling(dir);
-        List<String> dropped = new ArrayList<>();
+        Map<String, Boolean> gone = new LinkedHashMap<>();
         for (Installed in : List.copyOf(rec.installed().values())) {
             if (Source.BUNDLED_ID.equals(in.sourceId()) && ZapAddOnKind.files(kind.enabledDir(), in.id()).isEmpty()
                     && ZapAddOnKind.files(kind.disabledDir(), in.id()).isEmpty()) {
                 rec.installed().remove(in.id());
-                dropped.add(in.id());
+                gone.put(in.id(), wasActive.getOrDefault(in.id(), in.active()));
             }
         }
         Listing listing = listing(engineInstall, zap);
         List<String> files = listing.entries().stream().map(Entry::file).sorted().toList();
         String seen = RuntimeInstall.key(engineInstall) + "-" + RuntimeInstall.hash16(String.join("\n", files));
-        if (rec.seenEngines().contains(seen)) return dropped;
-        Map<String, Entry> best = new LinkedHashMap<>();
-        for (Entry e : listing.entries()) {
-            Entry old = best.get(e.id());
-            if (old == null || old.version().compareTo(e.version()) < 0) best.put(e.id(), e);
+        if (!rec.seenEngines().contains(seen)) {
+            Map<String, Entry> best = new LinkedHashMap<>();
+            for (Entry e : listing.entries()) {
+                Entry old = best.get(e.id());
+                if (old == null || old.version().compareTo(e.version()) < 0) best.put(e.id(), e);
+            }
+            for (Entry e : best.values()) take(e, zap, kind, rec, gone.get(e.id()));
+            rec.seenEngines().add(seen);
         }
-        for (Entry e : best.values()) take(e, zap, kind, rec);
-        rec.seenEngines().add(seen);
-        return dropped;
+        // only what ends the call without a file: a renamed engine file was linked again above
+        return gone.keySet().stream().filter(id -> !rec.installed().containsKey(id)).toList();
     }
 
-    private static void take(Entry e, Version zap, ZapAddOnKind kind, StoreRecord rec) throws IOException {
+    /** {@code wasActive} is the state of a bundled add-on whose old link was just removed, else null. */
+    private static void take(Entry e, Version zap, ZapAddOnKind kind, StoreRecord rec, Boolean wasActive)
+            throws IOException {
         Installed held = rec.installed().get(e.id());
         boolean active;
         if (held == null) {
             if (rec.removedBundled().contains(e.id())) return;
-            active = true;
+            active = wasActive == null || wasActive;
         } else {
             boolean ours = Source.ZAP_ID.equals(held.sourceId()) || Source.BUNDLED_ID.equals(held.sourceId());
             if (!ours || held.version().compareTo(e.version()) >= 0) return;
@@ -75,10 +85,13 @@ public final class Bundled {
         }
         Path dir = active ? kind.enabledDir() : kind.disabledDir();
         Path link = dir.resolve(e.file());
-        if (held == null && Files.exists(link, LinkOption.NOFOLLOW_LINKS)) return;
-        kind.deleteIdFiles(e.id(), null);
-        Files.createDirectories(dir);
-        Files.createSymbolicLink(link, Path.of(e.location()));
+        // a same-named entry the record does not know is taken as it is
+        boolean there = held == null && Files.exists(link, LinkOption.NOFOLLOW_LINKS);
+        if (!there) {
+            kind.deleteIdFiles(e.id(), null);
+            Files.createDirectories(dir);
+            Files.createSymbolicLink(link, Path.of(e.location()));
+        }
         rec.installed().put(e.id(), new Installed(Kind.ZAP_ADDON, e.id(), e.version(), e.file(), Source.BUNDLED_ID,
                 "bundled with ZAP " + zap, active, e.sha256()));
     }

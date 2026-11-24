@@ -157,7 +157,35 @@ public final class BundledTest {
             Expect.isTrue(Files.isDirectory(engine.resolve("plugin")), "engine left alone");
         }));
 
-        Harness.test("the runtime install links everything except the add-ons", () -> inTemp((root, engine, k, rec) -> {
+        Harness.test("a bundled add-on whose engine file was replaced by a newer one keeps its state", () -> inTemp((root, engine, k, rec) -> {
+            Path foo = ZapFixtures.zap(engine.resolve("plugin"), "foo", "1.0.0", "release");
+            Path bar = ZapFixtures.zap(engine.resolve("plugin"), "bar", "1.0.0", "release");
+            Bundled.reconcile(engine, ZAP, k, rec);
+            rec.installed().put("foo", new Installed(Kind.ZAP_ADDON, "foo", Version.parse("1.0.0"), foo.getFileName().toString(),
+                    "bundled", "bundled with ZAP 2.17.0", false, "ab".repeat(32)));
+            Files.move(k.enabledDir().resolve(foo.getFileName()), k.disabledDir().resolve(foo.getFileName()));
+            Files.delete(foo);
+            Files.delete(bar);
+            Path newer = ZapFixtures.zap(engine.resolve("plugin"), "foo", "1.1.0", "release");
+            Expect.equal(Bundled.reconcile(engine, ZAP, k, rec), List.of("bar"), "only the add-on without a file is reported");
+            Expect.equal(names(k.disabledDir()), List.of("foo-release-1.1.0.zap"), "new link where the old one was");
+            Expect.equal(names(k.enabledDir()), List.of(), "enabled empty");
+            Expect.equal(Files.readSymbolicLink(k.disabledDir().resolve(newer.getFileName())), newer.toAbsolutePath(), "target");
+            Installed in = rec.installed().get("foo");
+            Expect.equal(in.version(), Version.parse("1.1.0"), "version");
+            Expect.isFalse(in.active(), "still disabled");
+            Expect.isFalse(rec.installed().containsKey("bar"), "bar dropped");
+        }));
+
+        Harness.test("a same-named link the record does not know is recorded", () -> inTemp((root, engine, k, rec) -> {
+            Path foo = ZapFixtures.zap(engine.resolve("plugin"), "foo", "1.0.0", "release");
+            Files.createSymbolicLink(k.enabledDir().resolve(foo.getFileName()), foo.toAbsolutePath());
+            Bundled.reconcile(engine, ZAP, k, rec);
+            Expect.equal(rec.installed().get("foo").file(), foo.getFileName().toString(), "recorded");
+            Expect.equal(names(k.enabledDir()), List.of("foo-release-1.0.0.zap"), "kept");
+        }));
+
+        Harness.test("the runtime install links everything except the add-ons",() -> inTemp((root, engine, k, rec) -> {
             ZapFixtures.zap(engine.resolve("plugin"), "foo", "1.0.0", "release");
             List<String> before = tree(engine);
             Path runtimeRoot = root.resolve("runtime");
