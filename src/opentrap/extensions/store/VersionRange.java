@@ -62,5 +62,10 @@ public final class VersionRange {
         return true;
     }
 
+    /** Two ranges are equal when they were written the same way. */
+    @Override public boolean equals(Object o) { return o instanceof VersionRange r && r.text.equals(text); }
+
+    @Override public int hashCode() { return text.hashCode(); }
+
     @Override public String toString() { return text; }
 }
