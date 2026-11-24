@@ -94,8 +94,9 @@ For everything else, the original project is the place to go:
   `ROADMAP.md` are gone; the Discover tab keeps the getting-started page.
 - **Smaller things.** Quitting with Cmd-Q asks to save like closing the window
   does, the scan engine starts on systems without `setsid`, typing in the
-  Decoder no longer moves the focus away after each character, and the test suite
-  runs in about 3 seconds instead of 24.
+  Decoder no longer moves the focus away after each character, the live audit
+  still raises its findings after it is switched off and on again, and the test
+  suite runs in about 3 seconds instead of 24.
 
 ## Licence
 
