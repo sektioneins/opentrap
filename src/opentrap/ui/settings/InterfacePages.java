@@ -9,12 +9,16 @@ import opentrap.ui.MacKeys;
 import opentrap.ui.OptionsPage;
 import opentrap.ui.Theme;
 import opentrap.ui.Ui;
+import opentrap.ui.theme.ThemeCatalog;
+import opentrap.ui.theme.ThemeException;
 
 import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
 import java.awt.*;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /** Settings > User interface pages: Side panel, Message editor, Hotkeys, Display. */
 public final class InterfacePages {
@@ -305,9 +309,19 @@ public final class InterfacePages {
         }
     }
 
-    /** Saves the interface font and restarts through {@code restart}; choosing the active font does nothing. */
+    /**
+     * Saves the interface font and restarts through {@code restart}. Choosing the active font
+     * writes it back when the saved keys name another one (undoing a pending change), without a restart.
+     */
     public static void applyUiFont(Settings s, String family, int size, Runnable restart) {
-        if (family.equals(Fonts.uiFamily()) && size == Fonts.uiSize()) return;
+        if (family.equals(Fonts.uiFamily()) && size == Fonts.uiSize()) {
+            String f = s.get(Fonts.KEY_UI_FAMILY, null), z = s.get(Fonts.KEY_UI_SIZE, null);
+            if ((f != null || z != null) && !(family.equals(f) && String.valueOf(size).equals(z))) {
+                s.set(Fonts.KEY_UI_FAMILY, family);
+                s.set(Fonts.KEY_UI_SIZE, String.valueOf(size));
+            }
+            return;
+        }
         s.set(Fonts.KEY_UI_FAMILY, family);
         s.set(Fonts.KEY_UI_SIZE, String.valueOf(size));
         restart.run();
@@ -321,9 +335,16 @@ public final class InterfacePages {
         restart.run();
     }
 
-    /** Saves the monospace font in the {@code <Family> <N>pt} format and restarts through {@code restart}; choosing the active font does nothing. */
+    /**
+     * Saves the monospace font in the {@code <Family> <N>pt} format and restarts through {@code restart}.
+     * Choosing the active font writes it back when the saved key names another one, without a restart.
+     */
     public static void applyMonoFont(Settings s, String family, int size, Runnable restart) {
-        if (family.equals(Fonts.monoFamily()) && size == Fonts.monoSize()) return;
+        if (family.equals(Fonts.monoFamily()) && size == Fonts.monoSize()) {
+            String saved = s.get(Fonts.KEY_MONO, null);
+            if (saved != null && !saved.equals(Fonts.describe(family, size))) s.set(Fonts.KEY_MONO, Fonts.describe(family, size));
+            return;
+        }
         s.set(Fonts.KEY_MONO, Fonts.describe(family, size));
         restart.run();
     }
@@ -333,6 +354,51 @@ public final class InterfacePages {
         if (s.get(Fonts.KEY_MONO, null) == null) return;
         s.remove(Fonts.KEY_MONO);
         restart.run();
+    }
+
+    /**
+     * Saves the theme's appearance in {@code ui.theme} and its id in {@code ui.theme.name} (removed for the
+     * built-in light and dark), then restarts through {@code restart}. Choosing the active theme writes its
+     * keys back when the saved ones name another theme, without a restart; with nothing pending it does nothing.
+     */
+    public static void applyTheme(Settings s, ThemeCatalog.Entry e, String activeId, Runnable restart) {
+        String name = ThemeCatalog.SHIPPED.contains(e.id()) ? null : e.id();
+        if (e.id().equals(activeId)
+                && e.appearance().equals(s.get("ui.theme", "light")) && Objects.equals(name, s.get("ui.theme.name", null))) return;
+        s.set("ui.theme", e.appearance());
+        if (name == null) s.remove("ui.theme.name"); else s.set("ui.theme.name", name);
+        if (!e.id().equals(activeId)) restart.run();
+    }
+
+    /** {@code Harbour (dark)}, or {@code Dark (dark, my-dark)} with the id when another theme has the same name. */
+    public static String themeLabel(ThemeCatalog.Entry e, List<ThemeCatalog.Entry> all) {
+        boolean clash = all.stream().anyMatch(o -> o != e && !o.id().equals(e.id()) && o.name().equals(e.name()));
+        return e.name() + " (" + e.appearance() + (clash ? ", " + e.id() : "") + ")";
+    }
+
+    private static String themeSummary(ThemeCatalog.Report r) {
+        StringBuilder b = new StringBuilder();
+        b.append("Name: ").append(r.name()).append('\n');
+        b.append("Based on: ").append(r.base()).append('\n');
+        b.append("Appearance: ").append(r.appearance()).append('\n');
+        if (r.author() != null && !r.author().isBlank()) b.append("Author: ").append(r.author()).append('\n');
+        if (!r.leftToBase().isEmpty()) b.append("Keys left to the base theme: ").append(r.leftToBase().size()).append('\n');
+        if (!r.unknownKeys().isEmpty()) b.append("Ignored keys: ").append(String.join(", ", r.unknownKeys())).append('\n');
+        if (!r.clamped().isEmpty()) b.append("Values brought into range: ").append(String.join(", ", r.clamped())).append('\n');
+        for (var f : r.contrast())
+            b.append(String.format(java.util.Locale.ROOT, "Low contrast: %s on %s is %.1f, wanted %.1f%n",
+                    f.pair().fg(), f.pair().bg(), f.ratio(), f.pair().min()));
+        if (r.replaces()) b.append("Replaces the theme ").append(r.id()).append(" you already have.\n");
+        b.append("\nAdd this theme?");
+        return b.toString();
+    }
+
+    private static void plainDialog(Component parent, String text, String title, int optionType, int messageType, Runnable onOk) {
+        JTextArea a = new JTextArea(text);
+        a.setEditable(false); a.setOpaque(false); a.setLineWrap(true); a.setWrapStyleWord(true);
+        a.setColumns(48);
+        int ok = optionType == JOptionPane.DEFAULT_OPTION ? JOptionPane.OK_OPTION : JOptionPane.YES_OPTION;
+        if (JOptionPane.showConfirmDialog(parent, a, title, optionType, messageType) == ok && onOk != null) onOk.run();
     }
 
     private static final String RESTART_BY_HAND = "Restart " + opentrap.ui.Main.NAME + " to use the new setting.";
@@ -382,6 +448,11 @@ public final class InterfacePages {
     }
 
     public static SettingsPage display(SuiteContext ctx, JComponent existingDisplay) {
+        return display(ctx, existingDisplay, new ThemeCatalog(Path.of(System.getProperty("user.home"), ".opentrap", "themes")));
+    }
+
+    /** The display page over the user theme folder of {@code themes}. */
+    public static SettingsPage display(SuiteContext ctx, JComponent existingDisplay, ThemeCatalog themes) {
         Settings s = ctx.settings();
         SettingsPage p = new SettingsPage();
         JLabel uiFont = Ui.label(Fonts.describe(Fonts.uiFamily(), Fonts.uiSize()));
@@ -390,21 +461,73 @@ public final class InterfacePages {
                 (fam, sz) -> applyUiFont(s, fam, sz, () -> restartApp(ctx))));
         JButton resetUi = Ui.button("Reset to default");
         resetUi.addActionListener(e -> resetUiFont(s, () -> restartApp(ctx)));
-        JRadioButton light = Ui.radio("Light", !Theme.darkPreferred());
-        JRadioButton dark = Ui.radio("Dark", Theme.darkPreferred());
-        ButtonGroup g = new ButtonGroup(); g.add(light); g.add(dark);
-        java.awt.event.ItemListener theme = e -> {
-            boolean wantDark = dark.isSelected();
-            if (wantDark == Theme.dark) return;
-            s.set("ui.theme", wantDark ? "dark" : "light");
-            restartApp(ctx);
+        JComboBox<String> themeBox = Ui.combo(new String[0]);
+        JButton addTheme = Ui.button("Add from file ...");
+        JButton removeTheme = Ui.button("Remove");
+        List<ThemeCatalog.Entry> entries = new ArrayList<>();
+        boolean[] filling = {false};
+        Runnable refresh = () -> {
+            filling[0] = true;
+            try {
+                entries.clear();
+                entries.addAll(themes.list());
+                themeBox.removeAllItems();
+                int sel = 0;
+                for (int i = 0; i < entries.size(); i++) {
+                    themeBox.addItem(themeLabel(entries.get(i), entries));
+                    if (entries.get(i).id().equals(Theme.activeId())) sel = i;
+                }
+                themeBox.setSelectedIndex(sel);
+                removeTheme.setEnabled(!entries.isEmpty() && !entries.get(sel).shipped());
+            } finally { filling[0] = false; }
         };
-        light.addItemListener(theme); dark.addItemListener(theme);
+        refresh.run();
+        themeBox.addActionListener(e -> {
+            int i = themeBox.getSelectedIndex();
+            if (filling[0] || i < 0) return;
+            removeTheme.setEnabled(!entries.get(i).shipped());
+            applyTheme(s, entries.get(i), Theme.activeId(), () -> restartApp(ctx));
+        });
+        addTheme.addActionListener(e -> {
+            JFileChooser fc = new JFileChooser();
+            fc.setDialogTitle("Add a theme");
+            fc.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("Theme files (*.theme)", "theme"));
+            if (fc.showOpenDialog(addTheme) != JFileChooser.APPROVE_OPTION) return;
+            Path file = fc.getSelectedFile().toPath();
+            try {
+                ThemeCatalog.Report r = themes.check(file);
+                plainDialog(addTheme, themeSummary(r), "Add theme", JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE, () -> {
+                    try { themes.add(file); refresh.run(); }
+                    catch (ThemeException | java.io.IOException ex) {
+                        plainDialog(addTheme, String.valueOf(ex.getMessage()), "Add theme", JOptionPane.DEFAULT_OPTION, JOptionPane.ERROR_MESSAGE, null);
+                    }
+                });
+            } catch (ThemeException | java.io.IOException ex) {
+                plainDialog(addTheme, String.valueOf(ex.getMessage()), "Add theme", JOptionPane.DEFAULT_OPTION, JOptionPane.ERROR_MESSAGE, null);
+            }
+        });
+        removeTheme.addActionListener(e -> {
+            int i = themeBox.getSelectedIndex();
+            if (i < 0 || entries.get(i).shipped()) return;
+            ThemeCatalog.Entry gone = entries.get(i);
+            plainDialog(removeTheme, "Remove the theme " + gone.name() + "?", "Remove theme", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE, () -> {
+                try {
+                    themes.remove(gone.id());
+                    refresh.run();
+                    if (gone.id().equals(Theme.activeId())) {
+                        entries.stream().filter(x -> x.id().equals(gone.appearance())).findFirst()
+                                .ifPresent(b -> applyTheme(s, b, Theme.activeId(), () -> restartApp(ctx)));
+                    }
+                } catch (java.io.IOException ex) {
+                    plainDialog(removeTheme, String.valueOf(ex.getMessage()), "Remove theme", JOptionPane.DEFAULT_OPTION, JOptionPane.ERROR_MESSAGE, null);
+                }
+            });
+        });
         p.block("Appearance", SettingsPage.Kind.USER,
-                "The interface font and colour theme. Changing the font or the theme restarts the app so every panel comes up consistent. Restoring this block clears the saved font, which applies at the next start.",
-                () -> { s.remove(Fonts.KEY_UI_FAMILY); s.remove(Fonts.KEY_UI_SIZE); },
+                "The interface font and colour theme. Changing the font or the theme restarts the app so every panel comes up consistent. Restoring this block clears the saved font and sets the theme back to Light, which applies at the next start.",
+                () -> { s.remove(Fonts.KEY_UI_FAMILY); s.remove(Fonts.KEY_UI_SIZE); s.set("ui.theme", "light"); s.remove("ui.theme.name"); },
                 SettingsPage.labelled("Font:", uiFont, changeUi, resetUi),
-                SettingsPage.labelled("Theme:", light, dark));
+                SettingsPage.labelled("Theme:", themeBox, addTheme, removeTheme));
         if (existingDisplay != null) p.addSection(existingDisplay);
         JCheckBox configure = SettingsPage.check(s, "ui.scale.configure", true, "Configure scaling settings");
         JCheckBox systemDpi = SettingsPage.check(s, "ui.scale.systemDpi", true, "Use system DPI settings");
