@@ -11,7 +11,8 @@ A free and open-source alternative to Burp Suite, built on the trusted OWASP ZAP
 <p>
 <img src="https://img.shields.io/badge/licence-AGPL--3.0-e5484d?style=flat-square" alt="Licence">
 <img src="https://img.shields.io/badge/Java-27%2B-5b8def?style=flat-square" alt="Java">
-<img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-9aa7b4?style=flat-square" alt="Platform">
+<img src="https://img.shields.io/badge/platform-macOS-9aa7b4?style=flat-square" alt="Platform: macOS">
+<img src="https://img.shields.io/badge/platform-Linux-9aa7b4?style=flat-square" alt="Platform: Linux">
 <img src="https://img.shields.io/badge/status-active%20development-3fb950?style=flat-square" alt="Status">
 </p>
 
@@ -62,8 +63,10 @@ For everything else, the original project is the place to go:
   file unused.
 - **Security fixes in the toolset.** Text from captured traffic is no longer
   rendered as HTML in tables and labels, "Copy as curl" quotes every part of the
-  request, redirects no longer carry cookies and credentials to another origin,
-  and the proxy refuses to forward a request to itself. A cookie set without a
+  request, and redirects no longer carry cookies and credentials to another
+  origin. Repeater's "On-site only" and "In-scope only" modes stop at a redirect
+  that leaves the site or the scope, and the status says why. The proxy refuses
+  to forward a request to itself. A cookie set without a
   `Domain` goes back only to the host that set it, not to its subdomains, and the
   cookie jar shows which cookies are host-only. The CA key and the saved
   application logins are written readable by their owner only from the start.

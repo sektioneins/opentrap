@@ -147,6 +147,93 @@ public final class HttpClientRedirectTest {
                 Expect.isFalse(seen.contains("a=1"), "not A's cookie");
             } catch (Exception e) { throw new RuntimeException(e); }
         });
+
+        Harness.test("the on-site policy refuses another host, port or scheme and allows the same origin", () -> {
+            HttpClient.RedirectPolicy p = HttpClient.RedirectPolicy.sameOrigin();
+            Expect.isNull(p.refusal(A, A, post()), "same origin");
+            Expect.equal(p.refusal(A, new HttpService("b.test", 443, true), post()), "off-site", "other host");
+            Expect.equal(p.refusal(A, new HttpService("a.test", 8443, true), post()), "off-site", "other port");
+            Expect.equal(p.refusal(A, new HttpService("a.test", 80, false), post()), "off-site", "other scheme");
+        });
+
+        Harness.test("the in-scope policy follows only targets the scope covers", () -> {
+            Scope s = new Scope();
+            s.includeUrl(A, "/", true);
+            HttpClient.RedirectPolicy p = HttpClient.RedirectPolicy.inScope(s);
+            HttpClient.Hop home = HttpClient.nextHop(A, post(), redirect(302, "/home"));
+            HttpClient.Hop other = HttpClient.nextHop(A, post(), redirect(302, "https://b.test/"));
+            HttpClient.Hop logout = HttpClient.nextHop(A, post(), redirect(302, "/logout"));
+            Expect.isNull(p.refusal(A, home.service(), home.request()), "in scope");
+            Expect.equal(p.refusal(A, other.service(), other.request()), "out of scope", "other host");
+            Expect.equal(p.refusal(A, logout.service(), logout.request()), "out of scope", "default exclude");
+            HttpClient.RedirectPolicy none = HttpClient.RedirectPolicy.inScope(new Scope());
+            Expect.equal(none.refusal(A, home.service(), home.request()), "out of scope", "empty scope");
+        });
+
+        Harness.test("an off-site redirect is not followed under the on-site policy and the 302 is returned", () -> {
+            try (ServerSocket b = new ServerSocket(0, 1, LOOPBACK);
+                 ServerSocket a = new ServerSocket(0, 1, LOOPBACK)) {
+                serveOnce(b, "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok");
+                serveOnce(a, "HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1:" + b.getLocalPort()
+                        + "/landing\r\nContent-Length: 0\r\n\r\n");
+                HttpClient.Options o = new HttpClient.Options();
+                o.followRedirects = true;
+                o.redirectPolicy = HttpClient.RedirectPolicy.sameOrigin();
+                HttpClient.Result r = sendGet(a, o);
+                Expect.isTrue(r.ok(), "response: " + r.error);
+                Expect.equal(r.response.statusCode(), 302, "the 302 is returned");
+                Expect.equal(r.redirectsFollowed, 0, "nothing followed");
+                Expect.equal(r.finalService.port(), a.getLocalPort(), "final service is A");
+                Expect.equal(r.redirectRefusal, "off-site", "reason");
+            } catch (Exception e) { throw new RuntimeException(e); }
+        });
+
+        Harness.test("a chain stops at the first hop the policy refuses", () -> {
+            try (ServerSocket b = new ServerSocket(0, 1, LOOPBACK);
+                 ServerSocket c = new ServerSocket(0, 1, LOOPBACK);
+                 ServerSocket a = new ServerSocket(0, 1, LOOPBACK)) {
+                serveOnce(b, "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok");
+                CompletableFuture<String> atC = serveOnce(c, "HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1:"
+                        + b.getLocalPort() + "/end\r\nContent-Length: 0\r\n\r\n");
+                serveOnce(a, "HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1:" + c.getLocalPort()
+                        + "/\r\nContent-Length: 0\r\n\r\n");
+                Scope scope = new Scope();
+                scope.includeUrl(new HttpService("127.0.0.1", a.getLocalPort(), false), "/", true);
+                scope.includeUrl(new HttpService("127.0.0.1", c.getLocalPort(), false), "/", true);
+                HttpClient.Options o = new HttpClient.Options();
+                o.followRedirects = true;
+                o.redirectPolicy = HttpClient.RedirectPolicy.inScope(scope);
+                HttpClient.Result r = sendGet(a, o);
+                Expect.isTrue(r.ok(), "response: " + r.error);
+                Expect.equal(r.response.statusCode(), 302, "C's 302 is returned");
+                Expect.equal(r.redirectsFollowed, 1, "A to C followed");
+                Expect.equal(r.finalService.port(), c.getLocalPort(), "final service is C");
+                Expect.equal(r.redirectRefusal, "out of scope", "reason");
+                Expect.isTrue(atC.get(5, TimeUnit.SECONDS).startsWith("GET /"), "C was asked");
+            } catch (Exception e) { throw new RuntimeException(e); }
+        });
+
+        Harness.test("without a policy every redirect is followed as before", () -> {
+            try (ServerSocket b = new ServerSocket(0, 1, LOOPBACK);
+                 ServerSocket a = new ServerSocket(0, 1, LOOPBACK)) {
+                serveOnce(b, "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok");
+                serveOnce(a, "HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1:" + b.getLocalPort()
+                        + "/landing\r\nContent-Length: 0\r\n\r\n");
+                HttpClient.Options o = new HttpClient.Options();
+                o.followRedirects = true;
+                HttpClient.Result r = sendGet(a, o);
+                Expect.isTrue(r.ok(), "response: " + r.error);
+                Expect.equal(r.response.statusCode(), 200, "followed to B");
+                Expect.equal(r.redirectsFollowed, 1, "one redirect");
+                Expect.equal(r.redirectRefusal, "", "no refusal");
+            } catch (Exception e) { throw new RuntimeException(e); }
+        });
+    }
+
+    private static HttpClient.Result sendGet(ServerSocket a, HttpClient.Options o) {
+        HttpService svcA = new HttpService("127.0.0.1", a.getLocalPort(), false);
+        return new HttpClient().send(svcA, new HttpMessage(Bytes.bytes(
+                "GET / HTTP/1.1\r\nHost: 127.0.0.1:" + a.getLocalPort() + "\r\n\r\n")), o);
     }
 
     /** Answer one connection with a fixed response; completes with the request as received. */

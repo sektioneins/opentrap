@@ -64,6 +64,30 @@ public class RepeaterTool implements ToolModule {
         return out.isEmpty() ? null : out;
     }
 
+    static final String FOLLOW_NEVER = "Never", FOLLOW_ON_SITE = "On-site only",
+            FOLLOW_IN_SCOPE = "In-scope only", FOLLOW_ALWAYS = "Always";
+
+    /** The tab's own redirect mode, or the one the global "follow redirects" setting stands for. */
+    static String followMode(String tabMode, boolean globalFollow) {
+        if (tabMode != null) return tabMode;
+        return globalFollow ? FOLLOW_ALWAYS : FOLLOW_NEVER;
+    }
+
+    /** Sets the client's redirect following and policy for a mode; an unknown mode does not follow. */
+    static void applyFollowMode(HttpClient.Options opt, String mode, Scope scope) {
+        opt.followRedirects = FOLLOW_ALWAYS.equals(mode) || FOLLOW_ON_SITE.equals(mode) || FOLLOW_IN_SCOPE.equals(mode);
+        opt.redirectPolicy = FOLLOW_ON_SITE.equals(mode) ? HttpClient.RedirectPolicy.sameOrigin()
+                : FOLLOW_IN_SCOPE.equals(mode) ? HttpClient.RedirectPolicy.inScope(scope) : null;
+    }
+
+    /** What the status says about redirects after "done": those followed and why the next one was not. */
+    static String redirectNote(int followed, String refusal) {
+        String hops = followed + " redirect" + (followed == 1 ? "" : "s");
+        if (refusal.isEmpty()) return followed > 0 ? " (followed " + hops + ")" : "";
+        if (followed == 0) return " (redirect not followed: " + refusal + ")";
+        return " (followed " + hops + ", next not followed: " + refusal + ")";
+    }
+
     /** The tabs the filter keeps. A request that is empty or does not parse is judged with path "/". */
     static java.util.ArrayList<TabState> kept(java.util.List<TabState> tabs, SaveFilter filter) {
         java.util.ArrayList<TabState> out = new java.util.ArrayList<>();
@@ -214,8 +238,8 @@ public class RepeaterTool implements ToolModule {
             JCheckBoxMenuItem unpack = new JCheckBoxMenuItem("Unpack compressed responses", true);
             JMenu follow = new JMenu("Follow redirections");
             ButtonGroup fg = new ButtonGroup();
-            for (String o : new String[]{"Never", "On-site only", "In-scope only", "Always"}) {
-                JRadioButtonMenuItem r = new JRadioButtonMenuItem(o, o.equals(tabFollow == null ? (followRedirects ? "Always" : "Never") : tabFollow));
+            for (String o : new String[]{FOLLOW_NEVER, FOLLOW_ON_SITE, FOLLOW_IN_SCOPE, FOLLOW_ALWAYS}) {
+                JRadioButtonMenuItem r = new JRadioButtonMenuItem(o, o.equals(followMode(tabFollow, followRedirects)));
                 r.addActionListener(e -> tabFollow = o);
                 fg.add(r); follow.add(r);
             }
@@ -407,6 +431,7 @@ public class RepeaterTool implements ToolModule {
             if ((tabUpdateCl != null ? tabUpdateCl : updateContentLength) && req.body().length > 0) req.updateContentLength();
 
             HttpMode mode = (HttpMode) modeCombo.getSelectedItem(); // Swing state: read on the EDT
+            String follow = followMode(tabFollow, followRedirects);
             status.setText("waiting");
             go.setEnabled(false);
             cancel.setEnabled(true);
@@ -415,7 +440,7 @@ public class RepeaterTool implements ToolModule {
                 try {
                     HttpClient.Options opt = new HttpClient.Options();
                     opt.updateContentLength = tabUpdateCl != null ? tabUpdateCl : updateContentLength;
-                    opt.followRedirects = tabFollow != null ? !"Never".equals(tabFollow) : followRedirects;
+                    applyFollowMode(opt, follow, ctx.scope());
                     opt.unpackGzip = true;
                     opt.session = ctx.sessions();
                     opt.sessionTool = "repeater";
@@ -433,10 +458,8 @@ public class RepeaterTool implements ToolModule {
                         respEditor.setMessage(svc, r.response, req);
                         versionChip.setText(HttpMode.answeredOver(r.response.startLine()));
                         versionChip.setVisible(true);
-                        int redirs = r.redirectsFollowed;
                         String note = HttpMode.fallbackNote(mode, r.response.startLine());
-                        String statusText = "done" + (redirs > 0 ? " (followed " + redirs + " redirect"
-                                + (redirs == 1 ? "" : "s") + ")" : "")
+                        String statusText = "done" + redirectNote(r.redirectsFollowed, r.redirectRefusal)
                                 + (note.isEmpty() ? "" : "  " + note) + "  " + ms + " ms";
                         status.setText(statusText);
                         lengthLabel.setText("length: " + r.response.length());
