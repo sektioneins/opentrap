@@ -466,7 +466,7 @@ public class DashboardTool implements ToolModule {
      */
     private void countLiveRequest(LogEntry e) {
         if (liveAudit == null || liveAudit.state() != ScanTask.State.RUNNING) return;
-        if (e.service() == null || e.request() == null || !ctx.scope().isInScope(e)) return;
+        if (e.service() == null || e.request() == null || !ctx.scope().isInScopeAsSent(e)) return;
         liveAudit.addRequests(1);
         liveLocations.add(e.request().method() + " " + e.url());
         liveAudit.setDiscoveredLocations(liveLocations.size());

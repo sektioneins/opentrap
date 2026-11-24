@@ -641,10 +641,11 @@ public final class ZapScanner {
         HttpService s = (target != null) ? HttpService.parse(target) : null;
         if (s == null) return false;
         HttpMessage req = requestOf(m);
-        // A scan is within scope, so nothing outside it is ever attributed to
-        // one. The JavaScript crawl drives a real browser, which makes its own
+        // The JavaScript crawl drives a real browser, which makes its own
         // background requests and loads each page's external resources; the
-        // engine records those too, and they are not the crawl.
+        // engine records those too, and they are not the crawl. The check is
+        // deliberately the as-sent one, the same as the engine's raw-URL
+        // binding, so everything the engine was allowed to send is recorded.
         if (!ctx.scope().isEmpty() && !ctx.scope().isInScopeAsSent(s, req.path())) return false;
         LogEntry e = new LogEntry(tool, s, req);
         HttpMessage res = responseOf(m);

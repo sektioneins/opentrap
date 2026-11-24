@@ -68,6 +68,20 @@ public final class ScopePathTest {
             Expect.isFalse(s.isInScopeAsSent(null, "/app"), "no service");
         });
 
+        Harness.test("acting on traffic still uses the strict scope check", () -> {
+            Scope s = new Scope();
+            s.include().add(Scope.Rule.prefix("https://a.test/app", false));
+            HttpService a = new HttpService("a.test", 443, true);
+            HttpMessage probe = new HttpMessage(Bytes.bytes("GET /app/../admin HTTP/1.1\r\nHost: a.test\r\n\r\n"));
+            HttpMessage fine = new HttpMessage(Bytes.bytes("GET /app/login HTTP/1.1\r\nHost: a.test\r\n\r\n"));
+            HttpClient.RedirectPolicy policy = HttpClient.RedirectPolicy.inScope(s);
+            Expect.equal(policy.refusal(a, a, probe), "out of scope", "a redirect to a traversal probe is refused");
+            Expect.isNull(policy.refusal(a, a, fine), "a redirect inside is followed");
+            opentrap.proxy.ProxyRule rule = new opentrap.proxy.ProxyRule(true, "or", "URL", "is in target scope", "");
+            Expect.isFalse(rule.test(a, probe, null, null, false, false, s), "the rule does not take the probe as in scope");
+            Expect.isTrue(rule.test(a, fine, null, null, false, false, s), "the rule takes a path inside");
+        });
+
         Harness.test("an exclude matches any form of the path", () -> {
             Scope s = new Scope();   // default excludes: logout, logoff, exit, signout
             s.include().add(Scope.Rule.prefix("https://a.test", false));

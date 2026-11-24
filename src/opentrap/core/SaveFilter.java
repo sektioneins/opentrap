@@ -2,8 +2,8 @@ package opentrap.core;
 
 /**
  * What a project copy may keep. {@link #ALL} keeps everything; a filter built
- * from a scope keeps only data whose target the scope covers. Data with no known
- * target is never kept by a narrowed filter. Never serialised.
+ * from a scope keeps only data whose path as sent the scope covers. Data with
+ * no known target is never kept by a narrowed filter. Never serialised.
  */
 public final class SaveFilter {
 
