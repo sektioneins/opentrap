@@ -219,6 +219,17 @@ public final class SettingsPagesTest {
             } finally { restoreTheme(s, oldT, oldN); }
         });
 
+        Harness.test("restoring the appearance defaults chooses Linen", () -> {
+            Settings s = new Settings();
+            String oldT = s.get("ui.theme", null), oldN = s.get("ui.theme.name", null);
+            try {
+                s.set("ui.theme", "dark"); s.set("ui.theme.name", "harbour");
+                InterfacePages.resetTheme(s, new ThemeCatalog(java.nio.file.Path.of("/dev/null/themes")));
+                Expect.equal(s.get("ui.theme", null), "light", "Linen's appearance");
+                Expect.equal(s.get("ui.theme.name", null), ThemeCatalog.DEFAULT, "Linen's id");
+            } finally { restoreTheme(s, oldT, oldN); }
+        });
+
         Harness.test("choosing the active UI font again undoes a pending font change without a restart", () -> {
             Settings s = new Settings();
             AtomicInteger n = new AtomicInteger();

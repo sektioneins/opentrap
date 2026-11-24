@@ -7,7 +7,7 @@ title: Themes
 
 A theme sets the colours, corner radius, line weight and a few element styles of OpenTRAP. It is one plain text file. Light and dark are themes too, and a theme you write names one of them as its **base** and sets only what it wants to change; every other key comes from the base.
 
-OpenTRAP ships these themes: Light, Dark, High Contrast, Linen, Deep Sea, Ember, S1 Light, S1 Dark and Phosphor. Choose one in Settings > User interface > Display. A change of theme restarts the application. Every shipped theme passes the contrast checks described below, and High Contrast reaches at least 7 to 1 for text.
+OpenTRAP ships these themes: Light, Dark, High Contrast, Linen, Deep Sea, Ember, S1 Light, S1 Dark and Phosphor. Linen is the theme a new installation starts in; a theme you have chosen stays chosen. Choose one in Settings > User interface > Display. A change of theme restarts the application. Every shipped theme passes the contrast checks described below, and High Contrast reaches at least 7 to 1 for text.
 
 ## The file
 
@@ -181,4 +181,4 @@ Your own themes live in `~/.opentrap/themes`, one file each, and the file name w
 - every low contrast pair;
 - whether it replaces a theme you already have with that id.
 
-Adding copies the file into the folder. A file that does not parse, is too large, has no base or names a built-in id is refused with the line and the reason, and nothing is stored. **Remove** deletes a theme of your own; the shipped ones cannot be removed. If the chosen theme cannot be loaded at startup, OpenTRAP falls back to Light or Dark, whichever you last chose, and says why.
+Adding copies the file into the folder. A file that does not parse, is too large, has no base or names a built-in id is refused with the line and the reason, and nothing is stored. **Remove** deletes a theme of your own; the shipped ones cannot be removed. If the chosen theme cannot be loaded at startup, OpenTRAP falls back to Light or Dark, whichever you last chose (Light if you never chose), and says why.

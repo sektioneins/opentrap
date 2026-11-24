@@ -365,9 +365,25 @@ public final class InterfacePages {
         String name = e.id().equals("light") || e.id().equals("dark") ? null : e.id();
         if (e.id().equals(activeId)
                 && e.appearance().equals(s.get("ui.theme", "light")) && Objects.equals(name, s.get("ui.theme.name", null))) return;
-        s.set("ui.theme", e.appearance());
-        if (name == null) s.remove("ui.theme.name"); else s.set("ui.theme.name", name);
+        storeTheme(s, e);
         if (!e.id().equals(activeId)) restart.run();
+    }
+
+    /** Saves the default theme as the chosen one, for Restore defaults; it applies at the next start. */
+    public static void resetTheme(Settings s, ThemeCatalog themes) {
+        for (ThemeCatalog.Entry e : themes.list()) {
+            if (e.id().equals(ThemeCatalog.DEFAULT)) {
+                storeTheme(s, e);
+                return;
+            }
+        }
+        s.set("ui.theme", "light");
+        s.remove("ui.theme.name");
+    }
+
+    private static void storeTheme(Settings s, ThemeCatalog.Entry e) {
+        s.set("ui.theme", e.appearance());
+        if (e.id().equals("light") || e.id().equals("dark")) s.remove("ui.theme.name"); else s.set("ui.theme.name", e.id());
     }
 
     /** {@code Harbour (dark)}, or {@code Dark (dark, my-dark)} with the id when another theme has the same name. */
@@ -524,8 +540,8 @@ public final class InterfacePages {
             });
         });
         p.block("Appearance", SettingsPage.Kind.USER,
-                "The interface font and colour theme. Changing the font or the theme restarts the app so every panel comes up consistent. Restoring this block clears the saved font and sets the theme back to Light, which applies at the next start.",
-                () -> { s.remove(Fonts.KEY_UI_FAMILY); s.remove(Fonts.KEY_UI_SIZE); s.set("ui.theme", "light"); s.remove("ui.theme.name"); },
+                "The interface font and colour theme. Changing the font or the theme restarts the app so every panel comes up consistent. Restoring this block clears the saved font and sets the theme back to Linen, which applies at the next start.",
+                () -> { s.remove(Fonts.KEY_UI_FAMILY); s.remove(Fonts.KEY_UI_SIZE); resetTheme(s, themes); },
                 SettingsPage.labelled("Font:", uiFont, changeUi, resetUi),
                 SettingsPage.labelled("Theme:", themeBox, addTheme, removeTheme));
         if (existingDisplay != null) p.addSection(existingDisplay);

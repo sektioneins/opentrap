@@ -30,6 +30,9 @@ public final class ThemeCatalog {
      */
     public static final List<String> SHIPPED = List.of("light", "dark", "high-contrast", "linen", "deep-sea", "ember", "s1-light", "s1-dark", "phosphor");
 
+    /** The theme the app starts in when no theme has been chosen. */
+    public static final String DEFAULT = "linen";
+
     private static final Pattern ID = Pattern.compile("[a-z0-9_-]{1,64}");
     private static final String EXT = ".theme";
 
@@ -172,16 +175,20 @@ public final class ThemeCatalog {
 
     /**
      * The startup rule: the system property {@code opentrap.theme}, else the
-     * saved {@code ui.theme.name}, else {@code ui.theme}, else light. A theme that
-     * cannot be loaded falls back to the built-in that {@code ui.theme} names, with
-     * a notice. Never throws.
+     * saved {@code ui.theme.name}, else {@code ui.theme}, else {@link #DEFAULT}
+     * when neither is saved. A theme that cannot be loaded falls back to the
+     * built-in that {@code ui.theme} names (light when absent), with a notice.
+     * Never throws.
      */
     public static Choice pick(ThemeCatalog c, String sysprop, Preferences prefs) {
         String fallback = "light";
         String savedName = null;
+        boolean nothingSaved = false;
         try {
-            fallback = "dark".equalsIgnoreCase(prefs.get("ui.theme", "light")) ? "dark" : "light";
+            String saved = prefs.get("ui.theme", null);
+            fallback = "dark".equalsIgnoreCase(saved) ? "dark" : "light";
             savedName = prefs.get("ui.theme.name", null);
+            nothingSaved = saved == null && (savedName == null || savedName.isBlank());
         } catch (RuntimeException e) {
             Debug.log("cannot read the theme preferences: " + e);
         }
@@ -193,6 +200,8 @@ public final class ThemeCatalog {
         } else if (savedName != null) {
             id = savedName.strip();
             fromSaved = true;
+        } else if (nothingSaved) {
+            id = DEFAULT;
         }
         String reason;
         try {

@@ -143,7 +143,7 @@ public final class ThemeCatalogTest {
             p.remove("ui.theme.name");
             p.put("ui.theme", "dark");
             Expect.equal(ThemeCatalog.pick(c, null, p).id(), "dark", "ui.theme");
-            Expect.equal(ThemeCatalog.pick(c, null, prefs()).id(), "light", "default");
+            Expect.equal(ThemeCatalog.pick(c, null, prefs()).id(), ThemeCatalog.DEFAULT, "default");
         }));
 
         Harness.test("an unknown system property theme falls back to the built-in with a notice", () -> inFolder(dir -> {
@@ -175,6 +175,33 @@ public final class ThemeCatalogTest {
             Expect.equal(s.id(), "light", "ui.theme wins");
             Expect.isNull(s.notice(), "no notice");
             Expect.isNull(p.get("ui.theme.name", null), "the saved name is cleared");
+        }));
+
+        Harness.test("with no theme saved, the app starts in Linen", () -> {
+            ThemeCatalog c = new ThemeCatalog(Path.of("/dev/null/themes"));
+            ThemeCatalog.Choice s = ThemeCatalog.pick(c, null, prefs());
+            Expect.equal(ThemeCatalog.DEFAULT, "linen", "the default id");
+            Expect.equal(s.id(), "linen", "Linen is chosen");
+            Expect.equal(s.resolved().appearance(), "light", "Linen is a light theme");
+            Expect.isNull(s.notice(), "no notice");
+        });
+
+        Harness.test("a saved plain Light stays Light and a saved Dark stays Dark", () -> {
+            ThemeCatalog c = new ThemeCatalog(Path.of("/dev/null/themes"));
+            Preferences p = prefs();
+            p.put("ui.theme", "light");
+            Expect.equal(ThemeCatalog.pick(c, null, p).id(), "light", "light");
+            p.put("ui.theme", "dark");
+            Expect.equal(ThemeCatalog.pick(c, null, p).id(), "dark", "dark");
+        });
+
+        Harness.test("a theme that cannot be loaded still falls back to Light when nothing else is saved", () -> inFolder(dir -> {
+            write(dir, "broken.theme", "this is not a theme\n");
+            Preferences p = prefs();
+            p.put("ui.theme.name", "broken");
+            ThemeCatalog.Choice s = ThemeCatalog.pick(new ThemeCatalog(dir), null, p);
+            Expect.equal(s.id(), "light", "the built-in the saved appearance names, light when absent");
+            Expect.isTrue(s.notice() != null && s.notice().endsWith("Using Light."), "notice");
         }));
 
         Harness.test("a built-in theme never reads the user folder", () -> {
