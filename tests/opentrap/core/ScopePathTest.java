@@ -54,6 +54,20 @@ public final class ScopePathTest {
             Expect.isTrue(s.isInScope(a, "/app/login"), "a plain path");
         });
 
+        Harness.test("a path in scope as sent is kept even when its normalised form leaves the scope", () -> {
+            Scope s = new Scope();   // default excludes: logout, logoff, exit, signout
+            s.include().add(Scope.Rule.prefix("https://a.test/app", false));
+            HttpService a = new HttpService("a.test", 443, true);
+            for (String p : List.of("/app/../admin", "/app/%2e%2e/admin", "/app/%6cogout")) {
+                Expect.isTrue(s.isInScopeAsSent(a, p), p + " as sent");
+                Expect.isFalse(s.isInScope(a, p), p + " normalised");
+            }
+            Expect.isFalse(s.isInScopeAsSent(a, "/admin"), "outside as sent");
+            Expect.isFalse(s.isInScope(a, "/admin"), "outside normalised");
+            Expect.isFalse(s.isInScopeAsSent(a, "/app/logout"), "a raw exclude still applies");
+            Expect.isFalse(s.isInScopeAsSent(null, "/app"), "no service");
+        });
+
         Harness.test("an exclude matches any form of the path", () -> {
             Scope s = new Scope();   // default excludes: logout, logoff, exit, signout
             s.include().add(Scope.Rule.prefix("https://a.test", false));

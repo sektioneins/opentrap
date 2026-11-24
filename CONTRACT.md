@@ -94,7 +94,7 @@ Construct: `new LogEntry(String tool, HttpService svc, HttpMessage request)`.
 `interface Listener { void messageAdded(WebSocketMessage m); default messageRemoved(m) reloaded(list) }`
 
 ## opentrap.core.Scope
-`boolean isInScope(HttpService svc, String path)` (reads the path as the raw, canonical (unreserved escapes decoded, dot segments removed) and fully decoded forms, each compared with the rule in the same form; an include rule must match the raw and canonical forms, and a prefix rule the decoded one too; an exclude rule matches any form), `isInScope(LogEntry)`, `include()`, `exclude()` (List<Scope.Rule>), `includeUrl(svc,path,wholeHost)`, `excludeUrl(...)`.
+`boolean isInScope(HttpService svc, String path)` (reads the path as the raw, canonical (unreserved escapes decoded, dot segments removed) and fully decoded forms, each compared with the rule in the same form; an include rule must match the raw and canonical forms, and a prefix rule the decoded one too; an exclude rule matches any form), `isInScope(LogEntry)`, `isInScopeAsSent(svc, path)` / `isInScopeAsSent(LogEntry)` (the raw-path check, for keeping and showing traffic), `include()`, `exclude()` (List<Scope.Rule>), `includeUrl(svc,path,wholeHost)`, `excludeUrl(...)`.
 
 ## opentrap.core.Bytes
 `indexOf concat slice str(byte[]) bytes(String) lines(String) isPrintableText toHex`

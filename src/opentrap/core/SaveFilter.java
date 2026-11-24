@@ -26,6 +26,6 @@ public final class SaveFilter {
     public boolean keeps(HttpService svc, String path) {
         if (scope == null) return true;
         if (svc == null) return false;
-        return scope.isInScope(svc, path == null || path.isEmpty() ? "/" : path);
+        return scope.isInScopeAsSent(svc, path == null || path.isEmpty() ? "/" : path);
     }
 }

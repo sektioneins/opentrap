@@ -154,6 +154,21 @@ public final class ProjectCopyScopeTest {
             } catch (Exception e) { throw new RuntimeException(e); }
         });
 
+        Harness.test("an in-scope copy keeps a request whose path as sent is in scope", () -> {
+            try {
+                SuiteContext ctx = new SuiteContext();
+                ctx.scope().include().add(Scope.Rule.prefix("https://a.test/app", false));
+                ctx.store().add(new LogEntry("proxy", IN, new HttpMessage(Bytes.bytes("GET /app/../admin HTTP/1.1\r\nHost: a.test\r\n\r\n"))));
+                ctx.store().add(new LogEntry("proxy", IN, new HttpMessage(Bytes.bytes("GET /admin HTTP/1.1\r\nHost: a.test\r\n\r\n"))));
+                StateIO.SaveOptions o = new StateIO.SaveOptions();
+                o.inScopeOnly = true;
+                SuiteContext back = copyAndReopen(ctx, o);
+                var all = back.store().all();
+                Expect.equal(all.size(), 1, "one entry");
+                Expect.equal(all.get(0).request().path(), "/app/../admin", "the traversal probe");
+            } catch (Exception e) { throw new RuntimeException(e); }
+        });
+
         Harness.test("an in-scope copy leaves out the scan cards even when they are asked for", () -> {
             try {
                 SuiteContext ctx = new SuiteContext();

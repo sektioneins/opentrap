@@ -645,7 +645,7 @@ public final class ZapScanner {
         // one. The JavaScript crawl drives a real browser, which makes its own
         // background requests and loads each page's external resources; the
         // engine records those too, and they are not the crawl.
-        if (!ctx.scope().isEmpty() && !ctx.scope().isInScope(s, req.path())) return false;
+        if (!ctx.scope().isEmpty() && !ctx.scope().isInScopeAsSent(s, req.path())) return false;
         LogEntry e = new LogEntry(tool, s, req);
         HttpMessage res = responseOf(m);
         if (res != null) e.setResponse(res);
