@@ -176,6 +176,34 @@ public final class StoreUiTest {
                     "current, bundled and ZAP's feed counting as one source");
         });
 
+        Harness.test("installing or updating only the chosen add-on starts without a question", () -> {
+            Entry foo = entry("zap", "foo", "2.0.0", "11");
+            Entry lib = entry("zap", "lib", "1.0.0", "22");
+            StorePanel.InstallPlan alone = new StorePanel.InstallPlan(List.of(foo), List.of(), List.of());
+            Expect.isFalse(StorePanel.asksFirst("Install", alone), "an install of foo alone");
+            Expect.isFalse(StorePanel.asksFirst("Update", alone), "an update of foo alone");
+            Expect.isFalse(StorePanel.asksFirst("New build", alone), "a new build of foo alone");
+            Expect.isFalse(StorePanel.asksFirst("Install",
+                    new StorePanel.InstallPlan(List.of(foo), List.of("Add-on lib (install)"), List.of())),
+                    "a dependency queued already is not downloaded again");
+            Expect.isTrue(StorePanel.asksFirst("Install",
+                    new StorePanel.InstallPlan(List.of(lib, foo), List.of(), List.of())), "foo pulls in lib");
+            Expect.isTrue(StorePanel.asksFirst("Install",
+                    new StorePanel.InstallPlan(List.of(foo), List.of(), List.of("lib"))), "a disabled lib is enabled");
+            Expect.isTrue(StorePanel.asksFirst("Switch source", alone), "foo comes from another source");
+        });
+
+        Harness.test("the install question does not mention the engine restart", () ->
+                StoreFixtures.started(CRAWL, List.of(), (store, engine) -> {
+                    StorePanel panel = panel(store);
+                    Entry foo = entry("zap", "foo", "2.0.0", "11");
+                    Entry lib = entry("zap", "lib", "1.0.0", "22");
+                    String text = onEdt(() -> panel.confirmText(
+                            new StorePanel.InstallPlan(List.of(lib, foo), List.of(), List.of())));
+                    Expect.isTrue(text.startsWith("These add-ons are downloaded now:"), "the plan is listed: " + text);
+                    Expect.isFalse(text.contains("restart"), "no restart: " + text);
+                }));
+
         Harness.test("the installed column says installed, disabled, queued or nothing", () -> {
             Installed on = held("zap", "foo", "1.0.0", "11");
             Installed off = new Installed(Kind.ZAP_ADDON, "foo", Version.parse("1.0.0"), "foo-release-1.0.0.zap",

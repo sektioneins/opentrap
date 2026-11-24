@@ -46,8 +46,9 @@ import java.util.function.Supplier;
  * Extensions > Store: what the add-on sources offer, one row per add-on, and
  * the selected add-on's detail card beside the list. Opening the tab reads the
  * cached lists only; Refresh is what fetches them. Install, Update and Switch
- * source show everything the change pulls in, then download it off the event
- * thread and queue it for the next engine start.
+ * source download the change off the event thread and queue it for the next
+ * engine start; they ask first only when it does more than fetch the chosen
+ * add-on (see {@link #asksFirst}).
  */
 public final class StorePanel extends JPanel {
 
@@ -659,7 +660,7 @@ public final class StorePanel extends JPanel {
             return;
         }
         String verb = r.action().equals("New build") ? "Update" : r.action();
-        if (!confirm(verb + " " + r.best().name(), confirmText(r, ip), verb)) return;
+        if (asksFirst(r.action(), ip) && !confirm(verb + " " + r.best().name(), confirmText(r, ip), verb)) return;
         download(this, store, ip.plan(), verb + " " + r.best().name(), ip.after(store));
     }
 
@@ -671,6 +672,15 @@ public final class StorePanel extends JPanel {
     record InstallPlan(List<Entry> plan, List<String> queued, List<String> keepOn) {
         /** What runs once the plan is queued. */
         AfterQueue after(Store store) { return keepOnStep(store, keepOn); }
+    }
+
+    /**
+     * Whether a row's {@code action} asks before it downloads {@code ip}: only
+     * when it does more than fetch the chosen add-on, that is when it pulls in
+     * other add-ons, enables disabled ones, or switches the add-on's source.
+     */
+    static boolean asksFirst(String action, InstallPlan ip) {
+        return action.equals("Switch source") || ip.plan().size() != 1 || !ip.keepOn().isEmpty();
     }
 
     /** Keeps each of {@code ids} running at the next engine start; the step after a download is queued. */
@@ -754,7 +764,7 @@ public final class StorePanel extends JPanel {
         List<Entry> plan = up.plan();
         List<String> refused = up.leftOut();
         StringBuilder text = new StringBuilder();
-        if (!plan.isEmpty()) text.append(listText("These add-ons are downloaded now and take effect when the engine restarts:", plan));
+        if (!plan.isEmpty()) text.append(listText("These add-ons are downloaded now:", plan));
         if (!plan.isEmpty() && !up.keepOn().isEmpty()) text.append(keepOnText(up.keepOn())).append('\n');
         if (!refused.isEmpty()) {
             if (!text.isEmpty()) text.append("\n\n");
@@ -789,7 +799,7 @@ public final class StorePanel extends JPanel {
     /** What the confirmation says of the plan itself: every entry, dependencies first, and what it keeps running. */
     String confirmText(InstallPlan ip) {
         StringBuilder b = new StringBuilder();
-        b.append(listText("These add-ons are downloaded now and take effect when the engine restarts:", ip.plan()));
+        b.append(listText("These add-ons are downloaded now:", ip.plan()));
         if (!ip.queued().isEmpty()) {
             b.append("\nAlready queued for the next engine start, so not downloaded again: ")
                     .append(String.join(", ", ip.queued())).append('.');
