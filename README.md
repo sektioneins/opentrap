@@ -103,9 +103,11 @@ For everything else, the original project is the place to go:
 - **Themes.** Light and dark are theme files, and Settings > User interface >
   Display lists them with your own: add a theme from a file after a summary of
   what it sets and what it leaves to its base theme, and remove it again. The
-  built-in light and dark themes pass the contrast checks. A
-  change that is saved but not yet applied is undone by choosing the active
-  font or theme again.
+  built-in light and dark themes pass the contrast checks. Seven more
+  ship: High Contrast, Linen, Deep Sea, Ember, S1 Light, S1 Dark and Phosphor.
+  Every shipped theme passes the contrast checks, and High Contrast reaches 7
+  to 1 for text. A change that is saved but not yet applied is undone by
+  choosing the active font or theme again.
 - **Working hotkeys.** The palette's Go to shortcuts and the Send to shortcuts
   in the history and message editor work without opening a menu, and the
   Hotkeys settings page lists the suite's real shortcuts and rebinds them.

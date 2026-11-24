@@ -1,0 +1,18 @@
+format = 1
+name = Deep Sea
+base = dark
+appearance = dark
+author = OpenTRAP-S1
+description = Blue-green depths with a coral accent. A cool, calm dark theme for long sessions.
+
+@page = #0F1E26
+@surface = #172B35
+@text = #D6E6EA
+@muted = #8FAAB3
+@border = #2C4651
+@accent = #FF7F66
+@control = #3FB6C4
+@link = #6FD0E0
+@ok = #5CCB8E
+@warn = #F0A030
+@error = #E05555

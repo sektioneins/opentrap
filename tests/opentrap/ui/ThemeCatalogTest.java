@@ -188,6 +188,38 @@ public final class ThemeCatalogTest {
             Expect.equal(ThemeCatalog.pick(c, "light", p).id(), "light", "light");
         });
 
+        Harness.test("every shipped theme parses and resolves", () -> {
+            ThemeCatalog c = new ThemeCatalog(Path.of("/dev/null/themes"));
+            Expect.isTrue(ThemeCatalog.SHIPPED.size() >= 5, "light, dark, high-contrast and at least two more ship: " + ThemeCatalog.SHIPPED);
+            boolean onLight = false, onDark = false;
+            for (String id : ThemeCatalog.SHIPPED) {
+                opentrap.ui.theme.ThemeFile f;
+                ThemeResolver.Resolved r;
+                try {
+                    f = opentrap.ui.theme.ThemeKeys.builtIn(id);
+                    r = c.resolve(id);
+                } catch (ThemeException | IOException e) {
+                    throw new AssertionError(id + " does not load: " + e.getMessage(), e);
+                }
+                Expect.isTrue(id.matches("[a-z0-9_-]{1,64}"), id + " is a valid id");
+                Expect.isFalse(f.name() == null || f.name().isBlank(), id + " has a name");
+                Expect.equal(f.author(), id.equals("light") || id.equals("dark") ? f.author() : "OpenTRAP-S1", id + " author");
+                Expect.isTrue(r.unknownKeys().isEmpty(), id + " has unknown keys " + r.unknownKeys());
+                Expect.isTrue(r.ignoredHeader().isEmpty(), id + " has unknown header fields " + r.ignoredHeader());
+                Expect.isTrue(r.clamped().isEmpty(), id + " has clamped values " + r.clamped());
+                if (!id.equals("light") && !id.equals("dark")) {
+                    Expect.isTrue("light".equals(f.base()) || "dark".equals(f.base()), id + " names light or dark as its base");
+                    Expect.equal(r.appearance(), f.appearance(), id + " appearance");
+                    onLight |= "light".equals(f.base());
+                    onDark |= "dark".equals(f.base());
+                }
+                String text = String.join(" ", f.name(), String.valueOf(f.description()), String.valueOf(f.author()));
+                Expect.isFalse(text.indexOf('\u2014') >= 0 || text.indexOf('\u2013') >= 0 || text.indexOf('<') >= 0,
+                    id + " header has no dash or markup");
+            }
+            Expect.isTrue(onLight && onDark, "a shipped theme sits on each base");
+        });
+
         Harness.test("the app icon and wordmark follow the theme's appearance, not its base", () -> inFolder(dir -> {
             Path src = write(dir, "night.theme",
                 "name = Night\nbase = light\nappearance = dark\n");

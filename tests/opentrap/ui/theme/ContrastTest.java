@@ -50,6 +50,44 @@ public final class ContrastTest {
             Expect.isTrue(bad.length() == 0, "contrast pairs below their minimum:" + bad);
         });
 
+        Harness.test("every shipped theme passes every contrast pair", () -> {
+            Expect.isTrue(ThemeCatalog.SHIPPED.size() >= 5, "light, dark, high-contrast and at least two more ship: " + ThemeCatalog.SHIPPED);
+            ThemeCatalog c = new ThemeCatalog(java.nio.file.Path.of("/dev/null/themes"));
+            StringBuilder bad = new StringBuilder();
+            for (String id : ThemeCatalog.SHIPPED) {
+                try {
+                    for (Contrast.Failure x : Contrast.failures(c.resolve(id).values())) {
+                        bad.append(String.format(java.util.Locale.ROOT, "\n  %s: %s on %s is %.2f, needs %.1f",
+                            id, x.pair().fg(), x.pair().bg(), x.ratio(), x.pair().min()));
+                    }
+                } catch (ThemeException | java.io.IOException e) {
+                    bad.append("\n  ").append(id).append(" does not resolve: ").append(e.getMessage());
+                }
+            }
+            Expect.isTrue(bad.length() == 0, "contrast pairs below their minimum:" + bad);
+        });
+
+        Harness.test("the high-contrast theme reaches 7 to 1 for text", () -> {
+            Expect.isTrue(ThemeCatalog.SHIPPED.contains("high-contrast"), "high-contrast ships");
+            ThemeCatalog c = new ThemeCatalog(java.nio.file.Path.of("/dev/null/themes"));
+            Map<String, Object> values;
+            try {
+                values = c.resolve("high-contrast").values();
+            } catch (ThemeException | java.io.IOException e) {
+                throw new AssertionError(e);
+            }
+            StringBuilder bad = new StringBuilder();
+            for (Contrast.Pair p : Contrast.PAIRS) {
+                double need = p.min() >= 4.5 ? 7.0 : 4.5;
+                double got = Contrast.ratio((Color) values.get(p.fg()), (Color) values.get(p.bg()));
+                if (got < need) {
+                    bad.append(String.format(java.util.Locale.ROOT, "\n  %s on %s is %.2f, needs %.1f",
+                        p.fg(), p.bg(), got, need));
+                }
+            }
+            Expect.isTrue(bad.length() == 0, "pairs below the high-contrast target:" + bad);
+        });
+
         Harness.test("a failing pair the theme did not change is not reported", () -> {
             Color grey = new Color(120, 120, 120), white = new Color(255, 255, 255);
             Map<String, Object> base = Map.of("TEXT", grey, "BG", white, "MUTED", grey);

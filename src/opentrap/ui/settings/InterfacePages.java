@@ -362,7 +362,7 @@ public final class InterfacePages {
      * keys back when the saved ones name another theme, without a restart; with nothing pending it does nothing.
      */
     public static void applyTheme(Settings s, ThemeCatalog.Entry e, String activeId, Runnable restart) {
-        String name = ThemeCatalog.SHIPPED.contains(e.id()) ? null : e.id();
+        String name = e.id().equals("light") || e.id().equals("dark") ? null : e.id();
         if (e.id().equals(activeId)
                 && e.appearance().equals(s.get("ui.theme", "light")) && Objects.equals(name, s.get("ui.theme.name", null))) return;
         s.set("ui.theme", e.appearance());

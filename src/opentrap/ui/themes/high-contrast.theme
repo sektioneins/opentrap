@@ -1,0 +1,25 @@
+format = 1
+name = High Contrast
+base = dark
+appearance = dark
+author = OpenTRAP-S1
+description = Pure black and white with bright accents and heavier lines, for the clearest text and edges. Every text pair reaches 7 to 1.
+
+@page = #000000
+@surface = #141414
+@text = #FFFFFF
+@muted = #D0D0D0
+@border = #C8C8C8
+@accent = #FFC83D
+@control = #8CC4FF
+@link = #9CCBFF
+@ok = #66E58F
+@warn = #FFB000
+@error = #FF6B6B
+
+SEVERITY_HIGH = #FF7A8C
+SEVERITY_LOW = #7DB4E8
+LINE_WIDTH = 2
+HIGHLIGHT = #5E4A00
+DIFF_ADDED = darker(@ok, 70%)
+DIFF_MODIFIED = darker(@control, 70%)

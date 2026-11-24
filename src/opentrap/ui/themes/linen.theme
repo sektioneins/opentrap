@@ -1,0 +1,21 @@
+format = 1
+name = Linen
+base = light
+appearance = light
+author = OpenTRAP-S1
+description = Warm paper tones with ink-brown text, a forest green accent and soft rounded corners. Easy on the eyes in a bright room.
+
+@page = #FBF7EF
+@surface = #EFE7D8
+@text = #2B2418
+@muted = #6E6451
+@border = #D9CDB6
+@accent = #2F6B4F
+@control = #8A4B2A
+@link = #1F5C8C
+@ok = #2E7D4A
+@warn = #C46A00
+@error = #B3261E
+@radius = 10
+
+SEVERITY_LOW = #3A74AA

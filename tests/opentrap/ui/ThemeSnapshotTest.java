@@ -53,7 +53,11 @@ public final class ThemeSnapshotTest {
     /** The snapshot lines for one theme, as the file records them. Configures that theme. */
     public static List<String> current(boolean dark) {
         Theme.configure(dark);
-        String theme = dark ? "dark" : "light";
+        return currentConfigured(dark ? "dark" : "light");
+    }
+
+    /** The snapshot lines for whatever theme is configured now, labelled {@code theme}. */
+    public static List<String> currentConfigured(String theme) {
         List<String> out = new ArrayList<>();
         for (Field f : covered()) {
             try {

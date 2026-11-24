@@ -24,8 +24,11 @@ import java.util.regex.Pattern;
  */
 public final class ThemeCatalog {
 
-    /** The built-in theme ids, in the order they are listed. */
-    public static final List<String> SHIPPED = List.of("light", "dark");
+    /**
+     * The built-in theme ids, in the order they are listed. Light and dark are the
+     * bases; the others name one of them as their base and set only what differs.
+     */
+    public static final List<String> SHIPPED = List.of("light", "dark", "high-contrast", "linen", "deep-sea", "ember", "s1-light", "s1-dark", "phosphor");
 
     private static final Pattern ID = Pattern.compile("[a-z0-9_-]{1,64}");
     private static final String EXT = ".theme";
@@ -61,7 +64,7 @@ public final class ThemeCatalog {
         for (String id : SHIPPED) {
             try {
                 ThemeFile f = ThemeKeys.builtIn(id);
-                out.add(new Entry(id, f.name(), null, f.appearance(), true));
+                out.add(new Entry(id, f.name(), f.base(), f.appearance(), true));
             } catch (ThemeException e) {
                 Debug.log("built-in theme " + id + " left out: " + e.getMessage());
             }
@@ -96,7 +99,8 @@ public final class ThemeCatalog {
     /** The values of a theme by id: a built-in from the jar, anything else from the folder. */
     public ThemeResolver.Resolved resolve(String id) throws ThemeException, IOException {
         if (SHIPPED.contains(id)) {
-            return ThemeResolver.resolve(ThemeKeys.builtIn(id), null, ThemeKeys.spec());
+            ThemeFile f = ThemeKeys.builtIn(id);
+            return f.base() == null ? ThemeResolver.resolve(f, null, ThemeKeys.spec()) : resolveOnBase(f);
         }
         if (!ID.matcher(id).matches()) throw new ThemeException(0, "no theme named " + id);
         Path file = userDir.resolve(id + EXT);

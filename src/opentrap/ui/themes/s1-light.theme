@@ -1,0 +1,23 @@
+format = 1
+name = S1 Light
+base = light
+appearance = light
+author = OpenTRAP-S1
+description = The OpenTRAP-S1 logo colours on a light page: navy for text, links and the accent, a faint navy tint for surfaces, and gold for selections and highlights.
+
+@page = #FFFFFF
+@surface = #EEF1FB
+@text = #0F1C5C
+@muted = #5A6393
+@border = #D3D9EE
+@accent = #0F1C5C
+@control = #2A3C9E
+@link = #2036A8
+@ok = #2E7D4A
+@warn = #9A6F00
+@error = #B3261E
+
+ACCENT_LIGHT = mix(#ECB92C, @page, 38%)
+HERO_GLOW = #ECB92C
+WARN = #ECB92C
+SEVERITY_LOW = #3A5FB0
