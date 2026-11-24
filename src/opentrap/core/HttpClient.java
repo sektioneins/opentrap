@@ -42,6 +42,8 @@ public class HttpClient {
          * the proxy.
          */
         public ConnectGuard connectGuard;
+        /** Optional check on each redirect hop before it is followed; null follows every hop. */
+        public RedirectPolicy redirectPolicy;
     }
 
     /** Decides whether a connection to a resolved address may be opened. */
@@ -50,12 +52,37 @@ public class HttpClient {
         String refusal(InetSocketAddress dest);
     }
 
+    /**
+     * Decides whether a redirect hop may be followed. It sees the hop after the
+     * origin rules of {@code nextHop} have stripped what must not cross an origin.
+     */
+    public interface RedirectPolicy {
+        /**
+         * The reason not to follow the hop to {@code next}, or null to follow it.
+         * {@code origin} is the service of the request the caller sent, not of the
+         * current hop; {@code request} is the hop's request.
+         */
+        String refusal(HttpService origin, HttpService next, HttpMessage request);
+
+        /** Follows only hops that stay on the origin the caller sent to. */
+        static RedirectPolicy sameOrigin() {
+            return (origin, next, request) -> next.equals(origin) ? null : "off-site";
+        }
+
+        /** Follows only hops the scope covers; reads the live scope on every hop. */
+        static RedirectPolicy inScope(Scope scope) {
+            return (origin, next, request) -> scope.isInScope(next, request.path()) ? null : "out of scope";
+        }
+    }
+
     public static class Result {
         public HttpMessage response;
         public String remoteIp = "";
         public long millis;
         public String error = "";
         public int redirectsFollowed;
+        /** The policy's reason when a redirect hop was refused, else empty. */
+        public String redirectRefusal = "";
         public HttpService finalService;
         public HttpMessage finalRequest;
         public boolean ok() { return error.isEmpty() && response != null; }
@@ -249,6 +276,14 @@ public class HttpClient {
             if (!opt.followRedirects || hop >= opt.maxRedirects) break;
             Hop next = nextHop(cur, req, one.response);
             if (next == null) break;
+            if (opt.redirectPolicy != null) {
+                String why = opt.redirectPolicy.refusal(svc, next.service(), next.request());
+                if (why != null) {
+                    r.redirectRefusal = why;
+                    Debug.log("not following a redirect from " + cur.url() + " to " + next.service().url() + ": " + why);
+                    break;
+                }
+            }
             if (next.crossOrigin() && opt.session != null) {
                 // The credentials of the old origin were stripped; let session
                 // handling add whatever the jar holds for the new one.
