@@ -1,0 +1,57 @@
+format = 1
+name = Light
+appearance = light
+
+# constants: the main colours and numbers
+
+@page = #FFFFFF
+@surface = #EEEEEE
+@text = #1A1A1A
+@muted = #6B6B6B
+@border = #D4D4D4
+@accent = #DB612F
+@control = #26639C
+@link = #1A5FB4
+@ok = #3A9A4B
+@warn = #E8820C
+@error = #CC0000
+@radius = 6
+
+# keys
+
+BG = @page
+SURFACE = @surface
+SURFACE_2 = #E4E4E4
+SURFACE_3 = #D8D8D8
+BORDER = @border
+TEXT = @text
+MUTED = @muted
+LINK = @link
+ACCENT = @accent
+ACCENT_DARK = #C04E20
+ACCENT_LIGHT = #CADAF0
+CONTROL = @control
+CONTROL_TINT = #EAEFF5
+SEGMENT_OFF = #DFDFDF
+TAB_TEXT = #2B2B2B
+TAB_TEXT_ON = #000000
+ACCENT_FAINT = #F7F7F7
+CARD = @page
+HEADER = #F2F2F2
+ICON = #555555
+TOGGLE_OFF = #B8BCC2
+SCROLL_THUMB = #C9CFD6
+SCROLL_THUMB_HOVER = #B4BBC4
+OK = @ok
+HIGHLIGHT = #FFF176
+CODE_NAME = #33338D
+CODE_START = #8A1F1F
+CODE_KEY = #9A4A0A
+CODE_STRING = #1A7F37
+CODE_NUMBER = #0B7285
+HEX_OFFSET = #888888
+HEX_ASCII = #335588
+DIFF_DELETED = #F7C9C9
+DIFF_ADDED = #CBE8CB
+DIFF_MODIFIED = #C7DCF5
+RADIUS = @radius

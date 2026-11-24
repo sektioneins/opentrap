@@ -45,6 +45,14 @@ public final class ThemeResolverTest {
         }
     }
 
+    private static ThemeResolver.Resolved resolve(ThemeFile base, Map<String, KeyType> spec) {
+        try {
+            return ThemeResolver.resolve(base, null, spec);
+        } catch (ThemeException e) {
+            throw new AssertionError(e.getMessage(), e);
+        }
+    }
+
     private static String error(String base, String theme) {
         try {
             ThemeResolver.resolve(parse(base), theme == null ? null : parse(theme), SPEC);
@@ -57,6 +65,11 @@ public final class ThemeResolverTest {
     private static String hex(Object c) {
         Color k = (Color) c;
         return String.format("#%02X%02X%02X", k.getRed(), k.getGreen(), k.getBlue());
+    }
+
+    /** A stand-in for Theme with a number field that has no range. */
+    private static final class Rangeless {
+        public static int GAP;
     }
 
     public void run() {
@@ -131,6 +144,35 @@ public final class ThemeResolverTest {
             Expect.equal(error(BASE, "name = T\nappearance = dark\n"), "theme has no base", "message");
             Expect.equal(resolve(BASE, null).leftToBase(), List.of(), "nothing left to base");
             Expect.equal(resolve(BASE, null).values().get("CARD_RADIUS"), 10, "base value");
+        });
+
+        Harness.test("both built-in bases define every key the theme has", () -> {
+            Map<String, KeyType> spec = ThemeKeys.spec();
+            for (String id : List.of("light", "dark")) {
+                ThemeFile base;
+                try {
+                    base = ThemeKeys.builtIn(id);
+                } catch (ThemeException e) {
+                    throw new AssertionError(e.getMessage(), e);
+                }
+                Expect.equal(base.base(), null, id + " is a base");
+                Expect.equal(base.appearance(), id, id + " appearance");
+                ThemeResolver.Resolved r = resolve(base, spec);
+                Expect.equal(r.values().keySet().stream().toList(), spec.keySet().stream().toList(),
+                    id + " resolves every key");
+                Expect.equal(base.keys().keySet().stream().filter(k -> !spec.containsKey(k)).toList(),
+                    List.of(), id + " keys the theme does not have");
+            }
+        });
+
+        Harness.test("an int field without a range is refused by the key spec", () -> {
+            try {
+                ThemeKeys.spec(Rangeless.class);
+            } catch (IllegalStateException e) {
+                Expect.equal(e.getMessage(), "no range for the number key GAP", "message");
+                return;
+            }
+            throw new AssertionError("no error");
         });
     }
 }

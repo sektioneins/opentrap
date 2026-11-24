@@ -1,0 +1,57 @@
+format = 1
+name = Dark
+appearance = dark
+
+# constants: the main colours and numbers
+
+@page = #252525
+@surface = #2C2C2C
+@text = #DEDEDE
+@muted = #9C9C9C
+@border = #404040
+@accent = #DB612F
+@control = #5593D0
+@link = #6CA6F0
+@ok = #5CC46E
+@warn = #E8820C
+@error = #CC0000
+@radius = 6
+
+# keys
+
+BG = @page
+SURFACE = @surface
+SURFACE_2 = #3A3A3A
+SURFACE_3 = #4A4A4A
+BORDER = @border
+TEXT = @text
+MUTED = @muted
+LINK = @link
+ACCENT = @accent
+ACCENT_DARK = #C04E20
+ACCENT_LIGHT = #2F3E55
+CONTROL = @control
+CONTROL_TINT = #1E2A36
+SEGMENT_OFF = #3A3A3A
+TAB_TEXT = #CFCFCF
+TAB_TEXT_ON = #FFFFFF
+ACCENT_FAINT = #2B2B2B
+CARD = #303030
+HEADER = #3A3A3A
+ICON = #B4B4B4
+TOGGLE_OFF = #555A62
+SCROLL_THUMB = #4E545C
+SCROLL_THUMB_HOVER = #626972
+OK = @ok
+HIGHLIGHT = #7A6000
+CODE_NAME = #8FA8FF
+CODE_START = #FF8A80
+CODE_KEY = #E8954A
+CODE_STRING = #E0C06E
+CODE_NUMBER = #7FB8E8
+HEX_OFFSET = #7A7A7A
+HEX_ASCII = #8FB0E0
+DIFF_DELETED = #6B2B2B
+DIFF_ADDED = #2B5B2B
+DIFF_MODIFIED = #2B4566
+RADIUS = @radius
