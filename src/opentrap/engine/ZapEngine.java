@@ -82,11 +82,13 @@ public final class ZapEngine {
 
     private String jar;             // path to the engine jar; null until a bundled engine is extracted
     private final boolean bundled;  // engine.zip is embedded in this application jar
-    private String base;            // http://127.0.0.1:<port>
+    // base and api are swapped by restart() under the monitor and read without
+    // it through base() and api(), so they are volatile.
+    private volatile String base;   // http://127.0.0.1:<port>
     private String apiKey;
     private Process proc;
     private java.io.OutputStream lifeline;   // write end of the watchdog's stdin pipe
-    private ZapApi api;
+    private volatile ZapApi api;
     private Path home;              // the engine's scratch directory, ours to clean up
     private boolean hookInstalled;  // one shutdown hook per engine, not per start
 
@@ -219,8 +221,10 @@ public final class ZapEngine {
 
     /**
      * Hear every state change. {@code l} is called on the thread that changes
-     * the state (often the one inside {@link #start()}), so a listener that
-     * touches Swing hops to the EDT itself.
+     * the state (often the one inside {@link #start()} or {@link #restart()}),
+     * possibly while that thread holds this engine's monitor. So a listener
+     * must not block or call {@code start()} or {@code restart()}; one that
+     * touches Swing or does more work hops to the EDT or its own thread.
      */
     public void addStateListener(Consumer<EngineState> l) { stateListeners.add(l); }
 
@@ -265,9 +269,18 @@ public final class ZapEngine {
 
     private void startEngine() throws Exception {
         checkNotStopping();
-        if (api != null && responds()) return;
-        setState(EngineState.STARTING);
+        if (api != null && responds()) {
+            // Already up. A start that gave up before its engine answered, or an
+            // attached engine, has not been reported running yet; do so now.
+            if (state != EngineState.RUNNING) running();
+            return;
+        }
+        // A failed start can leave its engine behind (launched, never
+        // answered): stop it and remove its home before a new one replaces
+        // proc, lifeline and home.
+        if (state == EngineState.FAILED) stopEngine();
         lastError = null;
+        setState(EngineState.STARTING);
         try {
             launchEngine();
         } catch (Exception e) {
@@ -275,6 +288,13 @@ public final class ZapEngine {
             setState(EngineState.FAILED);
             throw e;
         }
+        running();
+    }
+
+    /** Send this run's rule edits to the engine that now answers, then report it running. */
+    private void running() {
+        ready = true;   // so stopEngine() also asks an engine that answered late to shut down
+        lastError = null;
         List<String> failed = ruleEdits.replay(api);
         if (!failed.isEmpty()) {
             lastError = "Rule edits could not be applied again, rules missing or refused: " + String.join(", ", failed);

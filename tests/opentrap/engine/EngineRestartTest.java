@@ -10,6 +10,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -111,6 +113,48 @@ public final class EngineRestartTest {
             }
         }));
 
+        Harness.test("a failed start whose engine answers later is reported running by the next start", body(() -> {
+            FakeLauncher launcher = new FakeLauncher(Integer.MAX_VALUE);
+            launcher.nextExits = true;   // start-up gives up, yet the engine's API answers
+            ZapEngine engine = ZapEngine.forLauncher("zap-0.0.0.jar", launcher);
+            try {
+                Throwable failure = null;
+                try { engine.start(); } catch (Exception e) { failure = e; }
+                Expect.notNull(failure, "the first start fails");
+                Expect.equal(engine.state(), EngineState.FAILED, "the engine is failed");
+                List<EngineState> seen = new CopyOnWriteArrayList<>();
+                engine.addStateListener(seen::add);
+                engine.start();
+                Expect.equal(seen, List.of(EngineState.RUNNING), "the states listeners heard");
+                Expect.isNull(engine.lastError(), "the old failure is cleared");
+                Expect.equal(launcher.servers.size(), 1, "no second engine was launched");
+            } finally {
+                engine.shutdown();
+            }
+        }));
+
+        Harness.test("a start after a failed one cleans up the engine that never answered", body(() -> {
+            FakeLauncher launcher = new FakeLauncher(Integer.MAX_VALUE);
+            launcher.nextExits = true;
+            launcher.nextSilent = true;
+            ZapEngine engine = ZapEngine.forLauncher("zap-0.0.0.jar", launcher);
+            try {
+                try { engine.start(); } catch (Exception e) { /* the failure this case is about */ }
+                Expect.equal(engine.state(), EngineState.FAILED, "the first start failed");
+                List<String> errorsSeen = new CopyOnWriteArrayList<>();
+                engine.addStateListener(s -> {
+                    if (s == EngineState.STARTING) errorsSeen.add(String.valueOf(engine.lastError()));
+                });
+                engine.start();
+                Expect.equal(engine.state(), EngineState.RUNNING, "the second start runs");
+                Expect.isFalse(launcher.servers.get(0).alive, "the failed engine was stopped");
+                Expect.isFalse(Files.exists(launcher.homes.get(0)), "the failed engine's temp home is gone");
+                Expect.equal(errorsSeen, List.of("null"), "STARTING listeners do not see the old error");
+            } finally {
+                engine.shutdown();
+            }
+        }));
+
         Harness.test("shutdown stays final after a restart", body(() -> {
             ZapEngine engine = ZapEngine.forLauncher("zap-0.0.0.jar", new FakeLauncher(Integer.MAX_VALUE));
             engine.start();
@@ -162,7 +206,10 @@ public final class EngineRestartTest {
     static final class FakeLauncher implements ZapEngine.Launcher {
         final int limit;
         final List<FakeServer> servers = new CopyOnWriteArrayList<>();
-        volatile String refuse;   // a query part whose action calls the servers refuse
+        final List<Path> homes = new CopyOnWriteArrayList<>();   // each launch's -dir
+        volatile String refuse;       // a query part whose action calls the servers refuse
+        volatile boolean nextExits;   // the next launched process reports it exited at once
+        volatile boolean nextSilent;  // the next launched server does not answer the version
 
         FakeLauncher(int limit) { this.limit = limit; }
 
@@ -171,8 +218,13 @@ public final class EngineRestartTest {
             if (servers.size() >= limit) throw new IOException("launch refused by the test");
             int at = launch.indexOf("-port");
             FakeServer s = FakeServer.start(refuse, Integer.parseInt(launch.get(at + 1)));
+            s.silent = nextSilent;
+            homes.add(Path.of(launch.get(launch.indexOf("-dir") + 1)));
             servers.add(s);
-            return new FakeProcess(s);
+            boolean exits = nextExits;
+            nextExits = false;
+            nextSilent = false;
+            return new FakeProcess(s, exits);
         }
     }
 
@@ -182,6 +234,7 @@ public final class EngineRestartTest {
         final String base;
         final List<String> requests = new CopyOnWriteArrayList<>();
         volatile boolean alive = true;
+        volatile boolean silent;   // answers the version without one, as an engine not yet up
 
         private FakeServer(HttpServer http, String refuse) {
             this.http = http;
@@ -191,7 +244,7 @@ public final class EngineRestartTest {
                 String req = ex.getRequestURI().getPath() + "?" + (q == null ? "" : q);
                 requests.add(req);
                 String body;
-                if (req.startsWith("/JSON/core/view/version/")) body = "{\"version\":\"0.0.0\"}";
+                if (req.startsWith("/JSON/core/view/version/")) body = silent ? "{}" : "{\"version\":\"0.0.0\"}";
                 else if (refuse != null && req.contains(refuse)) body = "{\"code\":\"does_not_exist\",\"message\":\"Does Not Exist\"}";
                 else body = "{\"Result\":\"OK\"}";
                 byte[] b = body.getBytes(StandardCharsets.UTF_8);
@@ -212,25 +265,34 @@ public final class EngineRestartTest {
             return false;
         }
 
-        void stop() { alive = false; http.stop(0); }
+        synchronized void stop() {
+            if (!alive) return;
+            alive = false;
+            http.stop(0);
+        }
     }
 
-    /** The launched "process": alive until destroyed, which stops its server. */
+    /**
+     * The launched "process": alive until destroyed, which stops its server.
+     * One that {@code exited} reports itself gone at once while its server
+     * keeps running until it is destroyed, so a test can see the cleanup.
+     */
     static final class FakeProcess extends Process {
         private final FakeServer server;
+        private final boolean exited;
 
-        FakeProcess(FakeServer server) { this.server = server; }
+        FakeProcess(FakeServer server, boolean exited) { this.server = server; this.exited = exited; }
 
         @Override public OutputStream getOutputStream() { return OutputStream.nullOutputStream(); }
         @Override public InputStream getInputStream() { return InputStream.nullInputStream(); }
         @Override public InputStream getErrorStream() { return InputStream.nullInputStream(); }
         @Override public int waitFor() { return 0; }
-        @Override public boolean waitFor(long timeout, TimeUnit unit) { return !server.alive; }
+        @Override public boolean waitFor(long timeout, TimeUnit unit) { return !isAlive(); }
         @Override public int exitValue() {
-            if (server.alive) throw new IllegalThreadStateException("running");
+            if (isAlive()) throw new IllegalThreadStateException("running");
             return 0;
         }
-        @Override public boolean isAlive() { return server.alive; }
+        @Override public boolean isAlive() { return server.alive && !exited; }
         @Override public void destroy() { server.stop(); }
         @Override public Process destroyForcibly() { server.stop(); return this; }
     }
