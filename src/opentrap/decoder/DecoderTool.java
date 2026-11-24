@@ -199,14 +199,14 @@ public class DecoderTool implements ToolModule {
     static Color opColour(String name) {
         if (name == null) return null;
         return switch (name.trim().toLowerCase()) {
-            case "url" -> new Color(0xE0, 0x3C, 0x3C);
-            case "html" -> new Color(0xE8, 0x82, 0x0C);
-            case "base64" -> new Color(0xD4, 0xC2, 0x00);
-            case "ascii hex" -> new Color(0x2E, 0xA0, 0x4A);
+            case "url" -> opentrap.ui.Theme.DECODE_URL;
+            case "html" -> opentrap.ui.Theme.DECODE_HTML;
+            case "base64" -> opentrap.ui.Theme.DECODE_BASE64;
+            case "ascii hex" -> opentrap.ui.Theme.DECODE_HEX;
             case "hex" -> opentrap.ui.Theme.CONTROL;
-            case "octal" -> new Color(0x1F, 0x9E, 0xA8);
-            case "binary" -> new Color(0xC0, 0x3C, 0xC0);
-            case "gzip", "deflate", "brotli" -> new Color(0xE0, 0x7A, 0x7A);
+            case "octal" -> opentrap.ui.Theme.DECODE_OCTAL;
+            case "binary" -> opentrap.ui.Theme.DECODE_BINARY;
+            case "gzip", "deflate", "brotli" -> opentrap.ui.Theme.DECODE_COMPRESSED;
             default -> null;
         };
     }
@@ -216,7 +216,7 @@ public class DecoderTool implements ToolModule {
         @Override public Component getListCellRendererComponent(JList<?> list, Object v, int i, boolean sel, boolean f) {
             super.getListCellRendererComponent(list, v, i, sel, f);
             Color c = opColour(String.valueOf(v));
-            if (c != null && !sel && i >= 0) { setOpaque(true); setBackground(c); setForeground(Color.WHITE); }
+            if (c != null && !sel && i >= 0) { setOpaque(true); setBackground(c); setForeground(opentrap.ui.Theme.TEXT_ON_BADGE); }
             return this;
         }
     }
@@ -335,7 +335,7 @@ public class DecoderTool implements ToolModule {
             // The combo returns to its prompt; the colour of the pane below says what was applied.
             reset(combo);
             Color c = opColour(name);
-            if (c != null) area.setBackground(new Color(c.getRed(), c.getGreen(), c.getBlue(), 60));
+            if (c != null) area.setBackground(opentrap.ui.Theme.alpha(c, 60));
         }
 
         private void smartDecode() {

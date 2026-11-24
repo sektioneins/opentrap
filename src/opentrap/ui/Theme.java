@@ -134,6 +134,58 @@ public final class Theme {
     /** The icon of an empty-state panel. */
     public static Color EMPTY_ICON;
 
+    // ---- tools: decoder, discover, proxy, history, comparer, intruder ----
+    /** Decoder: the colour of the URL transform in the dropdowns and on its stage. */
+    public static Color DECODE_URL;
+    /** Decoder: HTML entities. */
+    public static Color DECODE_HTML;
+    /** Decoder: Base64. */
+    public static Color DECODE_BASE64;
+    /** Decoder: ASCII hex. The plain hex transform uses CONTROL. */
+    public static Color DECODE_HEX;
+    /** Decoder: octal. */
+    public static Color DECODE_OCTAL;
+    /** Decoder: binary. */
+    public static Color DECODE_BINARY;
+    /** Decoder: gzip, deflate and brotli. */
+    public static Color DECODE_COMPRESSED;
+    /** Discover: the hero band's gradient, top left. */
+    public static Color HERO_TOP;
+    /** Discover: the hero band's gradient, bottom right. */
+    public static Color HERO_BOTTOM;
+    /** Discover: the diagonal line across the hero band (alpha derived at the call site). */
+    public static Color HERO_GLOW;
+    /** Discover: the hero headline. */
+    public static Color HERO_TEXT;
+    /** Discover: the hero paragraph. */
+    public static Color HERO_BODY;
+    /** Discover: the hero's small print. */
+    public static Color HERO_MUTED;
+    /** Proxy: the idle intercept illustration's beam lines. */
+    public static Color INTERCEPT_BEAM;
+    /** Proxy: the illustration's signal head and pole. */
+    public static Color INTERCEPT_BODY;
+    /** Proxy: the illustration's lighter face. */
+    public static Color INTERCEPT_FACE;
+    /** Proxy: the illustration's unlit lamps. */
+    public static Color INTERCEPT_LAMP_OFF;
+    /** Proxy: the illustration's lit lamp. */
+    public static Color INTERCEPT_LAMP_ON;
+    /** History highlight swatches, one per stored name (see {@link #highlight}). */
+    public static Color HIGHLIGHT_RED;
+    public static Color HIGHLIGHT_ORANGE;
+    public static Color HIGHLIGHT_YELLOW;
+    public static Color HIGHLIGHT_GREEN;
+    public static Color HIGHLIGHT_CYAN;
+    public static Color HIGHLIGHT_BLUE;
+    public static Color HIGHLIGHT_PINK;
+    public static Color HIGHLIGHT_MAGENTA;
+    public static Color HIGHLIGHT_GREY;
+    /** Comparer: text of a row the other list has already taken. */
+    public static Color COMPARE_TAKEN;
+    /** Intruder: the fill behind a payload position marker. */
+    public static Color POSITION_MARK;
+
     /** Whether the dark palette is active (set by {@link #configure}). */
     public static boolean dark = false;
 
@@ -144,6 +196,23 @@ public final class Theme {
         try { return "dark".equalsIgnoreCase(
                 java.util.prefs.Preferences.userRoot().node("opentrap.v1").get("ui.theme", "light")); }
         catch (Exception e) { return false; }
+    }
+
+    /** The history highlight colour for a stored name ({@code red} ... {@code grey}), or null for none or an unknown name. */
+    public static Color highlight(String name) {
+        if (name == null) return null;
+        return switch (name) {
+            case "red" -> HIGHLIGHT_RED;
+            case "orange" -> HIGHLIGHT_ORANGE;
+            case "yellow" -> HIGHLIGHT_YELLOW;
+            case "green" -> HIGHLIGHT_GREEN;
+            case "cyan" -> HIGHLIGHT_CYAN;
+            case "blue" -> HIGHLIGHT_BLUE;
+            case "pink" -> HIGHLIGHT_PINK;
+            case "magenta" -> HIGHLIGHT_MAGENTA;
+            case "grey" -> HIGHLIGHT_GREY;
+            default -> null;
+        };
     }
 
     /** The colour with its alpha channel set to {@code alpha} (0 to 255). */

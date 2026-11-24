@@ -164,3 +164,6 @@ scope, issues) is on `SuiteContext`.
 - Describe behaviour on its own terms in comments and docs.
 - Do not use em dashes or en dashes anywhere in the project; use a plain hyphen.
 - Keep the interface aligned and uniform. Labelled inputs line up through `Ui.form(...)`, filter strips through `Ui.filterBar(...)`, and matching controls share one height. A screen where fields or rows do not line up is a bug to fix, not to ship.
+- A colour or style value is a `Theme` field, never a literal. `ThemeColourScanTest` fails on any `new Color(`, `Color.decode`, named `Color` constant or `"#RRGGBB"` string in `src/` outside the brand marks and the output that leaves the app.
+- A new key goes into both `light.theme` and `dark.theme`, written through the constants (`@accent`, `@text` and so on) where it relates to one of them.
+- A new constant gets a default in both bases, derived from existing ones.

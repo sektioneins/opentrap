@@ -37,10 +37,10 @@ public class DiscoverTool implements ToolModule {
         JPanel hero = new JPanel(new GridBagLayout()) {
             @Override protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
-                g2.setPaint(new GradientPaint(0, 0, new Color(0x16, 0x18, 0x2E), getWidth(), getHeight(), new Color(0x0E, 0x10, 0x20)));
+                g2.setPaint(new GradientPaint(0, 0, Theme.HERO_TOP, getWidth(), getHeight(), Theme.HERO_BOTTOM));
                 g2.fillRect(0, 0, getWidth(), getHeight());
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(new Color(0xDB, 0x61, 0x2F, 90));
+                g2.setColor(Theme.alpha(Theme.HERO_GLOW, 90));
                 g2.setStroke(new BasicStroke(2f));
                 g2.drawLine(getWidth() / 4, getHeight(), getWidth() / 2, 0);
                 g2.dispose();
@@ -54,14 +54,14 @@ public class DiscoverTool implements ToolModule {
         JLabel headline = opentrap.ui.theme.HtmlGuard.allowHtml(new JLabel("<html>" + opentrap.ui.Main.NAME + ", <span style='color:"
                 + opentrap.ui.Theme.css(opentrap.ui.Theme.ACCENT) + "'>open.</span></html>"));
         headline.setFont(Fonts.ui(Font.BOLD, 36));
-        headline.setForeground(Color.WHITE);
+        headline.setForeground(Theme.HERO_TEXT);
         JLabel blurb = opentrap.ui.theme.HtmlGuard.allowHtml(new JLabel("<html><div style='width:560px'>A free, open-source web security testing suite: proxy, crawler, scanner, "
                 + "Intruder, Repeater and the rest, built on the OWASP ZAP engine and shaped by its community.</div></html>"));
         blurb.setFont(Fonts.ui(Font.PLAIN, 16));
-        blurb.setForeground(new Color(0xE6, 0xE6, 0xEA));
+        blurb.setForeground(Theme.HERO_BODY);
         JLabel small = new JLabel("Free under the AGPL. No accounts, no licence keys.");
         small.setFont(Ui.PLAIN);
-        small.setForeground(new Color(0xB0, 0xB4, 0xC0));
+        small.setForeground(Theme.HERO_MUTED);
         JButton start = Ui.primaryButton("Get started", "jump to the four-step guide below");
         start.addActionListener(e -> {
             Container p = root.getParent();

@@ -176,21 +176,21 @@ public class ProxyTool implements ToolModule {
             Graphics2D g = img.createGraphics();
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             // Grey "beam" lines behind the head.
-            g.setColor(new Color(0xD0, 0xD4, 0xDA));
+            g.setColor(opentrap.ui.Theme.INTERCEPT_BEAM);
             g.setStroke(new BasicStroke(4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
             g.drawLine(20, 20, 50, 42); g.drawLine(130, 20, 160, 42); g.drawLine(20, 110, 50, 92); g.drawLine(130, 110, 160, 92);
             g.rotate(Math.toRadians(-12), 90, 75);
             // Body: a rounded dark-blue slab with a lighter face.
-            g.setColor(new Color(0x2D, 0x5B, 0xA6));
+            g.setColor(opentrap.ui.Theme.INTERCEPT_BODY);
             g.fillRoundRect(62, 10, 56, 120, 16, 16);
-            g.setColor(new Color(0xBF, 0xD4, 0xEE));
+            g.setColor(opentrap.ui.Theme.INTERCEPT_FACE);
             g.fillRoundRect(70, 16, 40, 108, 12, 12);
             // Lamps: two off, the bottom one lit green.
-            g.setColor(new Color(0x8E, 0xA6, 0xC8)); g.fillOval(78, 26, 24, 24);
-            g.setColor(new Color(0x8E, 0xA6, 0xC8)); g.fillOval(78, 58, 24, 24);
-            g.setColor(new Color(0x3F, 0xB0, 0x4E)); g.fillOval(78, 90, 24, 24);
+            g.setColor(opentrap.ui.Theme.INTERCEPT_LAMP_OFF); g.fillOval(78, 26, 24, 24);
+            g.setColor(opentrap.ui.Theme.INTERCEPT_LAMP_OFF); g.fillOval(78, 58, 24, 24);
+            g.setColor(opentrap.ui.Theme.INTERCEPT_LAMP_ON); g.fillOval(78, 90, 24, 24);
             // Pole.
-            g.setColor(new Color(0x2D, 0x5B, 0xA6));
+            g.setColor(opentrap.ui.Theme.INTERCEPT_BODY);
             g.fillRect(86, 128, 8, 20);
             g.dispose();
             return new ImageIcon(img);
