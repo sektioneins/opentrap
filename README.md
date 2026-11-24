@@ -84,6 +84,17 @@ For everything else, the original project is the place to go:
   the includes, widened in the excludes and named in the task log; a scope with no
   include it can bind refuses the scan. When a target is an IPv6 literal, the task
   log also names the host-pattern rules that cannot meet it.
+- **A real extension store.** Extensions > Store installs and updates real ZAP
+  add-ons from ZAP's own feed, from feeds you add and from local folders of
+  `.zap` files, and Installed enables, disables and removes them, the add-ons
+  that ship with the engine included. A download must match its feed's sha256
+  and download prefix, and adding a source asks first. Changes wait for Restart
+  engine, a real engine restart that keeps the session, the live audit and your
+  rule edits, and stops only the crawls and audits running on the engine.
+  Nothing is fetched unless you click Refresh, Install or Update, or switch on
+  the startup check. A crawl or audit whose add-ons are disabled says which ones
+  instead of failing on an engine error, and the rule tabs report a rule change
+  the engine refuses instead of showing it as applied.
 - **Fonts.** The interface uses the system's own UI font, and both the UI font
   and the monospace font can be changed in Settings, with a reset to the
   default.

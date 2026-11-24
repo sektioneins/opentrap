@@ -109,7 +109,7 @@ Ui.heading(s) Ui.label(s) Ui.bold(s) Ui.check(s,sel) Ui.radio(s,sel)
 Ui.button(s) Ui.button(s,tooltip) Ui.field(s,cols) Ui.combo(T[]) Ui.note(s)
 Ui.pad(t,l,b,r) Ui.row(comps...) Ui.vbox(comps...)
 Ui.form("label:", field, "label:", field, ...)   // aligned form; see the rules below
-Ui.filterBar(JButton, comps...)                  // shared-height filter or search strip
+Ui.filterBar(JComponent, comps...)               // shared-height filter or search strip; the first is stretched
 Ui.link(text, Runnable)                          // underlined clickable label, plain text (no HTML)
 Ui.styleTable(JTable) Ui.setWidths(JTable,int...) Ui.scroll(Component) Ui.truncate(s,max)
 ```
