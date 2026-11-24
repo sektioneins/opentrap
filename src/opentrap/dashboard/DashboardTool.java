@@ -466,7 +466,7 @@ public class DashboardTool implements ToolModule {
      */
     private void countLiveRequest(LogEntry e) {
         if (liveAudit == null || liveAudit.state() != ScanTask.State.RUNNING) return;
-        if (e.service() == null || e.request() == null || !ctx.scope().isInScope(e)) return;
+        if (e.service() == null || e.request() == null || !ctx.scope().isInScopeAsSent(e)) return;
         liveAudit.addRequests(1);
         liveLocations.add(e.request().method() + " " + e.url());
         liveAudit.setDiscoveredLocations(liveLocations.size());
@@ -2258,6 +2258,16 @@ public class DashboardTool implements ToolModule {
         startSpiderFor(w.targetUrls(), w.crawlAndAudit(), w.config(), w.threads(), w.isolated(), w.apiOnly() ? "API scan" : null);
     }
 
+    /**
+     * Whether a scan seed is in scope as sent but not once its path is
+     * normalised, such as {@code /app/../admin} under a scope of {@code /app}.
+     * Such a seed is skipped: widening the scope to its host would admit the
+     * whole site.
+     */
+    static boolean leavesScopeWhenNormalised(opentrap.core.Scope scope, HttpService svc, String pathq) {
+        return scope.isInScopeAsSent(svc, pathq) && !scope.isInScope(svc, pathq);
+    }
+
     private void startSpiderFor(String url, boolean thenAudit) {
         startSpiderFor(url, thenAudit, opentrap.engine.ScanConfig.crawlDefault(), 10);
     }
@@ -2309,6 +2319,12 @@ public class DashboardTool implements ToolModule {
                 if (u.getRawPath() != null && !u.getRawPath().isEmpty()) pathq = u.getRawPath();
             } catch (Exception _) {}
             String seedUrl = svc.url() + (pathq.startsWith("/") ? pathq : "/" + pathq);
+            if (leavesScopeWhenNormalised(ctx.scope(), svc, pathq)) {
+                JOptionPane.showMessageDialog(ctx.frame(),
+                        seedUrl + " leaves the scope once its path is normalised; not scanned",
+                        "Scan", JOptionPane.WARNING_MESSAGE);
+                continue;
+            }
             if (!ctx.scope().isInScope(svc, pathq)) {
                 ctx.scope().includeHost(svc);
                 ctx.scopeChanged();

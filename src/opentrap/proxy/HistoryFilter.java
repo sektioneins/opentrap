@@ -86,7 +86,7 @@ public class HistoryFilter implements Serializable {
             if (!url.toLowerCase(Locale.ROOT).contains(urlSearch.toLowerCase(Locale.ROOT))) return false;
         }
 
-        if (inScopeOnly && (scope == null || !scope.isInScope(e))) return false;
+        if (inScopeOnly && (scope == null || !scope.isInScopeAsSent(e))) return false;
         if (hideWithoutResponses && !e.hasResponse()) return false;
         if (hideNotFound && e.status() == 404) return false;
         if (parameterisedOnly && !e.hasParameters()) return false;

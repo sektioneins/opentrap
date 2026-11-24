@@ -297,7 +297,7 @@ public final class StateIO {
     static void writeAllTo(SuiteContext ctx, ProjectStore target, SaveOptions o) throws IOException {
         for (LogEntry e : ctx.store().all()) {
             if (o.tools != null && !o.tools.contains(e.tool())) continue;
-            if (o.inScopeOnly && !ctx.scope().isInScope(e)) continue;
+            if (o.inScopeOnly && !ctx.scope().isInScopeAsSent(e)) continue;
             boolean drop = !o.keepAuditBodies && opentrap.core.ProjectOptions.AUDIT_TOOL.equals(e.tool());
             LogEntry rec = e.writtenTo(target, drop, o.bodyCapBytes);
             target.append(ProjectStore.ENTRY, rec.indexBytes());

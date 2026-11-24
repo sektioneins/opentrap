@@ -693,7 +693,7 @@ public class ProxyServer {
      * out-of-scope setting says.
      */
     private void logEntry(LogEntry entry, HttpService svc, HttpMessage request) {
-        boolean inScope = ctx.scope().isEmpty() || ctx.scope().isInScope(svc, request.path());
+        boolean inScope = ctx.scope().isEmpty() || ctx.scope().isInScopeAsSent(svc, request.path());
         if (!inScope && !logOutOfScope) return;
         ctx.store().add(entry);
         ctx.siteMapChanged(entry);

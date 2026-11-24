@@ -87,7 +87,7 @@ public class TargetTool implements ToolModule {
         if (n.entry != null) return false;   // a requested item that is filtered out
         if (itemsFilter.hideEmptyFolders) return false;
         return !itemsFilter.inScopeOnly || n.service == null
-                || ctx.scope().isInScope(n.service, n.isHost ? "/" : n.path);
+                || ctx.scope().isInScopeAsSent(n.service, n.isHost ? "/" : n.path);
     }
 
     /** Rebuild the whole tree under the current filter, keeping what was expanded and selected. */
@@ -262,7 +262,7 @@ public class TargetTool implements ToolModule {
                 super.getTreeCellRendererComponent(t, value, sel, exp, leaf, row, focus);
                 if (value instanceof DefaultMutableTreeNode tn && tn.getUserObject() instanceof SiteMap.Node n) {
                     boolean muted = !ctx.scope().isEmpty() && n.service != null
-                            && !ctx.scope().isInScope(n.service, n.isHost ? "/" : n.path);
+                            && !ctx.scope().isInScopeAsSent(n.service, n.isHost ? "/" : n.path);
                     if (n.isHost && n.service != null) {
                         setText(n.service.host() + (n.service.defaultPort() ? "" : ":" + n.service.port()));
                         setIcon(SiteIcons.host(n.service.secure(), muted));
@@ -746,7 +746,13 @@ public class TargetTool implements ToolModule {
         // reference: a node already in scope offers to leave it.
         boolean inScope = node.service != null
                 && ctx.scope().isInScope(node.service, node.isHost ? "/" : node.path);
-        if (inScope) {
+        if (!inScope && node.service != null
+                && ctx.scope().isInScopeAsSent(node.service, node.isHost ? "/" : node.path)) {
+            JMenuItem sent = new JMenuItem(Scope.AS_SENT_ONLY);
+            sent.setFont(Ui.PLAIN);
+            sent.setEnabled(false);
+            menu.add(sent);
+        } else if (inScope) {
             addItem(menu, "remove from scope", () -> {
                 ctx.scope().removeUrl(node.service, node.path, node.isHost);
                 ctx.scopeChanged();

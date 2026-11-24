@@ -65,6 +65,15 @@ public final class HistoryFilterTest {
             Expect.isFalse(f.test(entry("/", 200, "text/html")), "plain hidden");
         });
 
+        Harness.test("the in-scope view shows a request whose path as sent is in scope", () -> {
+            HistoryFilter f = new HistoryFilter();
+            f.inScopeOnly = true;
+            f.scope = new Scope();
+            f.scope.include().add(Scope.Rule.prefix("https://example.com/app", false));
+            Expect.isTrue(f.test(entry("/app/../admin", 200, "text/html")), "a traversal probe as sent");
+            Expect.isFalse(f.test(entry("/admin", 200, "text/html")), "a path outside");
+        });
+
         Harness.test("extension lists only apply when switched on", () -> {
             HistoryFilter f = new HistoryFilter();
             f.extShowOnly = "php";

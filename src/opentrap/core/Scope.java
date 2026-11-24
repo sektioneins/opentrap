@@ -394,6 +394,10 @@ public class Scope implements Serializable {
      * path as sent, so it is not applied to the decoded reading. An exclude
      * rule takes the path out when it matches any reading, or
      * {@code /%6cogout} would slip past the {@code logout} exclude.
+     *
+     * <p>This is the check for a decision that acts on traffic: forwarding,
+     * following a redirect, scanning, or the scope menus. A decision that only
+     * keeps or shows what was already sent uses {@link #isInScopeAsSent}.
      */
     public boolean isInScope(HttpService svc, String path) {
         if (svc == null) return false;
@@ -427,6 +431,32 @@ public class Scope implements Serializable {
 
     public boolean isInScope(LogEntry e) {
         return e != null && isInScope(e.service(), e.request() == null ? "/" : e.request().path());
+    }
+
+    /**
+     * Whether a request is in scope as it was sent: some enabled include rule
+     * matches the raw path and no exclude rule does. No other reading of the
+     * path is built, so it is cheap on the proxy's hot path. It is for
+     * decisions that keep or show traffic, such as the history, the site map
+     * and an in-scope copy, so that a traversal probe such as
+     * {@code /app/../admin} sent to a scope of {@code /app} is still recorded.
+     * A decision that acts on a request uses {@link #isInScope(HttpService, String)}.
+     */
+    public boolean isInScopeAsSent(HttpService svc, String path) {
+        if (svc == null) return false;
+        boolean in = false;
+        for (Rule r : include) if (r.matches(svc, path)) { in = true; break; }
+        if (!in) return false;
+        for (Rule r : exclude) if (r.matches(svc, path)) return false;
+        return true;
+    }
+
+    /** What a scope menu says for an item that is in scope as sent but not once normalised. */
+    public static final String AS_SENT_ONLY = "in scope as sent; the normalised path is outside";
+
+    /** As {@link #isInScopeAsSent(HttpService, String)}, for a logged exchange. */
+    public boolean isInScopeAsSent(LogEntry e) {
+        return e != null && isInScopeAsSent(e.service(), e.request() == null ? "/" : e.request().path());
     }
 
     /** The prefix that names a host, or a path below it, as a rule would hold it. */

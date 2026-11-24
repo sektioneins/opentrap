@@ -57,21 +57,23 @@ For everything else, the original project is the place to go:
 - **Safer project files.** Opening a project from someone else no longer writes
   its settings into your own preferences, no longer copies your secrets into
   projects you save, and reads its data only through an allowlist of known
-  classes. An in-scope copy now really leaves out everything out of scope.
-  A project file from someone else asks before its session handling rules,
-  macros, cookies and project settings take effect; declined, they stay in the
-  file unused.
+  classes. An in-scope copy now leaves out every request whose path as sent is
+  out of scope. A project file from someone else asks before its session
+  handling rules, macros, cookies and project settings take effect; declined,
+  they stay in the file unused.
 - **Security fixes in the toolset.** Text from captured traffic is no longer
   rendered as HTML in tables and labels, "Copy as curl" quotes every part of the
   request, and redirects no longer carry cookies and credentials to another
   origin. Repeater's "On-site only" and "In-scope only" modes stop at a redirect
   that leaves the site or the scope, and the status says why. Scope checks
   read a path the way most servers do: `..` segments and percent-escapes no
-  longer step out of a path prefix in scope or around an excluded path. The
-  proxy refuses to forward a request to itself. A cookie set without a `Domain`
-  goes back only to the host that set it, not to its subdomains, and the cookie
-  jar shows which cookies are host-only. The CA key and the saved application
-  logins are written readable by their owner only from the start.
+  longer step out of a path prefix in scope or around an excluded path. A
+  request whose path is in scope as sent is still recorded and kept, so
+  traversal probes stay in the history. The proxy refuses to forward a request
+  to itself. A cookie set without a `Domain` goes back only to the host that
+  set it, not to its subdomains, and the cookie jar shows which cookies are
+  host-only. The CA key and the saved application logins are written readable
+  by their owner only from the start.
   Stopping and restarting a Sequencer capture no longer leaves the old capture
   running and mixing its tokens into the new one.
 - **Scan engine scope.** The engine's crawl and scan are bound to no more than
