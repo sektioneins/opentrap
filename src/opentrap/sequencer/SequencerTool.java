@@ -17,11 +17,9 @@ import java.awt.datatransfer.DataFlavor;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -54,11 +52,7 @@ public class SequencerTool implements ToolModule {
     private JTextField threadsField, throttleField;
     private JButton startCaptureButton;
     private JLabel captureStatus;
-    private volatile boolean capturing;
-    private final List<Thread> captureThreads = new ArrayList<>();
-    private final List<String> liveTokens = Collections.synchronizedList(new ArrayList<>());
-    private final AtomicInteger liveRequests = new AtomicInteger();
-    private final AtomicInteger liveErrors = new AtomicInteger();
+    private CaptureRun run;                  // event thread only
     private AnalysisWindow liveWindow;
 
     // ---- options ----
@@ -95,7 +89,7 @@ public class SequencerTool implements ToolModule {
     }
 
     @Override public void shutdown() {
-        capturing = false;
+        if (run != null) run.stop();
     }
 
     // ---- the requests sent here, listed for live capture ----
@@ -490,7 +484,7 @@ public class SequencerTool implements ToolModule {
         Pattern.CASE_INSENSITIVE);
 
     private void toggleCapture() {
-        if (capturing) {
+        if (run != null && !run.stopped()) {
             stopCapture();
         } else {
             startCapture();
@@ -499,17 +493,13 @@ public class SequencerTool implements ToolModule {
 
     private void startCapture() {
         if (baseRequest == null || baseService == null) return;
-        liveTokens.clear();
-        liveRequests.set(0);
-        liveErrors.set(0);
-        capturing = true;
         startCaptureButton.setText("Stop live capture");
 
         captureCounter++;
         String id = "[live capture #" + captureCounter + ": "
             + (baseService == null ? "?" : baseService.host()) + "]";
-        liveWindow = new AnalysisWindow("sequencer " + id, true);
-        liveWindow.setVisible(true);
+        final AnalysisWindow window = new AnalysisWindow("sequencer " + id, true);
+        window.setVisible(true);
 
         int threads = parseInt(threadsField.getText(), 5);
         final long throttle = parseInt(throttleField.getText(), 0);
@@ -521,40 +511,35 @@ public class SequencerTool implements ToolModule {
         final String start = startDelim.getText();
         final String end = endDelim.getText();
 
-        captureThreads.clear();
-        for (int i = 0; i < Math.max(1, threads); i++) {
-            Thread t = new Thread(() -> captureLoop(svc, req, useCookie, cookieName, start, end, throttle),
-                "sequencer-capture-" + i);
-            t.setDaemon(true);
-            captureThreads.add(t);
-            t.start();
-        }
+        // Each run has its own threads, flag and tokens, so a thread of an earlier
+        // run that is still inside a request cannot reach this one.
+        final CaptureRun[] holder = new CaptureRun[1];
+        final CaptureRun thisRun = new CaptureRun(threads, throttle, () -> {
+            HttpClient client = new HttpClient();
+            HttpClient.Options opt = new HttpClient.Options();
+            opt.updateContentLength = false;
+            opt.session = ctx.sessions();
+            opt.sessionTool = "sequencer";
+            return () -> {
+                HttpClient.Result r = client.send(svc, req, opt);
+                if (!r.ok()) throw new java.io.IOException(r.error);
+                return extractToken(r.response, useCookie, cookieName, start, end);
+            };
+        }, () -> SwingUtilities.invokeLater(() -> changed(holder[0], window)));
+        holder[0] = thisRun;
+        run = thisRun;
+        liveWindow = window;
+        thisRun.start();
         updateCaptureStatus();
     }
 
-    private void captureLoop(HttpService svc, HttpMessage req, boolean useCookie,
-                             String cookieName, String start, String end, long throttle) {
-        HttpClient client = new HttpClient();
-        HttpClient.Options opt = new HttpClient.Options();
-        opt.updateContentLength = false;
-        opt.session = ctx.sessions();
-        opt.sessionTool = "sequencer";
-        while (capturing) {
-            HttpClient.Result r = client.send(svc, req, opt);
-            liveRequests.incrementAndGet();
-            if (r.ok()) {
-                String token = extractToken(r.response, useCookie, cookieName, start, end);
-                if (token != null && !token.isEmpty()) {
-                    liveTokens.add(token);
-                    onTokenCaptured();
-                }
-            } else {
-                liveErrors.incrementAndGet();
-            }
-            if (throttle > 0) {
-                try { Thread.sleep(throttle); }
-                catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
-            }
+    /** A request of a run finished. Late events of an earlier run repaint nothing. */
+    private void changed(CaptureRun r, AnalysisWindow w) {
+        if (r != run) return;
+        updateCaptureStatus();
+        int count = r.tokenCount();
+        if (count != w.tokenCount() && (count % 20 == 0 || count < 20)) {
+            w.setTokens(r.tokens());
         }
     }
 
@@ -595,28 +580,19 @@ public class SequencerTool implements ToolModule {
         return text.substring(from, to);
     }
 
-    private void onTokenCaptured() {
-        final int count = liveTokens.size();
-        SwingUtilities.invokeLater(() -> {
-            updateCaptureStatus();
-            if (liveWindow != null && (count % 20 == 0 || count < 20)) {
-                liveWindow.setTokens(new ArrayList<>(liveTokens));
-            }
-        });
-    }
-
     private void stopCapture() {
-        capturing = false;
+        run.stop();
         startCaptureButton.setText("Start live capture");
-        for (Thread t : captureThreads) t.interrupt();
-        captureThreads.clear();
-        if (liveWindow != null) liveWindow.setTokens(new ArrayList<>(liveTokens));
+        if (liveWindow != null) liveWindow.setTokens(run.tokens());
         updateCaptureStatus();
     }
 
     private void updateCaptureStatus() {
-        captureStatus.setText("live capture (" + liveTokens.size() + " tokens)   requests: "
-            + liveRequests.get() + "   errors: " + liveErrors.get());
+        int tokens = run == null ? 0 : run.tokenCount();
+        int requests = run == null ? 0 : run.requests();
+        int errors = run == null ? 0 : run.errors();
+        captureStatus.setText("live capture (" + tokens + " tokens)   requests: "
+            + requests + "   errors: " + errors);
     }
 
     // ================================================================
@@ -643,6 +619,8 @@ public class SequencerTool implements ToolModule {
             tabs.addTab("bit-level analysis", Ui.scroll(bitArea));
             setContentPane(tabs);
         }
+
+        int tokenCount() { return tokens.size(); }
 
         void setTokens(List<String> t) {
             this.tokens = t;
