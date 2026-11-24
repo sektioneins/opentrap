@@ -79,20 +79,22 @@ public class FlatTabbedPaneUI extends BasicTabbedPaneUI {
 
     @Override protected void paintTabBackground(Graphics g, int p, int i, int x, int y, int w, int h, boolean sel) {
         Color custom = tabPane.getBackgroundAt(i);
-        if (custom != null && !custom.equals(tabPane.getBackground())) {
-            // A tool asking for attention flashes its tab with the accent.
+        boolean flash = custom != null && !custom.equals(tabPane.getBackground());
+        // A tool asking for attention flashes its tab with the accent; a pill
+        // theme marks the selected tab with the same shape.
+        if (flash || (sel && Theme.TAB_MARKER == Theme.TabMarker.PILL)) {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g2.setColor(Theme.ACCENT_LIGHT);
-            g2.fillRoundRect(x + 2, y + 3, w - 4, h - 6, 8, 8);
+            g2.fillRoundRect(x + 2, y + 3, w - 4, h - 6, Theme.TAB_HOVER_RADIUS, Theme.TAB_HOVER_RADIUS);
             g2.dispose();
         }
     }
 
     @Override protected void paintTabBorder(Graphics g, int p, int i, int x, int y, int w, int h, boolean sel) {
-        if (sel) {
+        if (sel && Theme.TAB_MARKER == Theme.TabMarker.UNDERLINE) {
             g.setColor(Theme.ACCENT);
-            g.fillRect(x + 8, y + h - 2, w - 16, 2);
+            g.fillRect(x + 8, y + h - Theme.TAB_UNDERLINE, w - 16, Theme.TAB_UNDERLINE);
         }
     }
 

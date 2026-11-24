@@ -26,7 +26,7 @@ public class FlatComboBoxUI extends BasicComboBoxUI {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 g2.setColor(comboBox.isEnabled() ? Theme.MUTED : Theme.BORDER);
-                g2.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g2.setStroke(new BasicStroke(Theme.stroke(1.6f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
                 int cx = getWidth() / 2, cy = getHeight() / 2;
                 Path2D p = new Path2D.Float();
                 p.moveTo(cx - 4, cy - 2);

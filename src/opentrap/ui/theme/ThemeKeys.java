@@ -24,7 +24,12 @@ public final class ThemeKeys {
 
     /** The allowed range of each number key. A number field without an entry here is a bug. */
     private static final Map<String, KeyType.Number> RANGES = Map.of(
-        "RADIUS", new KeyType.Number(0, 12));
+        "RADIUS", new KeyType.Number(0, 12),
+        "CARD_RADIUS", new KeyType.Number(0, 16),
+        "TAB_HOVER_RADIUS", new KeyType.Number(0, 16),
+        "LINE_WIDTH", new KeyType.Number(1, 2),
+        "ICON_STROKE", new KeyType.Number(75, 150),
+        "TAB_UNDERLINE", new KeyType.Number(1, 4));
 
     /** The key spec of {@link Theme}, in field order. */
     public static Map<String, KeyType> spec() {

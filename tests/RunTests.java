@@ -123,6 +123,7 @@ public final class RunTests {
         // These two call Theme.configure and restore the light theme; they go
         // just before the suite that installs the full theme.
         new opentrap.ui.ThemeSnapshotTest().run();
+        new opentrap.ui.ThemeStyleTest().run();
 
         // Last: it installs the full theme, which changes UI defaults for the
         // rest of the JVM.

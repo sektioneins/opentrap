@@ -263,6 +263,35 @@ public final class Theme {
 
     /** Corner radius shared by buttons, fields and cards. */
     public static int RADIUS;
+    /** Corner radius of cards (see {@link #cardBorder()}). */
+    public static int CARD_RADIUS;
+    /** Corner arc of the shape behind a hovered, flashing or pill-marked tab. */
+    public static int TAB_HOVER_RADIUS;
+    /** Width of the outline on fields, cards and outlined buttons, in pixels. */
+    public static int LINE_WIDTH;
+    /** Stroke weight of the line icons, in percent of the drawn weight. */
+    public static int ICON_STROKE;
+    /** Height of the selected tab's underline. */
+    public static int TAB_UNDERLINE;
+
+    /** How the selected tab is marked. */
+    public enum TabMarker { UNDERLINE, PILL }
+    /** How a primary button is drawn. */
+    public enum PrimaryButton { FILLED, OUTLINE }
+    /** Which lines a table draws between its cells. */
+    public enum TableGrid { NONE, HORIZONTAL, BOTH }
+    /** Whether trees draw their connecting lines. */
+    public enum TreeLines { OFF, ON }
+
+    public static TabMarker TAB_MARKER;
+    public static PrimaryButton PRIMARY_BUTTON;
+    public static TableGrid TABLE_GRID;
+    public static TreeLines TREE_LINES;
+
+    /** A stroke width scaled by the theme's icon stroke percentage. */
+    public static float stroke(float width) {
+        return width * ICON_STROKE / 100f;
+    }
 
     /** Client property that marks a button as the primary action of its panel. */
     public static final String PRIMARY = "opentrap.primary";
@@ -427,7 +456,8 @@ public final class Theme {
         d.put("Tree.collapsedIcon", Glyphs.chevron(12, MUTED, 0));
         d.put("Tree.leftChildIndent", 10);
         d.put("Tree.rightChildIndent", 12);
-        d.put("Tree.paintLines", Boolean.FALSE);
+        d.put("Tree.paintLines", TREE_LINES == TreeLines.ON);
+        d.put("Tree.hash", BORDER);
         d.put("Tree.lineTypeDashed", Boolean.FALSE);
         d.put("List.selectionBackground", sel);
         d.put("List.selectionForeground", text);
@@ -504,7 +534,7 @@ public final class Theme {
 
     /** A rounded hairline border for cards and grouped content. */
     public static Border cardBorder() {
-        return new RoundedBorder(BORDER, null, RADIUS + 2, new Insets(10, 12, 10, 12));
+        return new RoundedBorder(BORDER, null, CARD_RADIUS, new Insets(10, 12, 10, 12));
     }
 
     /** Mark a button as the panel's primary action: filled with the accent. */

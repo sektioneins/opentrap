@@ -485,7 +485,8 @@ public final class Ui {
         t.getTableHeader().setToolTipText("click column to sort ascending (SHIFT-click = descending)");
         t.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         t.setGridColor(GRID);
-        t.setShowVerticalLines(false);
+        t.setShowHorizontalLines(Theme.TABLE_GRID != Theme.TableGrid.NONE);
+        t.setShowVerticalLines(Theme.TABLE_GRID == Theme.TableGrid.BOTH);
         t.setIntercellSpacing(new Dimension(0, 0));
         t.setSelectionBackground(SELECTION);
         t.setSelectionForeground(Theme.TEXT);

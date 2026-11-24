@@ -25,7 +25,7 @@ public final class Glyphs {
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
         g.setColor(colour == null ? Theme.ICON : colour);
-        g.setStroke(new BasicStroke(Math.max(1.2f, size / 11f)));
+        g.setStroke(new BasicStroke(Theme.stroke(Math.max(1.2f, size / 11f))));
         d.paint(g, size);
         g.dispose();
         return new ImageIcon(img);
@@ -61,13 +61,13 @@ public final class Glyphs {
     public static Icon gear(int size, Color c) {
         return make(size, c, (g, s) -> {
             double cx = s / 2.0, cy = s / 2.0, ri = s * 0.3, ro = s * 0.46;
-            g.setStroke(new BasicStroke(Math.max(1.6f, s / 7f), BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER));
+            g.setStroke(new BasicStroke(Theme.stroke(Math.max(1.6f, s / 7f)), BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER));
             for (int a = 0; a < 360; a += 45) {
                 double r = Math.toRadians(a);
                 g.draw(new Line2D.Double(cx + ri * Math.cos(r), cy + ri * Math.sin(r),
                         cx + ro * Math.cos(r), cy + ro * Math.sin(r)));
             }
-            g.setStroke(new BasicStroke(Math.max(1.2f, s / 11f)));
+            g.setStroke(new BasicStroke(Theme.stroke(Math.max(1.2f, s / 11f))));
             g.draw(new Ellipse2D.Double(cx - ri, cy - ri, 2 * ri, 2 * ri));
             g.fill(new Ellipse2D.Double(cx - ri / 2.5, cy - ri / 2.5, ri / 1.25, ri / 1.25));
         });
@@ -235,7 +235,7 @@ public final class Glyphs {
     /** A tick. */
     public static Icon tick(int size, Color c) {
         return make(size, c, (g, s) -> {
-            g.setStroke(new BasicStroke(Math.max(1.6f, s / 8f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g.setStroke(new BasicStroke(Theme.stroke(Math.max(1.6f, s / 8f)), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
             g.draw(new Path2D.Double() {{ moveTo(s * 0.2, s * 0.52); lineTo(s * 0.42, s * 0.74); lineTo(s * 0.82, s * 0.3); }});
         });
     }
