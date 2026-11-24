@@ -149,7 +149,8 @@ public final class StorePanel extends JPanel {
         table.getColumnModel().getColumn(1).setPreferredWidth(70);
         table.getColumnModel().getColumn(2).setPreferredWidth(60);
         table.getColumnModel().getColumn(3).setPreferredWidth(70);
-        table.getColumnModel().getColumn(3).setCellRenderer(new DefaultTableCellRenderer() {
+        table.getColumnModel().getColumn(4).setPreferredWidth(70);
+        table.getColumnModel().getColumn(4).setCellRenderer(new DefaultTableCellRenderer() {
             @Override public Component getTableCellRendererComponent(JTable t, Object v, boolean sel, boolean f,
                                                                      int r, int c) {
                 super.getTableCellRendererComponent(t, v, sel, f, r, c);
@@ -224,6 +225,17 @@ public final class StorePanel extends JPanel {
         if (!Resolver.sameLine(have.sourceId(), best.sourceId())) return "Switch source";
         if (newBuild) return "New build";
         return best.version().compareTo(have.version()) > 0 ? "Update" : "Installed";
+    }
+
+    /**
+     * The Installed column: "queued" while a change to the add-on waits for
+     * the next engine start, else "installed" or "disabled" by what is
+     * installed, and empty when nothing is.
+     */
+    static String installedState(Installed have, Pending queued) {
+        if (queued != null) return "queued";
+        if (have == null) return "";
+        return have.active() ? "installed" : "disabled";
     }
 
     /**
@@ -982,7 +994,7 @@ public final class StorePanel extends JPanel {
     }
 
     private final class Model extends AbstractTableModel {
-        private final String[] names = {"Name", "Version", "Status", ""};
+        private final String[] names = {"Name", "Version", "Status", "Installed", ""};
 
         @Override public int getRowCount() { return rows.size(); }
         @Override public int getColumnCount() { return names.length; }
@@ -993,6 +1005,7 @@ public final class StorePanel extends JPanel {
                 case 0 -> row.best().name();
                 case 1 -> row.best().version().toString();
                 case 2 -> row.best().status().label();
+                case 3 -> installedState(row.have(), pendingOf(row.id()));
                 default -> switch (row.action()) {
                     case "Update" -> "update";
                     case "New build" -> "new build";

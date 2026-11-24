@@ -87,7 +87,8 @@ For everything else, the original project is the place to go:
 - **A real extension store.** Extensions > Store installs and updates real ZAP
   add-ons from ZAP's own feed, from feeds you add and from local folders of
   `.zap` files, and Installed enables, disables and removes them, the add-ons
-  that ship with the engine included. A download must match its feed's sha256
+  that ship with the engine included. Store shows for each add-on whether it
+  is installed, disabled or has a change queued. A download must match its feed's sha256
   and download prefix, and adding a source asks first. Changes wait for Restart
   engine, a real engine restart that keeps the session, the live audit and your
   rule edits, and stops only the crawls and audits running on the engine.

@@ -176,6 +176,37 @@ public final class StoreUiTest {
                     "current, bundled and ZAP's feed counting as one source");
         });
 
+        Harness.test("the installed column says installed, disabled, queued or nothing", () -> {
+            Installed on = held("zap", "foo", "1.0.0", "11");
+            Installed off = new Installed(Kind.ZAP_ADDON, "foo", Version.parse("1.0.0"), "foo-release-1.0.0.zap",
+                    "zap", "zap", false, "11".repeat(32));
+            Pending removal = new Pending(Pending.Action.REMOVE, "foo", null, null);
+            Expect.equal(StorePanel.installedState(null, null), "", "not installed");
+            Expect.equal(StorePanel.installedState(on, null), "installed", "installed and active");
+            Expect.equal(StorePanel.installedState(off, null), "disabled", "installed and disabled");
+            Expect.equal(StorePanel.installedState(on, removal), "queued", "a change waits for the engine start");
+            Expect.equal(StorePanel.installedState(null, new Pending(Pending.Action.INSTALL, "foo", null, null)),
+                    "queued", "an install waits for the engine start");
+        });
+
+        Harness.test("each store row shows its add-on's installed state", () ->
+                StoreFixtures.started(CRAWL, List.of(), (store, engine) -> {
+                    Path folder = folderSource(engine, false);
+                    ZapFixtures.zap(folder, "foo", "1.0.0", "release");
+                    store.disable("network");
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    store.refresh(() -> false);
+                    store.remove("spider");
+                    StorePanel panel = panel(store);
+                    Expect.equal(onEdt(() -> installed(panel, "Add-on foo")), "", "foo is not installed");
+                    Expect.equal(onEdt(() -> installed(panel, "Add-on commonlib")), "installed", "commonlib runs");
+                    Expect.equal(onEdt(() -> installed(panel, "Add-on network")), "disabled", "network is disabled");
+                    Expect.equal(onEdt(() -> installed(panel, "Add-on spider")), "queued", "spider's removal waits");
+                    // the store tells the panel before enable returns, and the panel reloads on the EDT before this read
+                    store.enable("network");
+                    Expect.equal(onEdt(() -> installed(panel, "Add-on network")), "queued", "network's enable waits");
+                }));
+
         Harness.test("the default status filter hides alpha add-ons", () ->
                 StoreFixtures.inTemp(List.of("spider"), (store, engine) -> {
                     ZapFixtures.zap(engine.resolve("plugin"), "rough", "1.0.0", "alpha");
@@ -1276,7 +1307,9 @@ public final class StoreUiTest {
 
     private static String version(StorePanel panel, String name) { return cell(panel, name, 1); }
 
-    private static String mark(StorePanel panel, String name) { return cell(panel, name, 3); }
+    private static String installed(StorePanel panel, String name) { return cell(panel, name, 3); }
+
+    private static String mark(StorePanel panel, String name) { return cell(panel, name, 4); }
 
     private static javax.net.ssl.SSLContext defaultTls() {
         try {
