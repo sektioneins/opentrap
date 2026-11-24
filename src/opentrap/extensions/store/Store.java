@@ -98,7 +98,7 @@ public final class Store {
             Catalogue cat = new Catalogue(minorDir, zap, fetcher);
             // before the catalogue is published, so no refresh can run on it yet
             cat.loadCache(sources);
-            o = new Opened(zap, minor, engineInstall, minorDir, new ZapAddOnKind(minorDir), cat);
+            o = new Opened(zap, minor, engineInstall, minorDir, new ZapAddOnKind(minorDir, zap), cat);
         }
         o.catalogue.setBundled(Bundled.listing(engineInstall, zap));
         opened = o;
@@ -451,7 +451,7 @@ public final class Store {
             throw new IOException(why, e);
         }
         Path minorDir = root.resolve(zap.part(0) + "." + zap.part(1));
-        ZapAddOnKind kind = new ZapAddOnKind(minorDir);
+        ZapAddOnKind kind = new ZapAddOnKind(minorDir, zap);
         List<String> errors = new ArrayList<>();
         Path runtime = null;
         try (StoreLock _ = StoreLock.acquire(root)) {

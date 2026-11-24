@@ -479,6 +479,22 @@ public final class StoreUiTest {
                             "spider's removal was not queued");
                 }));
 
+        Harness.test("removing a bundled add-on updated from ZAP's feed says it stays removed", () ->
+                StoreFixtures.started(CRAWL, List.of(), (store, engine) -> {
+                    Path minor = engine.resolveSibling("addons").resolve("2.17");
+                    opentrap.extensions.store.StoreRecord rec = opentrap.extensions.store.StoreRecord.load(minor);
+                    Installed spider = rec.installed().get("spider");
+                    rec.installed().put("spider", new Installed(spider.kind(), "spider", spider.version(),
+                            spider.file(), Source.ZAP_ID, Source.ZAP_ID, true, spider.sha256()));
+                    rec.save();
+                    store.open(Version.parse("2.17.0"), engine);
+                    Answers answers = new Answers(false);
+                    InstalledPanel panel = installed(store, answers);
+                    onEdt(() -> { panel.removeAddOn("spider"); return null; });
+                    Expect.isTrue(answers.asked.get(0).contains("bundled with ZAP and stays removed"),
+                            "the warning: " + answers.asked.get(0));
+                }));
+
         Harness.test("enabling an add-on enables what it needs and names what is not installed", () ->
                 StoreFixtures.inTemp(CRAWL, (store, engine) -> {
                     Path folder = folderSource(engine, false);

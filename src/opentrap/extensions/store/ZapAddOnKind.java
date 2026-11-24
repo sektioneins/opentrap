@@ -24,8 +24,13 @@ public final class ZapAddOnKind implements KindHandler {
             Pattern.compile("([A-Za-z0-9_]+)-(release|beta|alpha)-([A-Za-z0-9._]+)\\.zap");
 
     private final Path minorDir;
+    private final Version zap;
 
-    public ZapAddOnKind(Path minorDir) { this.minorDir = minorDir; }
+    /** The folders of {@code minorDir}, for the ZAP version {@code zap} whose engine bundles add-ons. */
+    public ZapAddOnKind(Path minorDir, Version zap) {
+        this.minorDir = minorDir;
+        this.zap = zap;
+    }
 
     @Override public Kind kind() { return Kind.ZAP_ADDON; }
 
@@ -77,8 +82,11 @@ public final class ZapAddOnKind implements KindHandler {
             Files.createDirectories(dir);
             Files.move(staged, dir.resolve(name));
         }
-        rec.installed().put(p.id(), new Installed(t.kind(), p.id(), t.version(), name, t.sourceId(), t.sourceId(),
+        String origin = Source.BUNDLED_ID.equals(t.sourceId()) ? Bundled.origin(zap) : t.sourceId();
+        rec.installed().put(p.id(), new Installed(t.kind(), p.id(), t.version(), name, t.sourceId(), origin,
                 active, t.sha256()));
+        // installed again from Store, so a later engine change keeps it
+        rec.removedBundled().remove(p.id());
     }
 
     private void moveTo(StoreRecord rec, String id, boolean enable) throws IOException {
@@ -99,7 +107,8 @@ public final class ZapAddOnKind implements KindHandler {
 
     private void remove(StoreRecord rec, String id) throws IOException {
         Installed in = rec.installed().get(id);
-        if (in != null && in.origin() != null && in.origin().startsWith("bundled")
+        // also one updated from ZAP's feed: the engine's plugin/ may hold it, and a later engine change would link it
+        if (in != null && in.sourceId() != null && Resolver.sameLine(in.sourceId(), Source.BUNDLED_ID)
                 && rec.removedBundled().add(id)) {
             // remembered before the file goes, so a crash in between cannot bring a bundled add-on back
             rec.save();

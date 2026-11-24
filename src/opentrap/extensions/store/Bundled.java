@@ -18,6 +18,9 @@ public final class Bundled {
 
     private Bundled() {}
 
+    /** What the record says a bundled add-on came with. */
+    static String origin(Version zap) { return "bundled with ZAP " + zap; }
+
     /** The engine's own add-ons as the built-in "bundled" source lists them. */
     public static Listing listing(Path engineInstall, Version zap) throws IOException {
         Path plugin = engineInstall.resolve("plugin");
@@ -93,7 +96,7 @@ public final class Bundled {
             Files.createSymbolicLink(link, Path.of(e.location()));
         }
         rec.installed().put(e.id(), new Installed(Kind.ZAP_ADDON, e.id(), e.version(), e.file(), Source.BUNDLED_ID,
-                "bundled with ZAP " + zap, active, e.sha256()));
+                origin(zap), active, e.sha256()));
     }
 
     /** Deletes links whose target does not exist; never follows a link to delete, never touches a target. */

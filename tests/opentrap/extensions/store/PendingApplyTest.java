@@ -18,7 +18,7 @@ public final class PendingApplyTest {
         Path dir = null;
         try {
             dir = Files.createTempDirectory("opentrap-pending");
-            ZapAddOnKind kind = new ZapAddOnKind(dir);
+            ZapAddOnKind kind = new ZapAddOnKind(dir, Version.parse("2.17.0"));
             Files.createDirectories(kind.enabledDir());
             Files.createDirectories(kind.disabledDir());
             Files.createDirectories(kind.stagingDir());
@@ -41,8 +41,12 @@ public final class PendingApplyTest {
     }
 
     private static Entry entry(String id, String version, String file) {
-        return new Entry(Kind.ZAP_ADDON, "src-1", id, "Name " + id, "", "", Version.parse(version), Status.RELEASE,
-                "", "", "", 1, file, "https://github.com/zaproxy/x", "ab".repeat(32), List.of());
+        return entry("src-1", id, version, file, "ab".repeat(32));
+    }
+
+    private static Entry entry(String sourceId, String id, String version, String file, String sha) {
+        return new Entry(Kind.ZAP_ADDON, sourceId, id, "Name " + id, "", "", Version.parse(version), Status.RELEASE,
+                "", "", "", 1, file, "https://github.com/zaproxy/x", sha, List.of());
     }
 
     private static Pending stage(ZapAddOnKind k, Pending.Action a, String id, String version) {
@@ -130,6 +134,34 @@ public final class PendingApplyTest {
             Expect.isTrue(rec.installed().isEmpty(), "record empty");
             Expect.equal(List.copyOf(rec.removedBundled()), List.of("foo"), "only the bundled one is remembered");
             Expect.equal(List.copyOf(StoreRecord.load(minor).removedBundled()), List.of("foo"), "saved");
+        }));
+
+        Harness.test("removing a bundled add-on updated from ZAP's feed remembers it", () -> inTemp((minor, k, rec) -> {
+            ZapFixtures.zap(k.enabledDir(), "foo", "1.1.0", "release");
+            rec.installed().put("foo", new Installed(Kind.ZAP_ADDON, "foo", Version.parse("1.1.0"),
+                    "foo-release-1.1.0.zap", "zap", "zap", true, ""));
+            Pending r = new Pending(Pending.Action.REMOVE, "foo", null, null);
+            rec.pending().add(r);
+            k.apply(rec, r);
+            Expect.equal(List.copyOf(StoreRecord.load(minor).removedBundled()), List.of("foo"),
+                    "ZAP's feed and the bundled set are one line");
+        }));
+
+        Harness.test("installing a removed bundled add-on again forgets the removal", () -> inTemp((minor, k, rec) -> {
+            rec.removedBundled().add("foo");
+            rec.removedBundled().add("bar");
+            for (String[] a : new String[][] {{"bundled", "foo"}, {"zap", "bar"}}) {
+                Path zap = ZapFixtures.zap(k.stagingDir(), a[1], "1.0.0", "release");
+                String name = zap.getFileName().toString();
+                Pending p = new Pending(Pending.Action.INSTALL, a[1],
+                        entry(a[0], a[1], "1.0.0", name, ZapFixtures.sha256(zap)), name);
+                rec.pending().add(p);
+                k.apply(rec, p);
+            }
+            Expect.equal(List.copyOf(StoreRecord.load(minor).removedBundled()), List.of(),
+                    "neither is remembered as removed");
+            Expect.equal(rec.installed().get("foo").origin(), "bundled with ZAP 2.17.0",
+                    "the bundled one names the engine it came with");
         }));
 
         Harness.test("removing an add-on deletes a link without touching its target", () -> inTemp((minor, k, rec) -> {

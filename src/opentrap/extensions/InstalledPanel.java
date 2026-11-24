@@ -605,7 +605,7 @@ public final class InstalledPanel extends JPanel {
         String verb = removing ? "Remove" : "Disable";
         String title = verb + " " + id;
         String text = removing ? removeWarning(id, with, stops) : disableWarning(id, with, stops);
-        if (removing && self != null && Source.BUNDLED_ID.equals(self.sourceId())) {
+        if (removing && self != null && bundled(self)) {
             text += "\n\nIt is bundled with ZAP and stays removed until it is installed again from Store.";
         }
         if ((removing || !with.isEmpty() || !stops.isEmpty())
@@ -614,6 +614,14 @@ public final class InstalledPanel extends JPanel {
         List<String> all = new ArrayList<>(with);
         all.add(id);
         queue(title, all, removing ? store::remove : store::disable);
+    }
+
+    /** From the bundled set, or from ZAP's feed while the engine bundles it: a removal of either is remembered. */
+    private boolean bundled(Installed in) {
+        if (in.sourceId() == null || !Resolver.sameLine(in.sourceId(), Source.BUNDLED_ID)) return false;
+        if (Source.BUNDLED_ID.equals(in.sourceId())) return true;
+        for (Entry e : store.catalogue().offers(in.id())) if (Source.BUNDLED_ID.equals(e.sourceId())) return true;
+        return false;
     }
 
     private Set<String> queuedIds() {

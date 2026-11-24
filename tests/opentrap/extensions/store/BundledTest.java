@@ -27,7 +27,7 @@ public final class BundledTest {
             Files.createDirectories(engine.resolve("plugin"));
             Files.write(engine.resolve("zap-2.17.0.jar"), new byte[0]);
             Path minor = root.resolve("minor");
-            ZapAddOnKind kind = new ZapAddOnKind(minor);
+            ZapAddOnKind kind = new ZapAddOnKind(minor, ZAP);
             Files.createDirectories(kind.enabledDir());
             Files.createDirectories(kind.disabledDir());
             body.run(root, engine, kind, StoreRecord.load(minor));
@@ -127,6 +127,44 @@ public final class BundledTest {
             Bundled.reconcile(engine, ZAP, k, rec);
             Expect.equal(names(k.enabledDir()), List.of(), "not linked");
             Expect.isFalse(rec.installed().containsKey("foo"), "not recorded");
+        }));
+
+        Harness.test("a bundled add-on updated from ZAP's feed and removed stays removed when the engine changes", () -> inTemp((root, engine, k, rec) -> {
+            ZapFixtures.zap(engine.resolve("plugin"), "foo", "1.0.0", "release");
+            Bundled.reconcile(engine, ZAP, k, rec);
+            Path staged = ZapFixtures.zap(Files.createDirectories(k.stagingDir()), "foo", "1.1.0", "release");
+            String name = staged.getFileName().toString();
+            Entry fromZap = new Entry(Kind.ZAP_ADDON, Source.ZAP_ID, "foo", "Foo", "", "", Version.parse("1.1.0"),
+                    Status.RELEASE, "", "", "", 1, name, "https://github.com/zaproxy/x", ZapFixtures.sha256(staged),
+                    List.of());
+            for (Pending p : List.of(new Pending(Pending.Action.UPDATE, "foo", fromZap, name),
+                    new Pending(Pending.Action.REMOVE, "foo", null, null))) {
+                rec.pending().add(p);
+                k.apply(rec, p);
+            }
+            ZapFixtures.zap(engine.resolve("plugin"), "baz", "1.0.0", "release");
+            Bundled.reconcile(engine, ZAP, k, rec);
+            Expect.equal(names(k.enabledDir()), List.of("baz-release-1.0.0.zap"), "foo is not linked back");
+            Expect.isFalse(rec.installed().containsKey("foo"), "nor recorded");
+        }));
+
+        Harness.test("a removed bundled add-on installed again from Store follows a newer engine file", () -> inTemp((root, engine, k, rec) -> {
+            Path foo = ZapFixtures.zap(engine.resolve("plugin"), "foo", "1.0.0", "release");
+            Bundled.reconcile(engine, ZAP, k, rec);
+            Pending rm = new Pending(Pending.Action.REMOVE, "foo", null, null);
+            rec.pending().add(rm);
+            k.apply(rec, rm);
+            // installed again from the bundled set: the staged file is a link to the engine's own
+            Entry e = Bundled.listing(engine, ZAP).entries().get(0);
+            Files.createSymbolicLink(Files.createDirectories(k.stagingDir()).resolve(e.file()), foo.toAbsolutePath());
+            Pending in = new Pending(Pending.Action.INSTALL, "foo", e, e.file());
+            rec.pending().add(in);
+            k.apply(rec, in);
+            Expect.equal(rec.installed().get("foo").origin(), "bundled with ZAP 2.17.0", "named after the engine");
+            Files.delete(foo);
+            ZapFixtures.zap(engine.resolve("plugin"), "foo", "1.1.0", "release");
+            Expect.equal(Bundled.reconcile(engine, ZAP, k, rec), List.of(), "not dropped as missing");
+            Expect.equal(names(k.enabledDir()), List.of("foo-release-1.1.0.zap"), "the newer engine file is linked");
         }));
 
         Harness.test("an engine already taken in is not taken in again", () -> inTemp((root, engine, k, rec) -> {
