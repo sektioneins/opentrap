@@ -136,14 +136,72 @@ public final class ResolverTest {
 
         Harness.test("a dependency cycle ends the plan instead of looping", () -> {
             World w = new World("mine");
-            w.offer("mine", "aa", "1.0.0", "release");
+            ZapFixtures.zap(w.folders.get("mine"), "aa", "1.0.0", "release", "bb", "");
+            ZapFixtures.zap(w.folders.get("mine"), "bb", "1.0.0", "release", "aa", "");
+            Catalogue c = w.catalogue();
+            Resolver r = new Resolver(c, Map.of());
+            Expect.equal(ids(plan(r, offered(c, "aa", "mine"))), List.of("bb", "aa"), "plan");
+            Expect.equal(ids(plan(r, offered(c, "bb", "mine"))), List.of("aa", "bb"), "other way");
+        });
+
+        Harness.test("a chain of dependencies is planned deepest first", () -> {
+            World w = new World("mine");
+            ZapFixtures.zap(w.folders.get("mine"), "top", "1.0.0", "release", "mid", "");
+            ZapFixtures.zap(w.folders.get("mine"), "mid", "1.0.0", "release", "low", ">= 1.0.0");
+            w.offer("mine", "low", "1.2.0", "release");
+            Catalogue c = w.catalogue();
+            Expect.equal(ids(plan(w.resolver(c), offered(c, "top", "mine"))), List.of("low", "mid", "top"), "plan");
+        });
+
+        Harness.test("a dependency two add-ons share is planned once", () -> {
+            World w = new World("mine");
+            ZapFixtures.zap(w.folders.get("mine"), "top", "1.0.0", "release", "left", "", "right", "");
+            ZapFixtures.zap(w.folders.get("mine"), "left", "1.0.0", "release", "base", "");
+            ZapFixtures.zap(w.folders.get("mine"), "right", "1.0.0", "release", "base", "");
+            w.offer("mine", "base", "1.0.0", "release");
+            Catalogue c = w.catalogue();
+            Expect.equal(ids(plan(w.resolver(c), offered(c, "top", "mine"))),
+                    List.of("base", "left", "right", "top"), "plan");
+        });
+
+        Harness.test("a planned dependency that a later add-on's range rejects is unresolvable", () -> {
+            World w = new World("mine");
+            ZapFixtures.zap(w.folders.get("mine"), "top", "1.0.0", "release", "left", "", "right", "");
+            ZapFixtures.zap(w.folders.get("mine"), "left", "1.0.0", "release", "base", "< 2.0.0");
+            ZapFixtures.zap(w.folders.get("mine"), "right", "1.0.0", "release", "base", ">= 2.0.0");
+            w.offer("mine", "base", "1.0.0", "release");
+            Catalogue c = w.catalogue();
+            try {
+                plan(w.resolver(c), offered(c, "top", "mine"));
+                Expect.isTrue(false, "should not resolve");
+            } catch (AssertionError e) {
+                Expect.equal(e.getMessage(),
+                        "right needs base >= 2.0.0, but base 1.0.0 is already planned for left", "message");
+            }
+        });
+
+        Harness.test("a dependency of a dependency comes from the chosen add-on's source when ZAP lacks it", () -> {
+            World w = new World("zap", "mine");
+            ZapFixtures.zap(w.folders.get("mine"), "top", "1.0.0", "release", "aa", "");
+            ZapFixtures.zap(w.folders.get("zap"), "aa", "1.0.0", "release", "bb", "");
             w.offer("mine", "bb", "1.0.0", "release");
             Catalogue c = w.catalogue();
-            Entry bb = needing(offered(c, "bb", "mine"), "aa", VersionRange.ANY);
-            Entry aa = needing(offered(c, "aa", "mine"), "bb", VersionRange.ANY);
-            Resolver r = new Resolver(c, Map.of());
-            Expect.equal(ids(plan(r, aa)), List.of("bb", "aa"), "plan");
-            Expect.equal(ids(plan(r, bb)), List.of("aa", "bb"), "other way");
+            List<Entry> plan = plan(w.resolver(c), offered(c, "top", "mine"));
+            Expect.equal(ids(plan), List.of("bb", "aa", "top"), "order");
+            Expect.equal(plan.get(0).sourceId(), "mine", "bb source");
+            Expect.equal(plan.get(1).sourceId(), "zap", "aa source");
+        });
+
+        Harness.test("a dependency from the bundled set counts as ZAP's feed", () -> {
+            World w = new World("mine");
+            w.offer("mine", "top", "1.0.0", "release");
+            w.offer("mine", "base", "1.0.0", "release");
+            Catalogue c = w.catalogue();
+            Entry bundled = new Entry(Kind.ZAP_ADDON, Source.BUNDLED_ID, "base", "", "", "", Version.parse("1.0.0"),
+                    Status.RELEASE, "", "", "", 0, "base-release-1.0.0.zap", "/x", ZERO, List.of());
+            c.setBundled(new Listing(List.of(bundled), List.of()));
+            Entry top = needing(offered(c, "top", "mine"), "base", VersionRange.ANY);
+            Expect.equal(plan(w.resolver(c), top).get(0).sourceId(), Source.BUNDLED_ID, "source");
         });
 
         Harness.test("a bundled add-on is updated from ZAP's feed without a source switch", () -> {
@@ -208,6 +266,28 @@ public final class ResolverTest {
             Resolver r = new Resolver(w.catalogue(), w.installed, in ->
                     in.id().equals("other") ? List.of() : List.of(new Dependency("commonlib", COMMON)));
             Expect.equal(r.dependents("commonlib"), List.of("retire"), "active dependents only");
+        });
+
+        Harness.test("installed dependencies default to the offer with the same version and hash", () -> {
+            World w = new World("mine", "other");
+            ZapFixtures.zap(w.folders.get("mine"), "retire", "1.0.0", "release", "commonlib", "");
+            Path theirs = ZapFixtures.zap(w.folders.get("other"), "retire", "1.0.0", "release", "oast", "");
+            w.have("commonlib", "1.0.0", "release", "mine", true, ZERO);
+            w.have("oast", "1.0.0", "release", "mine", true, ZERO);
+            w.have("retire", "1.0.0", "release", "other", true, ZapFixtures.sha256(theirs));
+            Resolver r = w.resolver(w.catalogue());
+            Expect.equal(r.dependents("oast"), List.of("retire"), "same hash wins");
+            Expect.equal(r.dependents("commonlib"), List.of(), "other offer ignored");
+        });
+
+        Harness.test("installed dependencies are empty when no offer has the installed version", () -> {
+            World w = new World("mine");
+            ZapFixtures.zap(w.folders.get("mine"), "retire", "2.0.0", "release", "commonlib", "");
+            w.have("commonlib", "1.0.0", "release", "mine", false, ZERO);
+            w.have("retire", "1.0.0", "release", "mine", true, ZERO);
+            Resolver r = w.resolver(w.catalogue());
+            Expect.equal(r.dependents("commonlib"), List.of(), "dependents");
+            Expect.equal(r.needs("retire"), List.of(), "needs");
         });
 
         Harness.test("enabling an add-on names the disabled add-ons it needs", () -> {

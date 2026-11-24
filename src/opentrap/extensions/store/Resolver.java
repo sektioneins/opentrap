@@ -2,10 +2,9 @@ package opentrap.extensions.store;
 
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.regex.Matcher;
@@ -55,37 +54,52 @@ public final class Resolver {
     /** The chosen entry and every missing or too-old dependency, dependencies first, each id once. */
     public List<Entry> plan(Entry chosen) throws Unresolvable {
         List<Entry> out = new ArrayList<>();
-        visit(chosen, new HashSet<>(), out);
+        visit(chosen, chosen, new HashMap<>(), new HashMap<>(), out);
         return out;
     }
 
-    private void visit(Entry e, Set<String> seen, List<Entry> out) throws Unresolvable {
-        seen.add(e.id());
+    /** {@code planned} holds every id met so far (also those still being walked) and {@code neededBy} who asked first. */
+    private void visit(Entry e, Entry chosen, Map<String, Entry> planned, Map<String, String> neededBy,
+                       List<Entry> out) throws Unresolvable {
+        planned.put(e.id(), e);
         for (Dependency d : e.dependencies()) {
-            if (seen.contains(d.id())) continue;
+            Entry already = planned.get(d.id());
+            if (already != null) {
+                if (!d.range().matches(already.version())) {
+                    throw new Unresolvable(e.id() + " needs " + d.id() + rangeText(d) + ", but "
+                            + d.id() + " " + already.version() + " is already planned"
+                            + (neededBy.containsKey(d.id()) ? " for " + neededBy.get(d.id()) : ""));
+                }
+                continue;
+            }
             Installed have = installed.get(d.id());
             if (have != null && d.range().matches(have.version())) continue;
-            Entry pick = best(d, have, e);
+            Entry pick = best(d, have, chosen);
             if (pick == null) {
-                String range = d.range().toString();
-                throw new Unresolvable(e.id() + " needs " + d.id() + (range.isBlank() ? "" : " " + range)
+                throw new Unresolvable(e.id() + " needs " + d.id() + rangeText(d)
                         + ", which no allowed source offers");
             }
-            visit(pick, seen, out);
+            neededBy.put(d.id(), e.id());
+            visit(pick, chosen, planned, neededBy, out);
         }
         out.add(e);
     }
 
-    private Entry best(Dependency d, Installed have, Entry dependent) {
+    private static String rangeText(Dependency d) {
+        String range = d.range().toString();
+        return range.isBlank() ? "" : " " + range;
+    }
+
+    private Entry best(Dependency d, Installed have, Entry chosen) {
         List<Entry> matching = new ArrayList<>();
         for (Entry o : cat.offers(d.id())) if (d.range().matches(o.version())) matching.add(o);
         List<Entry> allowed = new ArrayList<>();
         if (have != null) {
             for (Entry o : matching) if (sameLine(have.sourceId(), o.sourceId())) allowed.add(o);
         } else {
-            for (Entry o : matching) if (o.sourceId().equals(Source.ZAP_ID)) allowed.add(o);
+            for (Entry o : matching) if (sameLine(Source.ZAP_ID, o.sourceId())) allowed.add(o);
             if (allowed.isEmpty()) {
-                for (Entry o : matching) if (sameLine(dependent.sourceId(), o.sourceId())) allowed.add(o);
+                for (Entry o : matching) if (sameLine(chosen.sourceId(), o.sourceId())) allowed.add(o);
             }
         }
         return allowed.stream().max(Comparator
