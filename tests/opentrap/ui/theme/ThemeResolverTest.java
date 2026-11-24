@@ -117,7 +117,14 @@ public final class ThemeResolverTest {
 
         Harness.test("a theme constant of the wrong type is blamed on its line, naming the base", () -> {
             Expect.equal(error(BASE, HEAD + "@accent = 5\n"),
-                "line 4: ACCENT needs a colour, @accent is a number (from the dark base)", "message");
+                "line 4: @accent is a number, ACCENT needs a colour (from the dark base)", "message");
+        });
+
+        Harness.test("a theme constant of the wrong type is blamed on its line when a base constant uses it", () -> {
+            String base = "name = Dark\nappearance = dark\n@accent = #3A6EA5\n@accent_dark = darker(@accent, 10%)\n"
+                + "ACCENT = @accent\nACCENT_DARK = @accent_dark\nCARD_RADIUS = 4\n";
+            Expect.equal(error(base, HEAD + "@accent = 5\n"),
+                "line 4: @accent is a number, @accent_dark needs a colour (from the dark base)", "message");
         });
 
         Harness.test("a theme without a base is refused and a missing theme resolves the base alone", () -> {

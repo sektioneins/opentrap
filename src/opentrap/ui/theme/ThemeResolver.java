@@ -5,6 +5,8 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Combines a theme with its light or dark base into the value of every key in
@@ -35,14 +37,18 @@ public final class ThemeResolver {
         }
     }
 
+    private static final Pattern WRONG_TYPE = Pattern.compile("(needs a \\w+), (@\\S+ is an? \\w+)");
     private static final KeyType.Number UNBOUNDED = new KeyType.Number(Integer.MIN_VALUE, Integer.MAX_VALUE);
 
     private final Map<String, ThemeFile.Def> defs = new LinkedHashMap<>();
     private final Map<String, Boolean> fromTheme = new HashMap<>();
     private final Map<String, Object> done = new HashMap<>();
+    private final java.util.Set<ThemeException> attributed =
+        java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
     private final List<String> visiting = new ArrayList<>();
     /** The theme constant looked up last, so that an error can be pointed at it. */
     private ThemeFile.Def lastThemeConstant;
+    private String baseAppearance;
 
     private ThemeResolver() { }
 
@@ -53,13 +59,17 @@ public final class ThemeResolver {
     }
 
     private Resolved run(ThemeFile base, ThemeFile theme, Map<String, KeyType> spec) throws ThemeException {
+        baseAppearance = base.appearance();
         defs.putAll(base.constants());
         for (String name : base.constants().keySet()) fromTheme.put(name, false);
         if (theme != null) {
             defs.putAll(theme.constants());
             for (String name : theme.constants().keySet()) fromTheme.put(name, true);
         }
-        for (String name : defs.keySet()) constant(name);
+        for (String name : defs.keySet()) {
+            lastThemeConstant = null;
+            constant(name);
+        }
 
         Map<String, Object> values = new LinkedHashMap<>();
         List<String> clamped = new ArrayList<>();
@@ -80,9 +90,7 @@ public final class ThemeResolver {
             try {
                 v = eval(key, def, type instanceof KeyType.Number ? UNBOUNDED : type);
             } catch (ThemeException ex) {
-                if (lastThemeConstant == null) throw ex;
-                throw new ThemeException(lastThemeConstant.line(), stripLine(ex) + " (from the "
-                    + base.appearance() + " base)");
+                throw blame(ex, key);
             }
             if (type instanceof KeyType.Number n) {
                 int raw = (Integer) v;
@@ -137,13 +145,28 @@ public final class ThemeResolver {
             return v;
         } catch (ConstantFailure f) {
             throw f.cause;
+        } catch (ThemeException e) {
+            throw fromTheme.get(name) ? e : blame(e, "@" + name);
         } finally {
             visiting.remove(visiting.size() - 1);
         }
     }
 
-    private static String stripLine(ThemeException e) {
-        String m = e.getMessage();
-        return e.line() > 0 ? m.substring(m.indexOf(": ") + 2) : m;
+    /**
+     * When a theme constant was involved in a failing base definition, points the
+     * error at that constant's line and names the base definition ({@code subject})
+     * that needed it. Otherwise returns the error unchanged.
+     */
+    private ThemeException blame(ThemeException ex, String subject) {
+        if (lastThemeConstant == null || attributed.contains(ex)) return ex;
+        String m = ex.getMessage();
+        if (ex.line() > 0) m = m.substring(m.indexOf(": ") + 2);
+        m = m.replaceFirst("^(constant|" + Pattern.quote(subject) + ") ", "");
+        Matcher w = WRONG_TYPE.matcher(m);
+        String text = w.matches() ? w.group(2) + ", " + subject + " " + w.group(1) : subject + " " + m;
+        ThemeException blamed = new ThemeException(lastThemeConstant.line(),
+            text + " (from the " + baseAppearance + " base)");
+        attributed.add(blamed);
+        return blamed;
     }
 }
