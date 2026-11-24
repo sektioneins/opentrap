@@ -89,7 +89,14 @@ public final class InstalledPanel extends JPanel {
     /** What carrying the previous ZAP version's add-ons over queues, which stay off, and which cannot come. */
     record CarryPlan(List<Entry> plan, List<String> keepOff, List<String> unavailable) {}
 
-    private interface Change { void queue(String id) throws IOException; }
+    /** One store change queued for one add-on. */
+    interface Change { void queue(String id) throws IOException; }
+
+    /**
+     * What taking add-ons out takes along: the add-ons that need them and are
+     * not on their way out already, and the OpenTRAP features that stop.
+     */
+    record TakeOut(List<String> with, List<CoreAddOns.Feature> stops) {}
 
     private final Store store;
     private final Dialogs dialogs;
@@ -568,20 +575,33 @@ public final class InstalledPanel extends JPanel {
     /** Queues removing {@code id} with the active add-ons that need it, after the warnings. */
     void removeAddOn(String id) { takeOut(id, true); }
 
-    private void takeOut(String id, boolean removing) {
+    /** What disabling or removing {@code ids} takes along, by the store's record. */
+    static TakeOut takeOut(Store store, List<String> ids) {
         Set<String> going = new HashSet<>();
         for (Pending p : store.pending()) {
             if (p.action() == Pending.Action.DISABLE || p.action() == Pending.Action.REMOVE) going.add(p.id());
         }
         List<String> with = new ArrayList<>();
-        for (String d : closure(id, store::dependents)) if (!going.contains(d)) with.add(d);
-        Installed self = null;
-        for (Installed in : store.installed()) if (in.id().equals(id)) self = in;
+        for (String id : ids) {
+            for (String d : closure(id, store::dependents)) {
+                if (!going.contains(d) && !ids.contains(d) && !with.contains(d)) with.add(d);
+            }
+        }
         // only an add-on the engine runs now stops a feature when it goes
         Set<CoreAddOns.Feature> stopping = new java.util.TreeSet<>();
-        if (self != null && self.active()) stopping.addAll(CoreAddOns.stoppedBy(id));
+        for (Installed in : store.installed()) {
+            if (ids.contains(in.id()) && in.active()) stopping.addAll(CoreAddOns.stoppedBy(in.id()));
+        }
         for (String d : with) stopping.addAll(CoreAddOns.stoppedBy(d));
-        List<CoreAddOns.Feature> stops = List.copyOf(stopping);
+        return new TakeOut(List.copyOf(with), List.copyOf(stopping));
+    }
+
+    private void takeOut(String id, boolean removing) {
+        TakeOut out = takeOut(store, List.of(id));
+        List<String> with = out.with();
+        List<CoreAddOns.Feature> stops = out.stops();
+        Installed self = null;
+        for (Installed in : store.installed()) if (in.id().equals(id)) self = in;
         String verb = removing ? "Remove" : "Disable";
         String title = verb + " " + id;
         String text = removing ? removeWarning(id, with, stops) : disableWarning(id, with, stops);
@@ -605,20 +625,28 @@ public final class InstalledPanel extends JPanel {
     /** Queues {@code change} for each of {@code ids} in turn off the EDT; the first failure stops it and is told. */
     private void queue(String title, List<String> ids, Change change) {
         Thread.ofVirtual().name("addon-store-queue").start(() -> {
-            List<String> done = new ArrayList<>();
-            for (String id : ids) {
-                try {
-                    change.queue(id);
-                    done.add(id);
-                } catch (IOException | RuntimeException e) {
-                    String msg = id + " could not be queued: " + why(e)
-                            + (done.isEmpty() ? "" : "\n\nQueued before it: " + String.join(", ", done)
-                            + " (Undo drops those)");
-                    SwingUtilities.invokeLater(() -> dialogs.tell(title, msg));
-                    return;
-                }
-            }
+            String msg = queueEach(ids, change);
+            if (msg != null) SwingUtilities.invokeLater(() -> dialogs.tell(title, msg));
         });
+    }
+
+    /**
+     * Queues {@code change} for each of {@code ids} in turn on the calling
+     * thread. The first failure stops it; returns what to tell then, or null.
+     */
+    static String queueEach(List<String> ids, Change change) {
+        List<String> done = new ArrayList<>();
+        for (String id : ids) {
+            try {
+                change.queue(id);
+                done.add(id);
+            } catch (IOException | RuntimeException e) {
+                return id + " could not be queued: " + why(e)
+                        + (done.isEmpty() ? "" : "\n\nQueued before it: " + String.join(", ", done)
+                        + " (Undo drops those)");
+            }
+        }
+        return null;
     }
 
     // ---- a new ZAP version ----

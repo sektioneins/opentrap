@@ -1,13 +1,17 @@
 package opentrap.extensions;
 
+import opentrap.core.Debug;
+import opentrap.core.Settings;
 import opentrap.core.SuiteContext;
 import opentrap.core.ToolModule;
+import opentrap.engine.ZapEngine;
 import opentrap.extensions.store.Store;
 import opentrap.ui.SettingsDialog;
 import opentrap.ui.Theme;
 import opentrap.ui.Ui;
 
 import javax.swing.*;
+import java.util.function.Supplier;
 
 /**
  * Extensions tool: load and manage add-ons that customise the suite.
@@ -26,13 +30,39 @@ public class ExtensionsTool implements ToolModule {
 
     @Override public void init(SuiteContext ctx) {
         this.ctx = ctx;
-        SettingsDialog.register("Extensions", () -> new CoreExtensionSettingsPanel(ctx.settings()));
+        SettingsDialog.register("Extensions", () -> new CoreExtensionSettingsPanel(ctx.settings(), Store.sharedIfSet()));
+        startupCheck(ctx.settings(), Store.sharedIfSet(), () -> {
+            ZapEngine ze = ZapEngine.shared();
+            return ze == null ? null : ze.install();
+        });
+    }
+
+    /**
+     * When the user has switched {@code ext.updateOnStartup} on, opens the
+     * store for the engine {@code engine} names and fetches every enabled
+     * source, on a thread of its own so startup does not wait for it. Returns
+     * that thread, or null when the check is off and nothing is contacted.
+     */
+    static Thread startupCheck(Settings s, Store store, Supplier<ZapEngine.Install> engine) {
+        if (store == null || !CoreExtensionSettingsPanel.updateOnStartup(s)) return null;
+        return Thread.ofVirtual().name("addon-store-startup-check").start(() -> {
+            String why = StorePanel.openFromEngine(store, engine);
+            if (why != null) {
+                Debug.log("the startup check for add-on updates did not run: " + why);
+                return;
+            }
+            try {
+                store.refresh(() -> false);
+            } catch (RuntimeException e) {
+                Debug.log("the startup check for add-on updates failed: " + e);
+            }
+        });
     }
 
     @Override public Tab[] tabs() {
         JComponent settings = ctx == null ? new JPanel()
                 : SettingsDialog.launcher(ctx, "Extensions", "Extensions settings",
-                        "Startup and load behaviour for extensions, and the Java, Python and Ruby runtimes they use, live under Settings > Extensions.");
+                        "Startup and load behaviour for extensions, the add-on sources, and the Java, Python and Ruby runtimes they use, live under Settings > Extensions.");
         return new Tab[]{
                 new Tab("Installed", new InstalledPanel(ctx, Store.sharedIfSet())),
                 storeTab(),

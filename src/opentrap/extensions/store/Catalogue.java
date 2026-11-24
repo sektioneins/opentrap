@@ -16,6 +16,7 @@ import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
+import opentrap.core.Debug;
 import opentrap.core.OwnerOnly;
 
 /**
@@ -88,6 +89,62 @@ public final class Catalogue {
             Slot previous = state.slots.getOrDefault(s.id(), Slot.EMPTY);
             Slot next = s.type() == SourceType.LOCAL_FOLDER ? scan(s, previous) : fetch(s, previous);
             update(old -> old.sources.contains(s) ? old.withSlot(s.id(), next) : old);
+        }
+    }
+
+    /**
+     * Takes the sources after the user added, changed, switched or removed
+     * one. Makes no request. A feed whose URL is the same keeps its list, read
+     * again from its cache when its name or prefix changed, so the entries
+     * carry the new name and are checked against the new prefix. A new feed,
+     * or one moved to another URL, has no list until the next refresh, and the
+     * old URL's cached list is deleted. A local folder is scanned again.
+     * Synchronized, so a refresh cannot write a cache file between the
+     * deletion and the new list.
+     */
+    public synchronized void useSources(List<Source> sources) {
+        List<Source> list = List.copyOf(sources);
+        State st = state;
+        Map<String, Source> before = new HashMap<>();
+        for (Source s : st.sources) before.put(s.id(), s);
+        Map<String, Slot> changed = new HashMap<>();
+        for (Source s : list) {
+            if (s.type() == SourceType.BUNDLED) continue;
+            Source old = before.get(s.id());
+            Slot previous = st.slots.getOrDefault(s.id(), Slot.EMPTY);
+            boolean samePlace = old != null && old.type() == s.type() && old.location().equals(s.location());
+            if (s.type() == SourceType.LOCAL_FOLDER) {
+                if (!s.equals(old)) changed.put(s.id(), scan(s, samePlace ? previous : Slot.EMPTY));
+            } else if (!samePlace) {
+                dropCache(s);
+                changed.put(s.id(), Slot.EMPTY);
+            } else if (!old.name().equals(s.name()) || !old.prefix().equals(s.prefix())) {
+                Slot again = readCache(s);
+                changed.put(s.id(), again.error() == null && previous.error() != null
+                        ? again.failed(previous.error()) : again);
+            }
+        }
+        for (Source old : st.sources) {
+            if (list.stream().noneMatch(s -> s.id().equals(old.id()))) dropCache(old);
+        }
+        // a slot not changed here is taken as it is now, so a refresh that finished meanwhile is kept
+        update(old -> {
+            Map<String, Slot> slots = new HashMap<>();
+            for (Source s : list) {
+                Slot slot = changed.containsKey(s.id()) ? changed.get(s.id()) : old.slots.get(s.id());
+                if (slot != null) slots.put(s.id(), slot);
+            }
+            return new State(list, Map.copyOf(slots), old.bundled, old.bundledAt);
+        });
+    }
+
+    /** Deletes a feed's cached list, which belongs to a URL the source no longer has. */
+    private void dropCache(Source s) {
+        if (s.type() == SourceType.LOCAL_FOLDER || s.type() == SourceType.BUNDLED) return;
+        try {
+            Files.deleteIfExists(cacheFile(s));
+        } catch (IOException e) {
+            Debug.log("the cached list of " + s.name() + " could not be deleted: " + e.getMessage());
         }
     }
 
@@ -167,10 +224,14 @@ public final class Catalogue {
             byte[] body = fetcher.fetch(s.location(), Fetcher.FEED_CAP);
             Listing listing = ZapFeed.parse(new ByteArrayInputStream(body), s, engine);
             Instant now = Instant.now();
-            OwnerOnly.write(file, out -> {
-                out.write((now + "\n").getBytes(StandardCharsets.UTF_8));
-                out.write(body);
-            });
+            // with useSources kept out, so a source moved meanwhile never gets its old URL's list cached
+            synchronized (this) {
+                if (!state.sources.contains(s)) return previous;
+                OwnerOnly.write(file, out -> {
+                    out.write((now + "\n").getBytes(StandardCharsets.UTF_8));
+                    out.write(body);
+                });
+            }
             return new Slot(listing, now, null);
         } catch (IOException | RuntimeException e) {
             return previous.failed(why(e));

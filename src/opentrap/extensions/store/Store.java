@@ -52,7 +52,7 @@ public final class Store {
 
     /** What {@link #open} set up for one ZAP version and engine install. */
     private record Opened(Version zap, String minor, Path engine, Path minorDir, ZapAddOnKind kind,
-                          Catalogue catalogue, List<Source> sources) {}
+                          Catalogue catalogue) {}
 
     private final Path root;
     private final Fetcher fetcher;
@@ -98,7 +98,7 @@ public final class Store {
             Catalogue cat = new Catalogue(minorDir, zap, fetcher);
             // before the catalogue is published, so no refresh can run on it yet
             cat.loadCache(sources);
-            o = new Opened(zap, minor, engineInstall, minorDir, new ZapAddOnKind(minorDir), cat, sources);
+            o = new Opened(zap, minor, engineInstall, minorDir, new ZapAddOnKind(minorDir), cat);
         }
         o.catalogue.setBundled(Bundled.listing(engineInstall, zap));
         opened = o;
@@ -158,10 +158,52 @@ public final class Store {
         try {
             sources = SourceList.load(root, o.minor).all();
         } catch (IOException e) {
-            Debug.log("add-on sources could not be read, refreshing the ones read at open: " + e.getMessage());
-            sources = o.sources;
+            Debug.log("add-on sources could not be read, refreshing the ones last read: " + e.getMessage());
+            sources = o.catalogue.sources();
         }
         o.catalogue.refresh(sources, cancelled);
+        fire();
+    }
+
+    /**
+     * Adds {@code s} under the next free source id and returns it as added.
+     * Like every change to the sources it makes no request: the catalogue
+     * takes the new list from its cache and the local folders.
+     */
+    public Source addSource(Source s) throws IOException {
+        AtomicReference<Source> added = new AtomicReference<>();
+        changeSources(l -> {
+            Source a = new Source(l.nextId(), s.name(), s.type(), s.location(), s.prefix(), s.enabled());
+            l.add(a);
+            added.set(a);
+        });
+        return added.get();
+    }
+
+    /** Replaces the source with {@code s}'s id; of a built-in source only {@code enabled} may change. */
+    public void updateSource(Source s) throws IOException { changeSources(l -> l.update(s)); }
+
+    /** Switches a source on or off as saved now, built-in ones too; nothing else of it changes. */
+    public void enableSource(String id, boolean on) throws IOException {
+        changeSources(l -> {
+            for (Source s : l.all()) {
+                if (s.id().equals(id)) l.update(new Source(s.id(), s.name(), s.type(), s.location(), s.prefix(), on));
+            }
+        });
+    }
+
+    /** Removes a source the user added. Its installed add-ons stay installed. */
+    public void removeSource(String id) throws IOException { changeSources(l -> l.remove(id)); }
+
+    private void changeSources(Consumer<SourceList> change) throws IOException {
+        Opened o = opened();
+        try (StoreLock _ = StoreLock.acquire(root)) {
+            SourceList l = SourceList.load(root, o.minor);
+            change.accept(l);
+            l.save();
+            // under the lock, so two changes reach the catalogue in the order they were saved
+            o.catalogue.useSources(l.all());
+        }
         fire();
     }
 
@@ -327,6 +369,9 @@ public final class Store {
      * the engine's start.
      */
     public void addListener(Runnable l) { listeners.add(l); }
+
+    /** Stops telling {@code l}, for a view that is closed while the store lives on. */
+    public void removeListener(Runnable l) { listeners.remove(l); }
 
     /**
      * Why the last engine start could not use the store as it should, or null
