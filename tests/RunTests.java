@@ -98,6 +98,7 @@ public final class RunTests {
         new opentrap.ui.HtmlGuardTest().run();
         new opentrap.ui.HtmlSitesTest().run();
         new opentrap.dashboard.PhaseHtmlTest().run();
+        new opentrap.dashboard.DashboardContextTest().run();
         new opentrap.ui.QuitRequestTest().run();
 
         // Last: it installs the full theme, which changes UI defaults for the
