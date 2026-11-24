@@ -2,42 +2,42 @@ package opentrap.core;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 
 /**
  * The forms in which a server may read a request path. A rule written for
  * {@code /app} is stepped around by {@code /app/../admin}, and one written for
  * {@code logout} by {@code /%6cogout}, so {@link Scope#isInScope} judges the
  * path as written, with its unreserved escapes decoded and dot segments
- * removed, and with every escape decoded.
+ * removed, and with every escape decoded, each against the rule in the same form.
  */
 final class ScopePath {
     private ScopePath() {}
 
+    /** Which reading of a path a string stands for; a prefix rule is compared in the same one. */
+    enum Form { RAW, CANONICAL, DECODED }
+
     /**
-     * The distinct forms of {@code path} in the order raw, canonical, decoded.
-     * The split into path and query happens at the first literal {@code ?}
-     * before anything is decoded, so an escaped {@code %3f} stays in the path.
-     * Dot segments are removed from the path part only. A null path gives a
-     * list holding one null.
+     * The path with the escapes of unreserved characters decoded and dot
+     * segments removed. The split into path and query happens at the first
+     * literal {@code ?} before anything is decoded, so an escaped {@code %3f}
+     * stays in the path, and the query is never dot-normalised. Null stays null.
      */
-    static List<String> forms(String path) {
-        if (path == null) return Arrays.asList((String) null);
-        if (path.indexOf('%') < 0 && path.indexOf('.') < 0) return List.of(path);
+    static String canonical(String path) {
+        return form(path, true);
+    }
+
+    /** As {@link #canonical}, but with every valid escape decoded as UTF-8. */
+    static String decoded(String path) {
+        return form(path, false);
+    }
+
+    private static String form(String path, boolean unreservedOnly) {
+        if (path == null || path.indexOf('%') < 0 && path.indexOf('.') < 0) return path;
         int q = path.indexOf('?');
         String p = q < 0 ? path : path.substring(0, q);
         String query = q < 0 ? null : path.substring(q);   // with the "?"
-        List<String> out = new ArrayList<>(3);
-        out.add(path);
-        add(out, join(removeDotSegments(decode(p, true)), query == null ? null : decode(query, true)));
-        add(out, join(removeDotSegments(decode(p, false)), query == null ? null : decode(query, false)));
-        return out;
-    }
-
-    private static void add(List<String> out, String form) {
-        if (!out.contains(form)) out.add(form);
+        return join(removeDotSegments(decode(p, unreservedOnly)),
+                query == null ? null : decode(query, unreservedOnly));
     }
 
     private static String join(String path, String query) {
@@ -88,7 +88,7 @@ final class ScopePath {
             char c = s.charAt(i);
             int v = -1;
             if (c == '%' && i + 2 < s.length()) {
-                int hi = Character.digit(s.charAt(i + 1), 16), lo = Character.digit(s.charAt(i + 2), 16);
+                int hi = hex(s.charAt(i + 1)), lo = hex(s.charAt(i + 2));
                 if (hi >= 0 && lo >= 0) v = hi * 16 + lo;
             }
             if (v >= 0 && (!unreservedOnly || unreserved(v))) {
@@ -102,6 +102,11 @@ final class ScopePath {
         }
         flush(bytes, out);
         return out.toString();
+    }
+
+    private static int hex(char c) {
+        return c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10
+                : c >= 'A' && c <= 'F' ? c - 'A' + 10 : -1;
     }
 
     private static void flush(ByteArrayOutputStream bytes, StringBuilder out) {

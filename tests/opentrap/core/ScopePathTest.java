@@ -24,15 +24,22 @@ public final class ScopePathTest {
             Expect.equal(ScopePath.removeDotSegments(""), "", "empty");
         });
 
-        Harness.test("a path has its raw, canonical and decoded forms, without repeats", () -> {
-            Expect.equal(ScopePath.forms("/plain"), List.of("/plain"), "a plain path");
-            Expect.equal(ScopePath.forms("/app/%2e%2e/admin"), List.of("/app/%2e%2e/admin", "/admin"), "encoded dots");
-            Expect.equal(ScopePath.forms("/%6cogout"), List.of("/%6cogout", "/logout"), "an encoded letter");
-            Expect.equal(ScopePath.forms("/app/..%2fadmin"), List.of("/app/..%2fadmin", "/admin"), "an encoded slash only in the decoded form");
-            Expect.equal(ScopePath.forms("/a?x=%6c/../"), List.of("/a?x=%6c/../", "/a?x=l/../"), "the query is decoded but not normalised");
-            Expect.equal(ScopePath.forms("/a%3f/../b"), List.of("/a%3f/../b", "/b"), "an encoded question mark stays in the path");
-            Expect.equal(ScopePath.forms("/caf%C3%A9"), List.of("/caf%C3%A9", "/café"), "UTF-8");
-            Expect.equal(ScopePath.forms("/a%zz%4"), List.of("/a%zz%4"), "invalid escapes stay");
+        Harness.test("a path has a canonical and a decoded form", () -> {
+            Expect.equal(ScopePath.canonical("/plain"), "/plain", "a plain path, canonical");
+            Expect.equal(ScopePath.decoded("/plain"), "/plain", "a plain path, decoded");
+            Expect.isNull(ScopePath.canonical(null), "null stays null");
+            Expect.equal(ScopePath.canonical("/app/%2e%2e/admin"), "/admin", "encoded dots");
+            Expect.equal(ScopePath.decoded("/app/%2e%2e/admin"), "/admin", "encoded dots, decoded");
+            Expect.equal(ScopePath.canonical("/%6cogout"), "/logout", "an encoded letter");
+            Expect.equal(ScopePath.canonical("/app/..%2fadmin"), "/app/..%2fadmin", "an encoded slash stays in the canonical form");
+            Expect.equal(ScopePath.decoded("/app/..%2fadmin"), "/admin", "an encoded slash is decoded");
+            Expect.equal(ScopePath.canonical("/a?x=%6c/../"), "/a?x=l/../", "the query is decoded but not normalised");
+            Expect.equal(ScopePath.canonical("/a%3f/../b"), "/b", "an encoded question mark stays in the path");
+            Expect.equal(ScopePath.canonical("/my%20docs"), "/my%20docs", "a space stays escaped in the canonical form");
+            Expect.equal(ScopePath.decoded("/caf%C3%A9"), "/café", "UTF-8");
+            Expect.equal(ScopePath.canonical("/a%zz%4"), "/a%zz%4", "invalid escapes stay");
+            Expect.equal(ScopePath.decoded("/a%zz%4"), "/a%zz%4", "invalid escapes stay, decoded");
+            Expect.equal(ScopePath.decoded("/a%\uff11\uff11"), "/a%\uff11\uff11", "a fullwidth digit is no hex digit");
         });
 
         Harness.test("a path prefix does not admit a path that leaves it through dot segments or escapes", () -> {
@@ -60,6 +67,32 @@ public final class ScopePathTest {
             s.include().add(Scope.Rule.prefix("https://a.test/app", false));
             Expect.isFalse(s.isInScope(new HttpService("a.test", 443, true), "/%61pp/x"),
                     "the raw form does not start with /app");
+        });
+
+        Harness.test("an escaped prefix covers the paths under it", () -> {
+            HttpService a = new HttpService("a.test", 443, true);
+            Scope s = new Scope();
+            s.include().add(Scope.Rule.prefix("https://a.test/my%20docs", false));
+            Expect.isTrue(s.isInScope(a, "/my%20docs/x"), "a space");
+            Scope t = new Scope();
+            t.include().add(Scope.Rule.prefix("https://a.test/caf%C3%A9", false));
+            Expect.isTrue(t.isInScope(a, "/caf%C3%A9/menu"), "UTF-8");
+        });
+
+        Harness.test("a regex include written with an escape still matches", () -> {
+            Scope s = new Scope();
+            s.include().add(new Scope.Rule("any", "", "", "^/my%20docs"));
+            Expect.isTrue(s.isInScope(new HttpService("a.test", 443, true), "/my%20docs/x"), "as sent");
+        });
+
+        Harness.test("an escaped exclude prefix also holds for another spelling", () -> {
+            Scope s = new Scope();
+            s.include().add(Scope.Rule.prefix("https://a.test", false));
+            s.exclude().add(Scope.Rule.prefix("https://a.test/my%20docs", false));
+            HttpService a = new HttpService("a.test", 443, true);
+            Expect.isFalse(s.isInScope(a, "/my%20docs/x"), "the spelling of the rule");
+            Expect.isFalse(s.isInScope(a, "/my%20doc%73/x"), "another spelling");
+            Expect.isTrue(s.isInScope(a, "/other"), "an unrelated path");
         });
     }
 }
