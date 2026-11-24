@@ -32,6 +32,10 @@ public final class StoreLock implements AutoCloseable {
     /** Blocks until the store in {@code root} is free. */
     public static StoreLock acquire(Path root) throws IOException {
         JVM.lock();
+        if (JVM.getHoldCount() > 1) {
+            JVM.unlock();
+            throw new IllegalStateException("The store lock is already held by this thread");
+        }
         FileChannel ch = null;
         try {
             OwnerOnly.directory(root);

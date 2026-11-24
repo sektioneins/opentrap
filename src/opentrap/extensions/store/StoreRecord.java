@@ -29,22 +29,30 @@ public final class StoreRecord {
     public static StoreRecord load(Path minorDir) throws IOException {
         StoreRecord r = new StoreRecord(minorDir.resolve("store"));
         Properties p = PropsFile.load(r.file);
-        for (int i = 0, n = count(p, "installed"); i < n; i++) {
+        for (int i = 0, n = PropsFile.count(r.file, p, "installed.count"); i < n; i++) {
             String k = "installed." + i + ".";
-            Installed in = new Installed(Kind.valueOf(p.getProperty(k + "kind")), p.getProperty(k + "id"),
-                    Version.parse(p.getProperty(k + "version")), p.getProperty(k + "file"),
-                    p.getProperty(k + "sourceId"), p.getProperty(k + "origin"),
-                    PropsFile.bool(p, k + "active", true), p.getProperty(k + "sha256"));
-            r.installed.put(in.id(), in);
+            try {
+                Installed in = new Installed(Kind.valueOf(req(r, p, k + "kind")), req(r, p, k + "id"),
+                        Version.parse(req(r, p, k + "version")), p.getProperty(k + "file"),
+                        p.getProperty(k + "sourceId"), p.getProperty(k + "origin"),
+                        PropsFile.bool(p, k + "active", true), p.getProperty(k + "sha256"));
+                r.installed.put(in.id(), in);
+            } catch (RuntimeException e) {
+                throw PropsFile.bad(r.file, k + "*", e.getMessage());
+            }
         }
-        for (int i = 0, n = count(p, "pending"); i < n; i++) {
+        for (int i = 0, n = PropsFile.count(r.file, p, "pending.count"); i < n; i++) {
             String k = "pending." + i + ".";
-            Entry target = p.containsKey(k + "target.id") ? readEntry(p, k + "target.") : null;
-            r.pending.add(new Pending(Pending.Action.valueOf(p.getProperty(k + "action")), p.getProperty(k + "id"),
-                    target, p.getProperty(k + "stagedFile")));
+            try {
+                Entry target = p.containsKey(k + "target.id") ? readEntry(r, p, k + "target.") : null;
+                r.pending.add(new Pending(Pending.Action.valueOf(req(r, p, k + "action")), req(r, p, k + "id"),
+                        target, p.getProperty(k + "stagedFile")));
+            } catch (RuntimeException e) {
+                throw PropsFile.bad(r.file, k + "*", e.getMessage());
+            }
         }
-        for (int i = 0, n = count(p, "removedBundled"); i < n; i++) r.removedBundled.add(p.getProperty("removedBundled." + i));
-        for (int i = 0, n = count(p, "seenEngines"); i < n; i++) r.seenEngines.add(p.getProperty("seenEngines." + i));
+        readList(r, p, "removedBundled", r.removedBundled);
+        readList(r, p, "seenEngines", r.seenEngines);
         return r;
     }
 
@@ -89,8 +97,16 @@ public final class StoreRecord {
         PropsFile.save(file, p);
     }
 
-    private static int count(Properties p, String name) {
-        return Integer.parseInt(p.getProperty(name + ".count", "0"));
+    private static String req(StoreRecord r, Properties p, String key) {
+        String v = p.getProperty(key);
+        if (v == null) throw new IllegalArgumentException(key + " is missing");
+        return v;
+    }
+
+    private static void readList(StoreRecord r, Properties p, String name, Set<String> into) throws IOException {
+        for (int i = 0, n = PropsFile.count(r.file, p, name + ".count"); i < n; i++) {
+            into.add(PropsFile.req(r.file, p, name + "." + i));
+        }
     }
 
     private static void writeList(Properties p, String name, Set<String> values) {
@@ -124,17 +140,17 @@ public final class StoreRecord {
         p.setProperty(k + "dependency.count", Integer.toString(i));
     }
 
-    private static Entry readEntry(Properties p, String k) {
+    private static Entry readEntry(StoreRecord r, Properties p, String k) {
         List<Dependency> deps = new ArrayList<>();
-        for (int i = 0, n = Integer.parseInt(p.getProperty(k + "dependency.count", "0")); i < n; i++) {
-            deps.add(new Dependency(p.getProperty(k + "dependency." + i + ".id"),
-                    VersionRange.parse(p.getProperty(k + "dependency." + i + ".range"))));
+        for (int i = 0, n = Integer.parseInt(p.getProperty(k + "dependency.count", "0").trim()); i < n; i++) {
+            deps.add(new Dependency(req(r, p, k + "dependency." + i + ".id"),
+                    VersionRange.parse(p.getProperty(k + "dependency." + i + ".range", ""))));
         }
-        return new Entry(Kind.valueOf(p.getProperty(k + "kind")), p.getProperty(k + "sourceId"), p.getProperty(k + "id"),
+        return new Entry(Kind.valueOf(req(r, p, k + "kind")), p.getProperty(k + "sourceId"), req(r, p, k + "id"),
                 p.getProperty(k + "name"), p.getProperty(k + "description"), p.getProperty(k + "author"),
-                Version.parse(p.getProperty(k + "version")), Status.parse(p.getProperty(k + "status")),
+                Version.parse(req(r, p, k + "version")), Status.parse(req(r, p, k + "status")),
                 p.getProperty(k + "date"), p.getProperty(k + "changes"), p.getProperty(k + "infoUrl"),
-                Long.parseLong(p.getProperty(k + "size", "0")), p.getProperty(k + "file"),
+                Long.parseLong(p.getProperty(k + "size", "0").trim()), p.getProperty(k + "file"),
                 p.getProperty(k + "location"), p.getProperty(k + "sha256"), List.copyOf(deps));
     }
 }

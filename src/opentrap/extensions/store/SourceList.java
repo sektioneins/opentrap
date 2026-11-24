@@ -25,16 +25,21 @@ public final class SourceList {
         SourceList l = new SourceList(root.resolve("sources"));
         Properties p = PropsFile.load(l.file);
         l.sources.add(Source.zapFeed(minor, PropsFile.bool(p, "zap.enabled", true)));
-        int count = Integer.parseInt(p.getProperty("count", "0"));
+        int count = PropsFile.count(l.file, p, "count");
         for (int i = 0; i < count; i++) {
             String k = "source." + i + ".";
-            String id = p.getProperty(k + "id");
-            if (id == null) continue;
-            l.sources.add(new Source(id, p.getProperty(k + "name", id), SourceType.valueOf(p.getProperty(k + "type")),
-                    p.getProperty(k + "location", ""), p.getProperty(k + "prefix", ""),
-                    PropsFile.bool(p, k + "enabled", true)));
+            String id = PropsFile.req(l.file, p, k + "id");
+            try {
+                l.sources.add(new Source(id, p.getProperty(k + "name", id),
+                        SourceType.valueOf(PropsFile.req(l.file, p, k + "type")),
+                        p.getProperty(k + "location", ""), p.getProperty(k + "prefix", ""),
+                        PropsFile.bool(p, k + "enabled", true)));
+            } catch (IllegalArgumentException e) {
+                throw PropsFile.bad(l.file, k + "type", e.getMessage());
+            }
         }
-        l.next = Integer.parseInt(p.getProperty("next", "1"));
+        l.next = PropsFile.count(l.file, p, "next");
+        if (l.next < 1) l.next = 1;
         for (Source s : l.sources) l.next = Math.max(l.next, numberOf(s.id()) + 1);
         return l;
     }

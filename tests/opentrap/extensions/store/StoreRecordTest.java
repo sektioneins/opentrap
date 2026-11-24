@@ -1,11 +1,13 @@
 package opentrap.extensions.store;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import opentrap.testkit.Expect;
 import opentrap.testkit.Harness;
@@ -52,6 +54,20 @@ public final class StoreRecordTest {
                 12345L, id + "-beta-1.2.3.zap", "https://example.org/" + id + ".zap", "a".repeat(64),
                 List.of(new Dependency("commonlib", VersionRange.parse(">= 1.29.0 & < 2.0.0")),
                         new Dependency("database", VersionRange.ANY)));
+    }
+
+    private static void corrupt(Path root, String file, String text, Body load, String names) {
+        try {
+            Files.writeString(root.resolve(file), text);
+            load.run(root);
+        } catch (IOException e) {
+            Expect.isTrue(e.getMessage().contains(root.resolve(file).toString()), "names the file: " + e.getMessage());
+            Expect.isTrue(e.getMessage().contains(names), "names " + names + ": " + e.getMessage());
+            return;
+        } catch (Exception e) {
+            throw new AssertionError("expected IOException for " + names + " but got " + e, e);
+        }
+        throw new AssertionError("expected IOException for " + names);
     }
 
     public void run() {
@@ -142,6 +158,61 @@ public final class StoreRecordTest {
             for (Thread t : ts) t.join();
             if (failure.get() != null) throw new AssertionError("a writer failed: " + failure.get(), failure.get());
             Expect.equal(StoreRecord.load(root).pending().size(), 40, "every change kept");
+        }));
+
+        Harness.test("a nested acquire on one thread is refused and keeps the outer lock", () -> inTemp(root -> {
+            AtomicBoolean got = new AtomicBoolean();
+            AtomicReference<Throwable> failure = new AtomicReference<>();
+            Thread other = new Thread(() -> {
+                try (StoreLock l = StoreLock.acquire(root)) {
+                    got.set(true);
+                } catch (Throwable e) {
+                    failure.set(e);
+                }
+            });
+            StoreLock outer = StoreLock.acquire(root);
+            try {
+                try {
+                    StoreLock.acquire(root).close();
+                    throw new AssertionError("expected IllegalStateException");
+                } catch (IllegalStateException expected) {}
+                other.start();
+                long end = System.currentTimeMillis() + 5000;
+                while (other.getState() != Thread.State.WAITING && System.currentTimeMillis() < end) Thread.onSpinWait();
+                Expect.equal(other.getState(), Thread.State.WAITING, "the other thread waits for the outer lock");
+                Expect.isFalse(got.get(), "the other thread got the lock while the outer one was held");
+            } finally {
+                outer.close();
+            }
+            other.join();
+            if (failure.get() != null) throw new AssertionError("other failed: " + failure.get(), failure.get());
+            Expect.isTrue(got.get(), "the other thread got the lock after the outer one closed");
+        }));
+
+        Harness.test("a corrupt store file is an IOException that names the file and the key", () -> inTemp(root -> {
+            Body load = r -> StoreRecord.load(r);
+            corrupt(root, "store", "installed.count=x\n", load, "installed.count");
+            corrupt(root, "store", "installed.count=1\ninstalled.0.kind=NOPE\ninstalled.0.id=a\ninstalled.0.version=1\n",
+                    load, "installed.0.");
+            corrupt(root, "store", "installed.count=1\ninstalled.0.kind=ZAP_ADDON\ninstalled.0.version=1\n",
+                    load, "installed.0.");
+            corrupt(root, "store", "installed.count=1\ninstalled.0.kind=ZAP_ADDON\ninstalled.0.id=a\n",
+                    load, "installed.0.");
+            corrupt(root, "store", "pending.count=1\npending.0.action=EXPLODE\npending.0.id=a\n", load, "pending.0.");
+            corrupt(root, "store", "pending.count=1\npending.0.action=REMOVE\npending.0.id=a\n"
+                    + "pending.0.target.id=a\npending.0.target.kind=ZAP_ADDON\npending.0.target.version=1\n"
+                    + "pending.0.target.status=release\npending.0.target.size=big\n", load, "pending.0.");
+            corrupt(root, "store", "removedBundled.count=1\n", load, "removedBundled.0");
+            corrupt(root, "store", "installed.count=\\u12\n", load, "store");
+        }));
+
+        Harness.test("a corrupt sources file is an IOException that names the file and the key", () -> inTemp(root -> {
+            Body load = r -> SourceList.load(r, "2.17");
+            corrupt(root, "sources", "count=x\n", load, "count");
+            corrupt(root, "sources", "count=1\nsource.0.id=src-1\nsource.0.type=NOPE\n", load, "source.0.type");
+            corrupt(root, "sources", "count=1\nsource.0.type=FEED_URL\n", load, "source.0.id");
+            corrupt(root, "sources", "count=1\nsource.0.id=src-1\n", load, "source.0.type");
+            corrupt(root, "sources", "next=-3\ncount=-1\n", load, "count");
         }));
     }
 }
