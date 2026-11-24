@@ -67,6 +67,8 @@ For everything else, the original project is the place to go:
   `Domain` goes back only to the host that set it, not to its subdomains, and the
   cookie jar shows which cookies are host-only. The CA key and the saved
   application logins are written readable by their owner only from the start.
+  Stopping and restarting a Sequencer capture no longer leaves the old capture
+  running and mixing its tokens into the new one.
 - **Scan engine scope.** The engine's crawl and scan are bound to no more than
   the URLs the app's scope covers. An advanced host, port or file pattern can no
   longer reach into the path or the userinfo, a prefix with a non-default port no

@@ -48,6 +48,7 @@ public final class RunTests {
         new opentrap.core.HttpMessageTitleTest().run();
         new opentrap.csrf.CsrfPocTest().run();
         new opentrap.sequencer.SequencerStatsTest().run();
+        new opentrap.sequencer.CaptureRunTest().run();
         new opentrap.organizer.OrganizerTest().run();
         new opentrap.engine.EngineMappingTest().run();
         new opentrap.proxy.ProxyDefaultsTest().run();
