@@ -519,17 +519,20 @@ public final class Theme {
      * feel says, which the dark theme cannot carry; every HTML pane (the
      * response render, advisories, issue definitions) takes this kit. A page
      * that brings its own styles still overrides these, as a render should.
+     * The sheet belongs to this kit alone: {@code HTMLEditorKit.setStyleSheet}
+     * would replace the app-wide default, which Swing's HTML labels and
+     * buttons copy, and paint the page background behind their text.
      */
     public static javax.swing.text.html.HTMLEditorKit htmlKit() {
-        javax.swing.text.html.HTMLEditorKit kit = new javax.swing.text.html.HTMLEditorKit();
         javax.swing.text.html.StyleSheet ss = new javax.swing.text.html.StyleSheet();
-        ss.addStyleSheet(kit.getStyleSheet());
+        ss.addStyleSheet(new javax.swing.text.html.HTMLEditorKit().getStyleSheet());
         ss.addRule(String.format("body { color: #%06X; background-color: #%06X; font-family: %s; }",
                 TEXT.getRGB() & 0xFFFFFF, BG.getRGB() & 0xFFFFFF, Fonts.css(Fonts.uiFamily())));
         ss.addRule(String.format("a { color: #%06X; }", ACCENT.getRGB() & 0xFFFFFF));
         ss.addRule(String.format("pre, code { color: #%06X; }", TEXT.getRGB() & 0xFFFFFF));
-        kit.setStyleSheet(ss);
-        return kit;
+        return new javax.swing.text.html.HTMLEditorKit() {
+            @Override public javax.swing.text.html.StyleSheet getStyleSheet() { return ss; }
+        };
     }
 
     /** A rounded hairline border for cards and grouped content. */
