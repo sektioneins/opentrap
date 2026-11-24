@@ -109,7 +109,7 @@ public final class ZapFeed {
         return List.copyOf(out);
     }
 
-    private static Document read(InputStream in) throws IOException {
+    static Document read(InputStream in) throws IOException {
         try {
             DocumentBuilderFactory f = DocumentBuilderFactory.newInstance();
             f.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
@@ -128,7 +128,7 @@ public final class ZapFeed {
         }
     }
 
-    private static List<Element> children(Element parent) {
+    static List<Element> children(Element parent) {
         List<Element> out = new ArrayList<>();
         for (Node n = parent.getFirstChild(); n != null; n = n.getNextSibling()) {
             if (n instanceof Element e) out.add(e);
@@ -137,7 +137,7 @@ public final class ZapFeed {
     }
 
     /** Text of the first child element with this name, trimmed; empty when there is none. */
-    private static String text(Element parent, String name) {
+    static String text(Element parent, String name) {
         for (Element e : children(parent)) if (e.getTagName().equals(name)) return e.getTextContent().trim();
         return "";
     }
