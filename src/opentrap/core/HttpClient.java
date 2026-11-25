@@ -5,8 +5,6 @@ import java.io.*;
 import java.net.*;
 import java.security.cert.X509Certificate;
 import java.util.Locale;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.InflaterInputStream;
 
 /**
  * Sends a request exactly as given and reads the response.
@@ -21,6 +19,8 @@ public class HttpClient {
         public int readTimeoutMs = 30000;
         public boolean updateContentLength = false;
         public boolean unpackGzip = true;
+        /** Largest decoded body, in bytes; a body that decodes past it is left compressed. */
+        public int unpackLimit = ProjectOptions.DEFAULT_UNPACK_MB << 20;
         public boolean followRedirects = false;
         public int maxRedirects = 5;
         public boolean keepAlive = false;
@@ -86,6 +86,8 @@ public class HttpClient {
         public int redirectsFollowed;
         /** The policy's reason when a redirect hop was refused, else empty. */
         public String redirectRefusal = "";
+        /** Why the final response was left compressed, else empty. */
+        public String unpackNote = "";
         public HttpService finalService;
         public HttpMessage finalRequest;
         public boolean ok() { return error.isEmpty() && response != null; }
@@ -275,6 +277,7 @@ public class HttpClient {
             Result one = sendOnce(cur, req, opt);
             r.remoteIp = one.remoteIp;
             r.error = one.error;
+            r.unpackNote = one.unpackNote;
             r.response = one.response;
             r.finalService = cur;
             r.finalRequest = req;
@@ -387,7 +390,10 @@ public class HttpClient {
             byte[] raw = readResponse(sock.getInputStream(), request.method());
             if (raw.length == 0) { r.error = "empty response"; return r; }
             HttpMessage resp = new HttpMessage(raw);
-            if (opt.unpackGzip) unpack(resp);
+            if (opt.unpackGzip) {
+                String n = Unpack.apply(resp, opt.unpackLimit);
+                if (n != null) r.unpackNote = n;
+            }
             r.response = resp;
             return r;
         } catch (UnknownHostException e) {
@@ -499,34 +505,5 @@ public class HttpClient {
         }
         if (c < 0 && b.size() == 0) return null;
         return Bytes.str(b.toByteArray());
-    }
-
-    /** Replace a compressed body with its plaintext, dropping the header. */
-    public static void unpack(HttpMessage m) {
-        String ce = m.header("Content-Encoding");
-        if (ce == null) return;
-        String enc = ce.trim().toLowerCase(Locale.ROOT);
-        byte[] body = m.body();
-        if (body.length == 0) return;
-        try {
-            InputStream src = new ByteArrayInputStream(body);
-            InputStream dec;
-            if (enc.contains("gzip")) dec = new GZIPInputStream(src);
-            else if (enc.contains("deflate")) dec = new InflaterInputStream(src);
-            else if (enc.contains("br")) dec = new org.brotli.dec.BrotliInputStream(src);
-            else return;
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            byte[] buf = new byte[8192];
-            int k;
-            while ((k = dec.read(buf)) > 0) out.write(buf, 0, k);
-            m.removeHeader("Content-Encoding");
-            m.setBody(out.toByteArray());
-            m.setHeader("Content-Length", String.valueOf(out.size()));
-        } catch (Exception | LinkageError e) {
-            // A body that will not decode stays as received; trace it rather
-            // than dropping the failure silently. LinkageError covers a
-            // missing decoder jar, which must not kill the calling thread.
-            Debug.log("could not decode " + enc + " body: " + e);
-        }
     }
 }

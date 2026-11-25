@@ -73,6 +73,7 @@ public final class ProjectOptions {
     public static final int DEFAULT_WS_MEMORY_MB = 32;
     public static final int DEFAULT_WS_FRAME_MB = 16;
     public static final int MAX_WS_FRAME_MB = 256;
+    public static final int DEFAULT_UNPACK_MB = 16;
 
     /** The tool tag the engine gives its audit probes; the one kind of traffic saved headers-only. */
     public static final String AUDIT_TOOL = "audit";

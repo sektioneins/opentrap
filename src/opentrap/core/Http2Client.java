@@ -208,7 +208,10 @@ public final class Http2Client {
             });
             sb.append("\r\n");
             HttpMessage out = new HttpMessage(Bytes.concat(Bytes.bytes(sb.toString()), resp.body()));
-            if (opt.unpackGzip) HttpClient.unpack(out);
+            if (opt.unpackGzip) {
+                String n = Unpack.apply(out, opt.unpackLimit);
+                if (n != null) r.unpackNote = n;
+            }
             r.response = out;
             // Through a rule the connection is to the proxy, and the target is never resolved here.
             try { r.remoteIp = InetAddress.getByName(up == null ? svc.host() : up.host).getHostAddress(); } catch (Exception _) {}
