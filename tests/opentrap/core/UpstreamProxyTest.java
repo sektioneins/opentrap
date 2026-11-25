@@ -6,6 +6,7 @@ import opentrap.testkit.Harness;
 import opentrap.testkit.TestTls;
 
 import com.sun.net.httpserver.Headers;
+import com.sun.net.httpserver.HttpServer;
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;
 import java.io.InputStream;
@@ -212,6 +213,31 @@ public final class UpstreamProxyTest {
             Expect.isTrue(at.isUnresolved(), "the address stays unresolved");
             Expect.equal(at.getHostString() + ":" + at.getPort(), "up.invalid:3128", "the rule's host and port");
         }));
+
+        Harness.test("a live-scan route that cannot be reached falls back to the target's upstream rule, not to a direct connection", guard(() -> {
+            HttpServer server = plainServer();
+            try (ConnectProxy proxy = new ConnectProxy(null, server.getAddress())) {
+                HttpClient.setProxyProvider(svc -> ruleOn(proxy, "", ""));
+                HttpClient.Result r = sendLive(new HttpService("live.invalid", 80, false));
+                Expect.isTrue(r.ok(), "send ok: " + r.error);
+                Expect.equal(r.response.bodyText(), "hello", "the server answered");
+                Expect.equal(proxy.targets, List.of("live.invalid:80"), "the rule's proxy got the CONNECT");
+            } finally {
+                HttpClient.setProxyProvider(null);
+                server.stop(0);
+            }
+        }));
+
+        Harness.test("with no upstream rule a live-scan route that cannot be reached still falls back to a direct connection", guard(() -> {
+            HttpServer server = plainServer();
+            try {
+                HttpClient.Result r = sendLive(new HttpService("127.0.0.1", server.getAddress().getPort(), false));
+                Expect.isTrue(r.ok(), "send ok: " + r.error);
+                Expect.equal(r.response.bodyText(), "hello", "the server answered");
+            } finally {
+                server.stop(0);
+            }
+        }));
     }
 
     private interface Body { void run() throws Exception; }
@@ -241,6 +267,32 @@ public final class UpstreamProxyTest {
         opt.connectTimeoutMs = 2000;
         opt.readTimeoutMs = 2000;
         return new HttpClient().send(svc, req, opt);
+    }
+
+    /** A send in HTTP/1 mode whose live-scan override points at a closed loopback port. */
+    private static HttpClient.Result sendLive(HttpService svc) throws Exception {
+        UpstreamProxy dead = new UpstreamProxy();
+        dead.host = "127.0.0.1";
+        try (ServerSocket s = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) { dead.port = s.getLocalPort(); }
+        HttpMessage req = new HttpMessage(Bytes.bytes("GET / HTTP/1.1\r\nHost: " + svc.host() + "\r\n\r\n"));
+        HttpClient.Options opt = new HttpClient.Options();
+        opt.mode = HttpMode.HTTP_1;
+        opt.upstream = dead;
+        opt.connectTimeoutMs = 2000;
+        opt.readTimeoutMs = 2000;
+        return new HttpClient().send(svc, req, opt);
+    }
+
+    /** A plain HTTP server on loopback answering 200 "hello". */
+    private static HttpServer plainServer() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/", ex -> {
+            byte[] b = Bytes.bytes("hello");
+            ex.sendResponseHeaders(200, b.length);
+            try (var o = ex.getResponseBody()) { o.write(b); }
+        });
+        server.start();
+        return server;
     }
 
     /** An HTTPS server on loopback answering 200 "hello"; it keeps the last request headers and counts requests. */
