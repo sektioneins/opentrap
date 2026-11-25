@@ -35,8 +35,10 @@ import java.util.List;
  *     {@code <object>} and {@code <isindex>} get a {@link Placeholder}, a
  *     muted label that names the element, instead of the view that would load
  *     or run it. A {@code <frameset>} lays its frames out as a plain block.</li>
- * <li>{@code <link rel=stylesheet>} and {@code @import} reach
- *     {@link OfflineStyleSheet#importStyleSheet}, which does nothing.</li>
+ * <li>{@code <link>} is hidden at the parser, so no tag reaches the stock
+ *     style sheet loader (which also fails on an untitled alternate sheet),
+ *     and {@code @import} reaches {@link OfflineStyleSheet#importStyleSheet},
+ *     which does nothing.</li>
  * <li>CSS background images (also from the {@code background} attribute of
  *     {@code body}, {@code table} and {@code td}) and list images are hidden
  *     from the box and list painters, which would otherwise fetch them.</li>
@@ -67,7 +69,7 @@ public final class OfflineHtmlKit extends HTMLEditorKit {
     @Override public Document createDefaultDocument() {
         StyleSheet ss = new OfflineStyleSheet();
         ss.addStyleSheet(getStyleSheet());
-        HTMLDocument doc = new HTMLDocument(ss);
+        HTMLDocument doc = new OfflineDocument(ss);
         doc.setParser(getParser());
         doc.setAsynchronousLoadPriority(4);
         doc.setTokenThreshold(100);
@@ -177,6 +179,34 @@ public final class OfflineHtmlKit extends HTMLEditorKit {
         }
 
         @Override public AttributeSet getResolveParent() { return withoutImages(a.getResolveParent()); }
+    }
+
+    /** A document whose parser callback hides {@code <link>} instead of loading the sheet it names. */
+    static final class OfflineDocument extends HTMLDocument {
+        OfflineDocument(StyleSheet ss) { super(ss); }
+
+        @Override public HTMLEditorKit.ParserCallback getReader(int pos) {
+            baseFromStream();
+            return new OfflineReader(pos, 0, 0, null);
+        }
+
+        @Override public HTMLEditorKit.ParserCallback getReader(int pos, int popDepth, int pushDepth,
+                                                                HTML.Tag insertTag) {
+            baseFromStream();
+            return new OfflineReader(pos, popDepth, pushDepth, insertTag);
+        }
+
+        /** As the stock readers' factories do: relative URLs resolve against the page's own URL. */
+        private void baseFromStream() {
+            if (getProperty(Document.StreamDescriptionProperty) instanceof URL u) setBase(u);
+        }
+
+        private final class OfflineReader extends HTMLReader {
+            OfflineReader(int pos, int popDepth, int pushDepth, HTML.Tag insertTag) {
+                super(pos, popDepth, pushDepth, insertTag);
+                registerTag(HTML.Tag.LINK, new HiddenAction());
+            }
+        }
     }
 
     /**

@@ -192,6 +192,13 @@ public final class RenderOfflineTest {
             }
         });
 
+        Harness.test("a page with an untitled alternate style sheet still renders", () -> {
+            MessageEditor ed = responseEditor("<link rel=\"alternate stylesheet\" href=\"x.css\"><p>page body text</p>");
+            String text = documentText(showRender(ed));
+            Expect.isTrue(text.contains("page body text"), "the page text, was <" + text + ">");
+            Expect.isFalse(text.contains("Could not render"), "the fallback message in <" + text + ">");
+        });
+
         Harness.test("a script's text does not show in Render", () -> {
             MessageEditor ed = responseEditor("<p>a</p><script>var hiddenScriptText = 1;</script><p>b</p>");
             JEditorPane p = showRender(ed);
@@ -202,6 +209,15 @@ public final class RenderOfflineTest {
             });
             Expect.isTrue(text.contains("a") && text.contains("b"), "the page text, was <" + text + ">");
             Expect.isFalse(text.contains("hiddenScriptText"), "script text in <" + text + ">");
+        });
+    }
+
+    /** The whole text of the pane's document. */
+    static String documentText(JEditorPane p) {
+        return onEdt(() -> {
+            try {
+                return p.getDocument().getText(0, p.getDocument().getLength());
+            } catch (javax.swing.text.BadLocationException e) { throw new RuntimeException(e); }
         });
     }
 
