@@ -78,6 +78,11 @@ For everything else, the original project is the place to go:
   public suffix such as `co.uk`, and when two cookies share a name the most
   specific one is sent. The CA key and the saved application logins are
   written readable by their owner only from the start.
+  Repeater and Intruder send over HTTP/2 and auto through the upstream proxy
+  rules as they do over HTTP/1, a SOCKS rule refuses those modes instead of
+  going direct, and the proxy no longer goes direct when the live-scan engine
+  cannot be reached. HTTP/2 sends reach hosts whose certificate names another
+  host, as HTTP/1 sends do.
   Stopping and restarting a Sequencer capture no longer leaves the old capture
   running and mixing its tokens into the new one.
 - **Scan engine scope.** The engine's crawl and scan are bound to no more than
