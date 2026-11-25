@@ -154,6 +154,69 @@ public final class SessionTest {
             Expect.equal(jar.size(), 0, "nothing stored");
         });
 
+        Harness.test("the jar sends a host's own cookie and a sibling's cookie of the same name, as a browser does", () -> {
+            CookieJar jar = new CookieJar();
+            HttpService www = new HttpService("www.example.com", 443, true);
+            jar.updateFrom(www, resp("HTTP/1.1 200 OK\nSet-Cookie: sid=T\nContent-Length: 0\n\n"));
+            jar.updateFrom(new HttpService("uploads.example.com", 443, true),
+                    resp("HTTP/1.1 200 OK\nSet-Cookie: sid=S; Domain=example.com\nContent-Length: 0\n\n"));
+            Expect.equal(jar.headerFor(www, get("/", "www.example.com"), "sid=old; x=1"), "x=1; sid=T; sid=S", "both sid cookies");
+        });
+
+        Harness.test("jar cookies go longest path first, then oldest first", () -> {
+            CookieJar jar = new CookieJar();
+            jar.updateFrom(A, resp("HTTP/1.1 200 OK\nSet-Cookie: p=1; Path=/\nSet-Cookie: p=2; Path=/app\n"
+                    + "Set-Cookie: q=3; Path=/\nContent-Length: 0\n\n"));
+            Expect.equal(jar.headerFor(A, get("/app/x", "a.test"), null), "p=2; p=1; q=3", "order");
+            jar.updateFrom(A, resp("HTTP/1.1 200 OK\nSet-Cookie: p=9; Path=/\nContent-Length: 0\n\n"));
+            Expect.equal(jar.headerFor(A, get("/app/x", "a.test"), null), "p=2; p=9; q=3", "replaced cookie keeps its place");
+        });
+
+        Harness.test("the request's own cookies the jar has no name for are kept in their order", () -> {
+            CookieJar jar = new CookieJar();
+            jar.set(new Cookie("sid", "fresh", "example.com", "/", false, 0));
+            Expect.equal(jar.headerFor(new HttpService("example.com", 80, false), get("/", "example.com"), "a=1; sid=stale; b=2"),
+                    "a=1; b=2; sid=fresh", "order");
+        });
+
+        Harness.test("the last Domain attribute in a header decides", () -> {
+            CookieJar jar = new CookieJar();
+            jar.updateFrom(A, resp("HTTP/1.1 200 OK\nSet-Cookie: x=1; Domain=b.test; Domain=a.test\n"
+                    + "Set-Cookie: y=1; Domain=a.test; Domain=b.test\nContent-Length: 0\n\n"));
+            Expect.equal(jar.size(), 1, "only x stored");
+            Expect.equal(jar.all().get(0).domain, "a.test", "domain of x");
+            CookieJar jar2 = new CookieJar();
+            HttpService www = new HttpService("www.example.com", 443, true);
+            jar2.updateFrom(www, resp("HTTP/1.1 200 OK\nSet-Cookie: z=1; Domain=example.com; Domain=.\nContent-Length: 0\n\n"));
+            Expect.equal(jar2.size(), 1, "z stored");
+            Expect.equal(jar2.all().get(0).domain, "www.example.com", "host domain");
+            Expect.isTrue(jar2.all().get(0).hostOnly, "host-only");
+        });
+
+        Harness.test("a Domain or host with a trailing dot cannot reach a public suffix", () -> {
+            CookieJar jar = new CookieJar();
+            jar.updateFrom(new HttpService("shop.example.co.uk.", 443, true),
+                    resp("HTTP/1.1 200 OK\nSet-Cookie: x=1; Domain=co.uk.\nContent-Length: 0\n\n"));
+            jar.updateFrom(new HttpService("shop.example.co.uk", 443, true),
+                    resp("HTTP/1.1 200 OK\nSet-Cookie: y=1; Domain=co.uk.\nContent-Length: 0\n\n"));
+            Expect.equal(jar.size(), 0, "nothing stored");
+        });
+
+        Harness.test("a host name in upper case is compared in lower case", () -> {
+            CookieJar jar = new CookieJar();
+            jar.updateFrom(new HttpService("WWW.Example.com", 443, true),
+                    resp("HTTP/1.1 200 OK\nSet-Cookie: sid=1; Domain=example.com\nContent-Length: 0\n\n"));
+            Expect.equal(jar.size(), 1, "stored");
+            Expect.equal(jar.all().get(0).domain, "example.com", "domain");
+            Expect.equal(jar.headerFor(new HttpService("api.example.com", 443, true), get("/", "api.example.com"), null), "sid=1", "sent");
+        });
+
+        Harness.test("a response with no host sets no cookie", () -> {
+            CookieJar jar = new CookieJar();
+            jar.updateFrom(new HttpService("", 443, true), resp("HTTP/1.1 200 OK\nSet-Cookie: sid=1\nContent-Length: 0\n\n"));
+            Expect.equal(jar.size(), 0, "nothing stored");
+        });
+
         Harness.test("secure cookies are withheld from plain http", () -> {
             CookieJar jar = new CookieJar();
             jar.set(new Cookie("sid", "abc", "example.com", "/", true, 0));
@@ -176,6 +239,7 @@ public final class SessionTest {
             jar.set(new Cookie("sid", "fresh", "example.com", "/", false, 0));
             String h = jar.headerFor(new HttpService("example.com", 80, false), get("/", "example.com"), "sid=stale; other=keep");
             Expect.isTrue(h.contains("sid=fresh"), "jar value used");
+            Expect.isFalse(h.contains("sid=stale"), "request's own value dropped");
             Expect.isTrue(h.contains("other=keep"), "unrelated cookie preserved");
         });
 

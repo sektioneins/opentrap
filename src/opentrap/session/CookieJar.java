@@ -5,10 +5,12 @@ import opentrap.core.HttpService;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * The suite-wide cookie jar. Every tool that sends through the session hook
@@ -44,6 +46,7 @@ public final class CookieJar implements Serializable {
     /** The cookie a Set-Cookie value makes for {@code host}, or null when RFC 6265 5.3 says to ignore it. */
     private static Cookie parseSetCookie(String v, String host) {
         String reqHost = host == null ? "" : host.toLowerCase(Locale.ROOT);
+        if (reqHost.isEmpty()) return null;
         String[] parts = v.split(";");
         if (parts.length == 0) return null;
         int eq = parts[0].indexOf('=');
@@ -56,14 +59,14 @@ public final class CookieJar implements Serializable {
         c.domain = reqHost;
         c.hostOnly = true;
         c.path = "/";
-        String domainAttr = "";
+        String domainAttr = "";   // empty: host-only
         for (int i = 1; i < parts.length; i++) {
             String a = parts[i].trim();
             String al = a.toLowerCase(Locale.ROOT);
             if (al.startsWith("domain=")) {
                 String d = a.substring(7).trim();
                 if (d.startsWith(".")) d = d.substring(1);
-                if (!d.isEmpty()) domainAttr = d.toLowerCase(Locale.ROOT);   // the last one wins (5.3 step 4)
+                domainAttr = d.toLowerCase(Locale.ROOT);   // the last one wins, even when empty (5.2.3)
             } else if (al.startsWith("path=")) c.path = a.substring(5).trim();
             else if (al.equals("secure")) c.secure = true;
             else if (al.startsWith("max-age=")) {
@@ -80,7 +83,8 @@ public final class CookieJar implements Serializable {
             // A Domain the host may not set (5.3 steps 5 and 6): a public suffix is kept
             // host-only when it is the host itself and ignored otherwise; anything else
             // must domain-match the host.
-            if (PublicSuffixes.jdk().isPublicSuffix(domainAttr)) {
+            // A trailing dot is ignored for the public-suffix check only.
+            if (PublicSuffixes.jdk().isPublicSuffix(stripTrailingDot(domainAttr))) {
                 if (!domainAttr.equals(reqHost)) return null;
             } else {
                 if (!Cookie.domainMatch(reqHost, domainAttr)) return null;
@@ -91,36 +95,42 @@ public final class CookieJar implements Serializable {
         return c.name.isEmpty() ? null : c;
     }
 
+    private static String stripTrailingDot(String s) {
+        return s.endsWith(".") ? s.substring(0, s.length() - 1) : s;
+    }
+
     /**
-     * The Cookie header value for a request: jar cookies that match the host and
-     * path, merged over any cookies already on the request (jar wins on a clash).
-     * The jar wins because session handling uses it to refresh a stale cookie in
-     * Repeater and Intruder; a jar cookie for a host was set by that host or by one
-     * under the same registrable domain, as {@link #parseSetCookie} checks.
+     * The Cookie header value for a request: the request's own cookies, then every
+     * jar cookie that matches the host and path, longest path first and oldest
+     * first within a path, as a browser orders them. A jar cookie replaces the
+     * request's own cookie of the same name, so session handling can refresh a stale
+     * session in Repeater and Intruder; the other own cookies stay in their order.
+     * A jar cookie may come from the host itself or from any host under the same
+     * parent domain, as in a browser (see {@link #parseSetCookie}), so two jar
+     * cookies of one name can both be sent.
      * Returns null when nothing from the jar applies and the request had none.
      */
     public synchronized String headerFor(HttpService svc, HttpMessage req, String existingCookie) {
-        LinkedHashMap<String, String> merged = new LinkedHashMap<>();
+        String path = req == null ? "/" : req.path();
+        List<Cookie> fromJar = new ArrayList<>();
+        for (Cookie c : cookies.values()) {
+            if (c.matches(svc, path)) fromJar.add(c);
+        }
+        if (fromJar.isEmpty() && existingCookie == null) return null;
+        fromJar.sort((a, b) -> Integer.compare(b.path.length(), a.path.length()));   // stable: creation order within a path
+        Set<String> jarNames = new HashSet<>();
+        for (Cookie c : fromJar) jarNames.add(c.name);
+        List<String> pieces = new ArrayList<>();
         if (existingCookie != null) {
             for (String p : existingCookie.split(";")) {
                 String t = p.trim();
                 if (t.isEmpty()) continue;
                 int eq = t.indexOf('=');
-                if (eq < 0) merged.put(t, "");
-                else merged.put(t.substring(0, eq).trim(), t.substring(eq + 1).trim());
+                String name = eq < 0 ? t : t.substring(0, eq).trim();
+                if (!jarNames.contains(name)) pieces.add(eq < 0 ? name + "=" : name + "=" + t.substring(eq + 1).trim());
             }
         }
-        String path = req == null ? "/" : req.path();
-        boolean anyFromJar = false;
-        for (Cookie c : cookies.values()) {
-            if (c.matches(svc, path)) { merged.put(c.name, c.value); anyFromJar = true; }
-        }
-        if (!anyFromJar && existingCookie == null) return null;
-        StringBuilder sb = new StringBuilder();
-        for (Map.Entry<String, String> e : merged.entrySet()) {
-            if (sb.length() > 0) sb.append("; ");
-            sb.append(e.getKey()).append('=').append(e.getValue());
-        }
-        return sb.toString();
+        for (Cookie c : fromJar) pieces.add(c.name + "=" + c.value);
+        return String.join("; ", pieces);
     }
 }
