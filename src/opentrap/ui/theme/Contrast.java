@@ -55,10 +55,9 @@ public final class Contrast {
         new Pair("SEVERITY_MEDIUM", "BG", 3.0),
         new Pair("SEVERITY_LOW", "BG", 3.0));
 
-    /** The contrast ratio of two colours, from 1 to 21, ignoring alpha. */
+    /** The contrast ratio of two colours, from 1 to 21, ignoring alpha; {@link #failures} composites it. */
     public static double ratio(Color a, Color b) {
-        double la = luminance(a), lb = luminance(b);
-        return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+        return ratio(a.getRGB(), b.getRGB());
     }
 
     /** The fills that badges, pills and tinted list rows carry a glyph or a number on. */
@@ -77,8 +76,8 @@ public final class Contrast {
         return ratio(dark, fill) > ratio(light, fill) ? dark : light;
     }
 
-    private static double luminance(Color c) {
-        return 0.2126 * channel(c.getRed()) + 0.7152 * channel(c.getGreen()) + 0.0722 * channel(c.getBlue());
+    private static double luminance(int r, int g, int b) {
+        return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
     }
 
     private static double channel(int v) {
@@ -86,24 +85,47 @@ public final class Contrast {
         return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
     }
 
-    /** The pairs below their minimum in a resolved set of values. */
+    /**
+     * The pairs below their minimum in a resolved set of values. A colour with
+     * alpha is measured as it is painted: the background over the page
+     * ({@code BG}, taken as opaque) and the text over that background.
+     */
     public static List<Failure> failures(Map<String, Object> values) {
         List<Failure> out = new ArrayList<>();
+        int page = values.get("BG") instanceof Color c ? c.getRGB() | 0xFF000000 : 0xFFFFFFFF;
         for (Pair p : PAIRS) {
             if (values.get(p.fg()) instanceof Color fg && values.get(p.bg()) instanceof Color bg) {
-                double r = ratio(fg, bg);
+                int under = p.bg().equals("BG") ? page : over(bg, page);
+                double r = ratio(over(fg, under), under);
                 if (r < p.min()) out.add(new Failure(p, r));
             }
         }
         if (values.get("TEXT_ON_BADGE") instanceof Color light && values.get("TEXT_ON_BADGE_DARK") instanceof Color dark) {
             for (String fill : BADGE_FILLS) {
                 if (values.get(fill) instanceof Color bg) {
-                    double r = Math.max(ratio(light, bg), ratio(dark, bg));
+                    int under = over(bg, page);
+                    double r = Math.max(ratio(over(light, under), under), ratio(over(dark, under), under));
                     if (r < 4.5) out.add(new Failure(new Pair(BADGE_TEXT, fill, 4.5), r));
                 }
             }
         }
         return out;
+    }
+
+    /** {@code c} painted over the opaque {@code under}, both as {@code 0xAARRGGBB}. */
+    private static int over(Color c, int under) {
+        double a = c.getAlpha() / 255.0;
+        return 0xFF000000 | blend(c.getRed(), under >> 16, a) << 16 | blend(c.getGreen(), under >> 8, a) << 8
+            | blend(c.getBlue(), under, a);
+    }
+
+    private static int blend(int top, int bottom, double a) {
+        return (int) Math.round(top * a + (bottom & 255) * (1 - a));
+    }
+
+    private static double ratio(int a, int b) {
+        double la = luminance(a >> 16 & 255, a >> 8 & 255, a & 255), lb = luminance(b >> 16 & 255, b >> 8 & 255, b & 255);
+        return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
     }
 
     /**

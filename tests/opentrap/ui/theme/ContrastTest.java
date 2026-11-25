@@ -122,6 +122,38 @@ public final class ContrastTest {
             }
         });
 
+        Harness.test("see-through text, error and severity colours fail the check on adding a theme", () -> {
+            java.nio.file.Path dir = null;
+            try {
+                dir = java.nio.file.Files.createTempDirectory("opentrap-contrast");
+                java.nio.file.Path file = dir.resolve("faint.theme");
+                java.nio.file.Files.writeString(file, "name = Faint\nbase = light\nappearance = light\n"
+                    + "TEXT = #1A1A1A00\nERROR = alpha(#CC0000, 0%)\nSEVERITY_HIGH = #D51F3D10\n");
+                java.util.Set<String> failed = new java.util.TreeSet<>();
+                for (Contrast.Failure f : new ThemeCatalog(dir.resolve("store")).check(file).contrast()) {
+                    if (f.pair().bg().equals("BG")) failed.add(f.pair().fg());
+                }
+                Expect.equal(failed.toString(), "[ERROR, SEVERITY_HIGH, TEXT]", "the see-through colours on BG");
+            } catch (ThemeException | java.io.IOException e) {
+                throw new AssertionError(e);
+            } finally {
+                if (dir != null) {
+                    dir.resolve("faint.theme").toFile().delete();
+                    dir.toFile().delete();
+                }
+            }
+        });
+
+        Harness.test("a half-transparent colour is measured as it is painted over the page", () -> {
+            Color white = new Color(255, 255, 255), black = new Color(0, 0, 0);
+            Map<String, Object> v = Map.of("TEXT", new Color(0, 0, 0, 128), "BG", white);
+            Contrast.Failure f = Contrast.failures(v).get(0);
+            Expect.equal(String.format(java.util.Locale.ROOT, "%.2f", f.ratio()),
+                String.format(java.util.Locale.ROOT, "%.2f", Contrast.ratio(new Color(127, 127, 127), white)), "black at half over white");
+            Expect.isTrue(Contrast.failures(Map.of("TEXT", black, "BG", new Color(255, 255, 255, 0))).isEmpty(),
+                "a see-through page is taken as opaque");
+        });
+
         Harness.test("a failing pair the theme did not change is not reported", () -> {
             Color grey = new Color(120, 120, 120), white = new Color(255, 255, 255);
             Map<String, Object> base = Map.of("TEXT", grey, "BG", white, "MUTED", grey);
