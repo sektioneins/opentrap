@@ -233,7 +233,7 @@ public class WebSocketsPanel extends JPanel implements WsInterceptor {
                 case 0 -> r + 1;
                 case 1 -> "#" + m.connectionId;
                 case 2 -> m.direction == WebSocketMessage.Direction.C2S ? "client->server" : "server->client";
-                case 3 -> m.op + (m.edited ? " (edited)" : "");
+                case 3 -> m.opLabel();
                 case 4 -> m.length();
                 default -> m.preview();
             };

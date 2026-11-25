@@ -733,7 +733,8 @@ public class ProxyServer {
 
             if (resp.statusCode() != 101) return; // server declined the upgrade
             ctx.alert("proxy", "WebSocket connected to " + svc.host());
-            new WebSocketConnection(ctx, svc, request.path(), clientOut, upOut, wsMatchReplace).run(clientIn, upIn);
+            new WebSocketConnection(ctx, svc, request.path(), clientOut, upOut, wsMatchReplace,
+                    ProjectOptions.wsFrameBytes(ctx.settings())).run(clientIn, upIn);
         } catch (Exception e) {
             ctx.alert("proxy", "WebSocket relay error: " + e.getMessage());
         } finally {

@@ -43,17 +43,21 @@ public final class WebSocketConnection {
     private final OutputStream clientOut; // to the browser (frames unmasked)
     private final OutputStream serverOut; // to the upstream server (frames masked)
     private final List<MatchReplaceRule> rules; // WebSocket match and replace, shared with the proxy
+    private final int frameCap; // largest payload held whole; larger frames are streamed
     private volatile boolean open = true;
 
+    /** {@code frameCap} is the largest payload in bytes the relay holds whole, at least 1. */
     public WebSocketConnection(SuiteContext ctx, opentrap.core.HttpService service, String path,
                                OutputStream clientOut, OutputStream serverOut,
-                               List<MatchReplaceRule> rules) {
+                               List<MatchReplaceRule> rules, int frameCap) {
+        if (frameCap < 1) throw new IllegalArgumentException("frameCap must be at least 1");
         this.ctx = ctx;
         this.service = service;
         this.path = path;
         this.clientOut = clientOut;
         this.serverOut = serverOut;
         this.rules = rules;
+        this.frameCap = frameCap;
     }
 
     @Override public String toString() { return "#" + id + " " + (service == null ? "" : service.host()); }
@@ -83,12 +87,26 @@ public final class WebSocketConnection {
         }
     }
 
+    /**
+     * Relay frames from {@code in} until it ends or a close frame passes. The cap
+     * bounds how much of one frame a relay holds whole, for match and replace,
+     * interception and the record: the header comes first, and only a frame whose
+     * declared length fits the cap is read whole. A larger frame is passed on in
+     * chunks as it arrives, with its first part recorded, and skips match and
+     * replace and interception, which both need the whole payload.
+     */
     private void pump(InputStream in, Direction dir) {
         try {
             while (open) {
-                WebSocketFrame f = WebSocketFrame.read(in);
+                WebSocketFrame f = WebSocketFrame.readHeader(in);
                 if (f == null) break;
                 Op op = WebSocketMessage.opFrom(f.opcode);
+                if (f.length > frameCap) {
+                    stream(f, in, dir, op);
+                    if (op == Op.CLOSE) break;
+                    continue;
+                }
+                f.readPayload(in);
                 byte[] payload = f.payload;
                 boolean edited = false;
 
@@ -123,6 +141,24 @@ public final class WebSocketConnection {
         } finally {
             open = false;
         }
+    }
+
+    /**
+     * Pass one frame above the cap through as it arrives. The target's lock is held
+     * for the whole frame, header and payload, so an injected frame cannot land
+     * inside it. The frame is recorded once it is through, with its first
+     * {@code frameCap} bytes and its declared length.
+     */
+    private void stream(WebSocketFrame f, InputStream in, Direction dir, Op op) throws IOException {
+        OutputStream target = dir == Direction.C2S ? serverOut : clientOut;
+        byte[] key = dir == Direction.C2S ? WebSocketFrame.newMaskKey() : null;
+        byte[] kept;
+        synchronized (target) {
+            target.write(WebSocketFrame.encodeHeader(f.fin, f.opcode, f.length, key));
+            kept = f.streamPayload(in, target, key, frameCap);
+            target.flush();
+        }
+        ctx.wsStore().add(new WebSocketMessage(id, service, path, dir, op, kept, false, f.length));
     }
 
     /** Inject a new text frame towards the server, as if the client sent it. */

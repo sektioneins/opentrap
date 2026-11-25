@@ -4,6 +4,11 @@ import opentrap.testkit.Expect;
 import opentrap.testkit.Harness;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.FilterInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.lang.management.ManagementFactory;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
@@ -23,6 +28,80 @@ public final class WebSocketFrameTest {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    /** Bytes the current thread allocates while {@code body} runs, measured on a fresh platform thread. */
+    private static long allocated(ThrowingRunnable body) {
+        com.sun.management.ThreadMXBean mx = (com.sun.management.ThreadMXBean) ManagementFactory.getThreadMXBean();
+        long[] result = {-2};
+        Throwable[] failure = {null};
+        Thread t = new Thread(() -> {
+            long before = mx.getCurrentThreadAllocatedBytes();
+            try {
+                body.run();
+            } catch (Throwable e) {
+                failure[0] = e;
+            }
+            long after = mx.getCurrentThreadAllocatedBytes();
+            result[0] = (before < 0 || after < 0) ? -1 : after - before;
+        });
+        t.start();
+        try {
+            t.join();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        if (failure[0] != null) throw new RuntimeException(failure[0]);
+        Expect.isTrue(result[0] >= 0, "thread allocation counter available");
+        return result[0];
+    }
+
+    private interface ThrowingRunnable {
+        void run() throws Exception;
+    }
+
+    private static void io(ThrowingRunnable body) {
+        try {
+            body.run();
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static boolean throwsIo(ThrowingRunnable body) {
+        try {
+            body.run();
+            return false;
+        } catch (IOException e) {
+            return true;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /** A stream that hands out at most 3 bytes per read, so reads split the mask phase. */
+    private static InputStream trickle(InputStream in) {
+        return new FilterInputStream(in) {
+            @Override public int read(byte[] b, int off, int len) throws IOException {
+                return super.read(b, off, Math.min(len, 3));
+            }
+        };
+    }
+
+    private static byte[] header(int b0, int b1, long len) {
+        byte[] h = new byte[10];
+        h[0] = (byte) b0;
+        h[1] = (byte) b1;
+        for (int i = 0; i < 8; i++) h[2 + i] = (byte) (len >> (8 * (7 - i)));
+        return h;
+    }
+
+    private static byte[] concat(byte[] a, byte[] b) {
+        byte[] r = Arrays.copyOf(a, a.length + b.length);
+        System.arraycopy(b, 0, r, a.length, b.length);
+        return r;
     }
 
     public void run() {
@@ -54,6 +133,82 @@ public final class WebSocketFrameTest {
             boolean verbatim = indexOf(wire, p) >= 0;
             Expect.isFalse(verbatim, "masked payload present verbatim");
         });
+
+        Harness.test("a header that declares 2 GB is read without allocating its payload", () -> io(() -> {
+            byte[] wire = {(byte) 0x82, 0x7F, 0, 0, 0, 0, 0x7F, (byte) 0xFF, (byte) 0xFF, (byte) 0xF0};
+            ByteArrayInputStream in = new ByteArrayInputStream(wire);
+            WebSocketFrame[] f = new WebSocketFrame[1];
+            long bytes = allocated(() -> f[0] = WebSocketFrame.readHeader(in));
+            Expect.equal(f[0].length, 0x7FFFFFF0L, "declared length");
+            Expect.equal(f[0].payload.length, 0, "payload held");
+            Expect.equal(in.available(), 0, "bytes left unread");
+            Expect.isTrue(bytes < 64 * 1024, "allocated " + bytes);
+        }));
+
+        Harness.test("a 64-bit length with the top bit set is refused", () -> io(() -> {
+            byte[] wire = {(byte) 0x82, 0x7F, (byte) 0x80, 0, 0, 0, 0, 0, 0, 0};
+            Expect.isTrue(throwsIo(() -> WebSocketFrame.readHeader(new ByteArrayInputStream(wire))), "refused");
+        }));
+
+        Harness.test("a payload that stops short holds only what arrived", () -> io(() -> {
+            byte[] wire = concat(header(0x82, 0x7F, 16L << 20), new byte[100 * 1024]);
+            ByteArrayInputStream in = new ByteArrayInputStream(wire);
+            boolean[] threw = {false};
+            long bytes = allocated(() -> {
+                WebSocketFrame f = WebSocketFrame.readHeader(in);
+                threw[0] = throwsIo(() -> f.readPayload(in));
+            });
+            Expect.isTrue(threw[0], "readPayload threw");
+            Expect.isTrue(bytes < 1 << 20, "allocated " + bytes);
+        }));
+
+        Harness.test("a streamed masked payload arrives clear and keeps its first bytes", () -> io(() -> {
+            byte[] p = new byte[200003];
+            for (int i = 0; i < p.length; i++) p[i] = (byte) (i * 31 + 7);
+            InputStream in = trickle(new ByteArrayInputStream(WebSocketFrame.encode(true, 2, p, true)));
+            WebSocketFrame f = WebSocketFrame.readHeader(in);
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] kept = f.streamPayload(in, out, null, 100000);
+            Expect.isTrue(Arrays.equals(p, out.toByteArray()), "streamed payload");
+            Expect.isTrue(Arrays.equals(Arrays.copyOf(p, 100000), kept), "kept prefix");
+        }));
+
+        Harness.test("a re-masked streamed payload reads back as the same frame", () -> io(() -> {
+            byte[] p = new byte[150001];
+            for (int i = 0; i < p.length; i++) p[i] = (byte) (i * 13 + 5);
+            InputStream in = trickle(new ByteArrayInputStream(WebSocketFrame.encode(true, 2, p, false)));
+            WebSocketFrame f = WebSocketFrame.readHeader(in);
+            byte[] key = WebSocketFrame.newMaskKey();
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            out.writeBytes(WebSocketFrame.encodeHeader(true, 2, f.length, key));
+            byte[] kept = f.streamPayload(in, out, key, 0);
+            Expect.equal(kept.length, 0, "kept");
+            byte[] wire = out.toByteArray();
+            Expect.isTrue((wire[1] & 0x80) != 0, "mask bit set");
+            WebSocketFrame back = WebSocketFrame.read(new ByteArrayInputStream(wire));
+            Expect.isTrue(Arrays.equals(p, back.payload), "payload after re-mask");
+        }));
+
+        Harness.test("a stream that ends mid-payload fails rather than forwarding a short frame", () -> io(() -> {
+            byte[] wire = concat(WebSocketFrame.encodeHeader(true, 2, 1000, null), new byte[500]);
+            ByteArrayInputStream in = new ByteArrayInputStream(wire);
+            WebSocketFrame f = WebSocketFrame.readHeader(in);
+            Expect.isTrue(throwsIo(() -> f.streamPayload(in, new ByteArrayOutputStream(), null, 0)), "threw");
+        }));
+
+        Harness.test("streaming a 2 GB header with a short payload allocates only what arrived", () -> io(() -> {
+            byte[] wire = concat(header(0x82, 0x7F, 0x7FFFFFF0L), new byte[10 * 1024]);
+            ByteArrayInputStream in = new ByteArrayInputStream(wire);
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            boolean[] threw = {false};
+            long bytes = allocated(() -> {
+                WebSocketFrame f = WebSocketFrame.readHeader(in);
+                threw[0] = throwsIo(() -> f.streamPayload(in, out, null, 16 << 20));
+            });
+            Expect.isTrue(threw[0], "streamPayload threw");
+            Expect.equal(out.size(), 10 * 1024, "bytes forwarded");
+            Expect.isTrue(bytes < 1 << 20, "allocated " + bytes);
+        }));
     }
 
     private static int indexOf(byte[] hay, byte[] needle) {
