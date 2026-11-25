@@ -90,6 +90,70 @@ public final class SessionTest {
                     "not sent to x.a.test");
         });
 
+        Harness.test("a Domain the responding host does not fall under is not stored", () -> {
+            CookieJar jar = new CookieJar();
+            jar.updateFrom(A, resp("HTTP/1.1 200 OK\nSet-Cookie: x=1; Domain=b.test\nContent-Length: 0\n\n"));
+            Expect.equal(jar.size(), 0, "nothing stored");
+            Expect.isNull(jar.headerFor(B, get("/", "b.test"), null), "not sent to b.test");
+        });
+
+        Harness.test("a Domain that is a public suffix is not stored", () -> {
+            CookieJar jar = new CookieJar();
+            jar.updateFrom(new HttpService("shop.example.co.uk", 443, true),
+                    resp("HTTP/1.1 200 OK\nSet-Cookie: x=1; Domain=co.uk\nContent-Length: 0\n\n"));
+            jar.updateFrom(new HttpService("a.github.io", 443, true),
+                    resp("HTTP/1.1 200 OK\nSet-Cookie: x=1; Domain=github.io\nContent-Length: 0\n\n"));
+            Expect.equal(jar.size(), 0, "nothing stored");
+        });
+
+        Harness.test("a Domain equal to the host that is a public suffix leaves the cookie host-only", () -> {
+            CookieJar jar = new CookieJar();
+            HttpService lh = new HttpService("localhost", 80, false);
+            jar.updateFrom(lh, resp("HTTP/1.1 200 OK\nSet-Cookie: x=1; Domain=localhost\nContent-Length: 0\n\n"));
+            Expect.equal(jar.size(), 1, "one cookie");
+            Cookie c = jar.all().get(0);
+            Expect.isTrue(c.hostOnly, "host-only");
+            Expect.equal(c.domain, "localhost", "domain");
+            Expect.notNull(jar.headerFor(lh, get("/", "localhost"), null), "sent to localhost");
+            Expect.isNull(jar.headerFor(new HttpService("x.localhost", 80, false), get("/", "x.localhost"), null),
+                    "not sent to x.localhost");
+        });
+
+        Harness.test("a parent Domain from a subdomain is stored lower case without its dot and reaches sibling subdomains", () -> {
+            CookieJar jar = new CookieJar();
+            HttpService www = new HttpService("www.example.com", 443, true);
+            jar.updateFrom(www, resp("HTTP/1.1 200 OK\nSet-Cookie: sid=1; Domain=.EXAMPLE.com\n"
+                    + "Set-Cookie: sid=2; Domain=example.com\nContent-Length: 0\n\n"));
+            Expect.equal(names(jar.all()), List.of("sid@example.com/"), "one cookie");
+            Expect.isTrue(!jar.all().get(0).hostOnly, "not host-only");
+            Expect.equal(jar.headerFor(new HttpService("api.example.com", 443, true),
+                    get("/", "api.example.com"), null), "sid=2", "sent to api.example.com");
+            CookieJar j2 = new CookieJar();
+            j2.updateFrom(new HttpService("app.corp.internal", 443, true),
+                    resp("HTTP/1.1 200 OK\nSet-Cookie: k=1; Domain=corp.internal\nContent-Length: 0\n\n"));
+            Expect.equal(j2.size(), 1, "corp.internal stored");
+        });
+
+        Harness.test("a Domain is never matched by suffix against an IP address", () -> {
+            CookieJar jar = new CookieJar();
+            HttpService ip = new HttpService("10.0.0.1", 80, false);
+            jar.updateFrom(ip, resp("HTTP/1.1 200 OK\nSet-Cookie: a=1; Domain=0.0.1\n"
+                    + "Set-Cookie: b=1; Domain=10.0.0.1\nContent-Length: 0\n\n"));
+            Expect.equal(jar.size(), 1, "only b stored");
+            Expect.equal(jar.headerFor(ip, get("/", "10.0.0.1"), null), "b=1", "b sent");
+            CookieJar j2 = new CookieJar();
+            j2.set(new Cookie("m", "1", "0.1", "/", false, 0));
+            Expect.isNull(j2.headerFor(ip, get("/", "10.0.0.1"), null), "manual suffix cookie not sent to an IP");
+            Expect.isTrue(!Cookie.domainMatch("::ffff:10.0.0.1", "0.0.1"), "IPv6 is never suffix matched");
+        });
+
+        Harness.test("a Domain that is only a string suffix of the host is not stored", () -> {
+            CookieJar jar = new CookieJar();
+            jar.updateFrom(new HttpService("bada.test", 443, true),
+                    resp("HTTP/1.1 200 OK\nSet-Cookie: x=1; Domain=ada.test\nContent-Length: 0\n\n"));
+            Expect.equal(jar.size(), 0, "nothing stored");
+        });
+
         Harness.test("secure cookies are withheld from plain http", () -> {
             CookieJar jar = new CookieJar();
             jar.set(new Cookie("sid", "abc", "example.com", "/", true, 0));

@@ -41,7 +41,9 @@ public final class CookieJar implements Serializable {
         }
     }
 
+    /** The cookie a Set-Cookie value makes for {@code host}, or null when RFC 6265 5.3 says to ignore it. */
     private static Cookie parseSetCookie(String v, String host) {
+        String reqHost = host == null ? "" : host.toLowerCase(Locale.ROOT);
         String[] parts = v.split(";");
         if (parts.length == 0) return null;
         int eq = parts[0].indexOf('=');
@@ -51,15 +53,17 @@ public final class CookieJar implements Serializable {
         c.value = parts[0].substring(eq + 1).trim();
         // Without a Domain attribute the cookie belongs to the sending host alone
         // (RFC 6265 5.3 step 6). An empty Domain value is ignored, as 5.2.3 says.
-        c.domain = host == null ? "" : host;
+        c.domain = reqHost;
         c.hostOnly = true;
         c.path = "/";
+        String domainAttr = "";
         for (int i = 1; i < parts.length; i++) {
             String a = parts[i].trim();
             String al = a.toLowerCase(Locale.ROOT);
             if (al.startsWith("domain=")) {
                 String d = a.substring(7).trim();
-                if (!d.isEmpty()) { c.domain = d; c.hostOnly = false; }
+                if (d.startsWith(".")) d = d.substring(1);
+                if (!d.isEmpty()) domainAttr = d.toLowerCase(Locale.ROOT);   // the last one wins (5.3 step 4)
             } else if (al.startsWith("path=")) c.path = a.substring(5).trim();
             else if (al.equals("secure")) c.secure = true;
             else if (al.startsWith("max-age=")) {
@@ -72,12 +76,27 @@ public final class CookieJar implements Serializable {
                 } catch (Exception _) {}
             }
         }
+        if (!domainAttr.isEmpty()) {
+            // A Domain the host may not set (5.3 steps 5 and 6): a public suffix is kept
+            // host-only when it is the host itself and ignored otherwise; anything else
+            // must domain-match the host.
+            if (PublicSuffixes.jdk().isPublicSuffix(domainAttr)) {
+                if (!domainAttr.equals(reqHost)) return null;
+            } else {
+                if (!Cookie.domainMatch(reqHost, domainAttr)) return null;
+                c.domain = domainAttr;
+                c.hostOnly = false;
+            }
+        }
         return c.name.isEmpty() ? null : c;
     }
 
     /**
      * The Cookie header value for a request: jar cookies that match the host and
      * path, merged over any cookies already on the request (jar wins on a clash).
+     * The jar wins because session handling uses it to refresh a stale cookie in
+     * Repeater and Intruder; a jar cookie for a host was set by that host or by one
+     * under the same registrable domain, as {@link #parseSetCookie} checks.
      * Returns null when nothing from the jar applies and the request had none.
      */
     public synchronized String headerFor(HttpService svc, HttpMessage req, String existingCookie) {
