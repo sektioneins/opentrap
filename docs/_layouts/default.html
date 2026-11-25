@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{ page.title | default: site.title }} - free, open-source alternative to Burp Suite</title>
 <meta name="description" content="{{ site.description }}">
-<link rel="canonical" href="https://opentrap.github.io/opentrap/">
+<link rel="canonical" href="{{ page.url | absolute_url }}">
 <link rel="icon" type="image/svg+xml" href="images/opentrap.svg">
 
 <!-- Open Graph / social -->
@@ -130,9 +130,9 @@ footer .fl{display:flex;gap:22px;flex-wrap:wrap}
 <nav class="nav"><div class="wrap">
   <a class="brand" href="/opentrap/"><img src="images/opentrap.svg" alt="">OpenTRAP</a>
   <div class="links">
-    <a href="#features">Features</a>
-    <a href="#screenshots">Screenshots</a>
-    <a href="#get-started">Get started</a>
+    <a href="{{ '/' | relative_url }}#features">Features</a>
+    <a href="{{ '/' | relative_url }}#screenshots">Screenshots</a>
+    <a href="{{ '/' | relative_url }}#get-started">Get started</a>
     <a href="https://github.com/opentrap/opentrap">GitHub</a>
     <a class="btn btn-primary" href="https://github.com/opentrap/opentrap/releases/latest/download/opentrap-x86_64.appimage">Download</a>
   </div>

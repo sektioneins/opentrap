@@ -1,5 +1,5 @@
 ---
-layout: default
+layout: doc
 title: Themes
 ---
 
@@ -17,7 +17,7 @@ A theme is a UTF-8 text file with the extension `.theme`, at most 64 KB and 2000
 - a constant, starting with `@` and in lower case, such as `@accent`;
 - a key in upper case, such as `BORDER`.
 
-A name may be set once per file. Header fields this version does not know are ignored.
+A name may be set once per file. Header fields this version does not know are ignored and listed in the summary.
 
 ```
 format = 1
@@ -42,7 +42,7 @@ HIGHLIGHT = #5E4A00
 | `name` | The name shown in Settings. Required. Shown as plain text, at most 64 characters. |
 | `base` | `light` or `dark`: the theme the missing keys come from. Required in a theme you add, absent in the two built-in ones. |
 | `appearance` | `light` or `dark`. Required. It decides which application icon and wordmark are drawn. It may differ from the base. |
-| `author`, `description` | Optional, shown in the summary when you add the theme. |
+| `author`, `description` | Optional, shown in the summary when you add the theme. At most 500 characters each. |
 
 ## Constants
 
@@ -161,8 +161,8 @@ A key you do not set comes from the base, derived from its constants. Set a key 
 
 | Key | Sets |
 |---|---|
-| `RADIUS`, `CARD_RADIUS`, `TAB_HOVER_RADIUS` | Corner radii of controls, cards and tab hover shapes. |
-| `LINE_WIDTH` | The weight of outlines and rules. |
+| `RADIUS`, `CARD_RADIUS`, `TAB_HOVER_RADIUS` | Corner radii of controls, of cards, and of the shape behind a flashing or pill-marked tab. |
+| `LINE_WIDTH` | The weight of the outline on fields, cards and outlined buttons. |
 | `ICON_STROKE` | The stroke weight of drawn icons, in percent. |
 | `TAB_UNDERLINE`, `TAB_MARKER` | The thickness and the style of the selected tab marker. |
 | `PRIMARY_BUTTON` | A filled or an outlined primary button. |
@@ -170,16 +170,17 @@ A key you do not set comes from the base, derived from its constants. Set a key 
 
 ## Contrast
 
-When you add a theme, OpenTRAP checks the colour pairs that text and marks are drawn with, for example `TEXT` on `BG`, `TEXT` on `CARD`, `LINK` on `BG`, and `TEXT` on `POSITION_MARK`, and every badge, pill and coloured row fill (the accent, the warning and error icons, the severity and Decoder colours) with the better of `TEXT_ON_BADGE` and `TEXT_ON_BADGE_DARK`. Text pairs need 4.5 to 1; secondary text, severity colours and marks need 3 to 1. The summary lists the pairs your theme changes and that fall short; it does not block the theme. A weakness the base already has is not blamed on you.
+When you add a theme, OpenTRAP checks the colour pairs that text and marks are drawn with, for example `TEXT` on `BG`, `TEXT` on `CARD`, `LINK` on `BG`, and `TEXT` on `POSITION_MARK`, and every badge, pill and coloured row fill (the accent, the warning and error icons, the severity and Decoder colours) with the better of `TEXT_ON_BADGE` and `TEXT_ON_BADGE_DARK`. Text pairs and badges need 4.5 to 1; secondary text on the page and on a selection, and the severity colours on the page, need 3 to 1. A colour with an alpha is measured as it is painted: over the page, and text over the colour it sits on. The summary lists the pairs your theme changes and that fall short; it does not block the theme. A weakness the base already has is not blamed on you.
 
 ## Where themes go and Add from file
 
 Your own themes live in `~/.opentrap/themes`, one file each, and the file name without `.theme` is the theme's id: lower case letters, digits, hyphen and underscore, at most 64 characters. In Settings > User interface > Display choose **Add from file ...**, pick a `.theme` file, and read the summary before confirming:
 
-- the name, the base, the appearance and the author;
+- the name, the base, the appearance, the author and the description;
+- header fields this version ignores;
 - how many keys are left to the base;
 - keys that were ignored, and values brought into range;
 - every low contrast pair;
 - whether it replaces a theme you already have with that id.
 
-Adding copies the file into the folder. A file that does not parse, is too large, has no base or names a built-in id is refused with the line and the reason, and nothing is stored. **Remove** deletes a theme of your own; the shipped ones cannot be removed. If the chosen theme cannot be loaded at startup, OpenTRAP falls back to Light or Dark, whichever you last chose (Light if you never chose), and says why.
+Adding copies the file into the folder. A file that does not parse, is too large, has no base or names a built-in id is refused with the line and the reason, and nothing is stored. **Remove** deletes a theme of your own; the shipped ones cannot be removed. If the chosen theme cannot be loaded at startup, OpenTRAP falls back to Light or Dark, whichever matches the appearance of the theme you chose (Light if nothing is saved), and says why. If you change `appearance` in the file of the theme in use, the next start does the same and says so; choose the theme again in Settings to use it.

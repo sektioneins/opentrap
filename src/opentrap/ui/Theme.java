@@ -14,7 +14,7 @@ import java.nio.file.Path;
 import java.util.Map;
 
 /**
- * The suite's visual theme: a flat interface, light or dark, with one orange accent.
+ * The suite's visual theme: a flat interface in the active theme's palette (see the theme files).
  *
  * <p>Everything here is plain Swing. The cross-platform look and feel is the
  * base, so the interface is identical on every desktop, and the parts of it
@@ -270,7 +270,7 @@ public final class Theme {
     public static int RADIUS;
     /** Corner radius of cards (see {@link #cardBorder()}). */
     public static int CARD_RADIUS;
-    /** Corner arc of the shape behind a hovered, flashing or pill-marked tab. */
+    /** Corner arc of the shape behind a flashing or pill-marked tab. */
     public static int TAB_HOVER_RADIUS;
     /** Width of the outline on fields, cards and outlined buttons, in pixels. */
     public static int LINE_WIDTH;
