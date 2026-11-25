@@ -100,37 +100,66 @@ public final class CookieJar implements Serializable {
     }
 
     /**
-     * The Cookie header value for a request: the request's own cookies, then every
-     * jar cookie that matches the host and path, longest path first and oldest
-     * first within a path, as a browser orders them. A jar cookie replaces the
-     * request's own cookie of the same name, so session handling can refresh a stale
-     * session in Repeater and Intruder; the other own cookies stay in their order.
-     * A jar cookie may come from the host itself or from any host under the same
-     * parent domain, as in a browser (see {@link #parseSetCookie}), so two jar
-     * cookies of one name can both be sent.
+     * The Cookie header value for a request, with one value per cookie name. A
+     * sibling under the same parent domain may set a cookie of the same name (see
+     * {@link #parseSetCookie}), and ZAP's jar sends one per name as well, so of the
+     * matching jar cookies of a name the most specific wins: a hand-added one, then
+     * a host-only one, then the longer domain, the longer path, and the later one
+     * in the jar. A learned cookie with the same {@link Cookie#key()} as a hand-added
+     * one still replaces it in {@link #set}.
+     * The request's own cookies keep their order; the first of a name the jar has a
+     * winner for takes the winner's value, later ones of that name are dropped, so
+     * session handling can refresh a stale session in Repeater and Intruder. Winners
+     * for names the request lacks follow, longest path first and earlier in the jar
+     * first within a path (RFC 6265 5.4). This holds with or without a Cookie header.
      * Returns null when nothing from the jar applies and the request had none.
      */
     public synchronized String headerFor(HttpService svc, HttpMessage req, String existingCookie) {
         String path = req == null ? "/" : req.path();
-        List<Cookie> fromJar = new ArrayList<>();
+        Map<String, Cookie> winners = new LinkedHashMap<>();   // name -> winner, in jar order of the winner
+        Map<Cookie, Integer> position = new java.util.IdentityHashMap<>();
+        int n = 0;
         for (Cookie c : cookies.values()) {
-            if (c.matches(svc, path)) fromJar.add(c);
+            position.put(c, n++);
+            if (!c.matches(svc, path)) continue;
+            Cookie best = winners.get(c.name);
+            if (best == null || moreSpecific(c, best)) winners.put(c.name, c);
         }
-        if (fromJar.isEmpty() && existingCookie == null) return null;
-        fromJar.sort((a, b) -> Integer.compare(b.path.length(), a.path.length()));   // stable: creation order within a path
-        Set<String> jarNames = new HashSet<>();
-        for (Cookie c : fromJar) jarNames.add(c.name);
+        if (winners.isEmpty() && existingCookie == null) return null;
         List<String> pieces = new ArrayList<>();
+        Set<String> used = new HashSet<>();
         if (existingCookie != null) {
             for (String p : existingCookie.split(";")) {
                 String t = p.trim();
                 if (t.isEmpty()) continue;
                 int eq = t.indexOf('=');
                 String name = eq < 0 ? t : t.substring(0, eq).trim();
-                if (!jarNames.contains(name)) pieces.add(eq < 0 ? name + "=" : name + "=" + t.substring(eq + 1).trim());
+                Cookie w = winners.get(name);
+                if (w == null) pieces.add(eq < 0 ? name + "=" : name + "=" + t.substring(eq + 1).trim());
+                else if (used.add(name)) pieces.add(name + "=" + w.value);
             }
         }
-        for (Cookie c : fromJar) pieces.add(c.name + "=" + c.value);
+        List<Cookie> rest = new ArrayList<>();
+        for (Cookie w : winners.values()) if (!used.contains(w.name)) rest.add(w);
+        rest.sort((a, b) -> {
+            int byPath = Integer.compare(b.path.length(), a.path.length());
+            return byPath != 0 ? byPath : Integer.compare(position.get(a), position.get(b));
+        });
+        for (Cookie w : rest) pieces.add(w.name + "=" + w.value);
         return String.join("; ", pieces);
+    }
+
+    /** True when {@code c} beats {@code best}; {@code c} is later in the jar, so a tie goes to it. */
+    private static boolean moreSpecific(Cookie c, Cookie best) {
+        if (c.manual != best.manual) return c.manual;
+        if (c.hostOnly != best.hostOnly) return c.hostOnly;
+        int dc = domainLength(c), db = domainLength(best);
+        if (dc != db) return dc > db;
+        if (c.path.length() != best.path.length()) return c.path.length() > best.path.length();
+        return true;
+    }
+
+    private static int domainLength(Cookie c) {
+        return c.domain.startsWith(".") ? c.domain.length() - 1 : c.domain.length();
     }
 }

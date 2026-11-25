@@ -154,29 +154,52 @@ public final class SessionTest {
             Expect.equal(jar.size(), 0, "nothing stored");
         });
 
-        Harness.test("the jar sends a host's own cookie and a sibling's cookie of the same name, as a browser does", () -> {
+        Harness.test("a host's own cookie wins over a sibling's parent-domain cookie of the same name", () -> {
             CookieJar jar = new CookieJar();
             HttpService www = new HttpService("www.example.com", 443, true);
             jar.updateFrom(www, resp("HTTP/1.1 200 OK\nSet-Cookie: sid=T\nContent-Length: 0\n\n"));
             jar.updateFrom(new HttpService("uploads.example.com", 443, true),
                     resp("HTTP/1.1 200 OK\nSet-Cookie: sid=S; Domain=example.com\nContent-Length: 0\n\n"));
-            Expect.equal(jar.headerFor(www, get("/", "www.example.com"), "sid=old; x=1"), "x=1; sid=T; sid=S", "both sid cookies");
+            Expect.equal(jar.headerFor(www, get("/", "www.example.com"), "sid=old; x=1"), "sid=T; x=1", "own cookie");
+            Expect.equal(jar.headerFor(new HttpService("api.example.com", 443, true), get("/", "api.example.com"), null),
+                    "sid=S", "sibling's cookie where no own one exists");
         });
 
-        Harness.test("jar cookies go longest path first, then oldest first", () -> {
+        Harness.test("of two domain cookies of one name the longer domain wins", () -> {
+            CookieJar jar = new CookieJar();
+            jar.updateFrom(new HttpService("x.example.com", 443, true),
+                    resp("HTTP/1.1 200 OK\nSet-Cookie: d=1; Domain=example.com\nContent-Length: 0\n\n"));
+            jar.updateFrom(new HttpService("b.a.example.com", 443, true),
+                    resp("HTTP/1.1 200 OK\nSet-Cookie: d=2; Domain=a.example.com\nContent-Length: 0\n\n"));
+            HttpService c = new HttpService("c.a.example.com", 443, true);
+            Expect.equal(jar.headerFor(c, get("/", "c.a.example.com"), null), "d=2", "longer domain");
+        });
+
+        Harness.test("of two cookies of one name the longer path wins, and other names follow in RFC order", () -> {
             CookieJar jar = new CookieJar();
             jar.updateFrom(A, resp("HTTP/1.1 200 OK\nSet-Cookie: p=1; Path=/\nSet-Cookie: p=2; Path=/app\n"
                     + "Set-Cookie: q=3; Path=/\nContent-Length: 0\n\n"));
-            Expect.equal(jar.headerFor(A, get("/app/x", "a.test"), null), "p=2; p=1; q=3", "order");
+            Expect.equal(jar.headerFor(A, get("/app/x", "a.test"), null), "p=2; q=3", "longer path");
             jar.updateFrom(A, resp("HTTP/1.1 200 OK\nSet-Cookie: p=9; Path=/\nContent-Length: 0\n\n"));
-            Expect.equal(jar.headerFor(A, get("/app/x", "a.test"), null), "p=2; p=9; q=3", "replaced cookie keeps its place");
+            Expect.equal(jar.headerFor(A, get("/", "a.test"), null), "p=9; q=3", "replaced cookie keeps its place");
         });
 
-        Harness.test("the request's own cookies the jar has no name for are kept in their order", () -> {
+        Harness.test("a jar cookie replaces the request's own cookie of its name in place", () -> {
             CookieJar jar = new CookieJar();
             jar.set(new Cookie("sid", "fresh", "example.com", "/", false, 0));
-            Expect.equal(jar.headerFor(new HttpService("example.com", 80, false), get("/", "example.com"), "a=1; sid=stale; b=2"),
-                    "a=1; b=2; sid=fresh", "order");
+            Expect.equal(jar.headerFor(new HttpService("example.com", 80, false), get("/", "example.com"),
+                    "a=1; sid=stale; b=2; sid=old2"), "a=1; sid=fresh; b=2", "order");
+        });
+
+        Harness.test("a hand-added cookie wins over learned cookies of its name", () -> {
+            CookieJar jar = new CookieJar();
+            HttpService www = new HttpService("www.example.com", 443, true);
+            Cookie m = new Cookie("sid", "M", "example.com", "/", false, 0);
+            m.manual = true;
+            jar.set(m);
+            jar.updateFrom(www, resp("HTTP/1.1 200 OK\nSet-Cookie: sid=L\nSet-Cookie: other=1\nContent-Length: 0\n\n"));
+            Expect.equal(jar.size(), 3, "learned and manual sid both in the jar");
+            Expect.equal(jar.headerFor(www, get("/", "www.example.com"), null), "sid=M; other=1", "manual wins");
         });
 
         Harness.test("the last Domain attribute in a header decides", () -> {

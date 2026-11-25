@@ -371,6 +371,7 @@ public class SessionPanel extends JPanel {
         c.path = path.getText().trim().isEmpty() ? "/" : path.getText().trim();
         c.secure = secure.isSelected();
         c.hostOnly = hostOnly.isSelected();
+        c.manual = true;
         return true;
     }
 
@@ -448,7 +449,7 @@ public class SessionPanel extends JPanel {
     }
 
     private final class CookieModel extends AbstractTableModel {
-        private final String[] cols = {"domain", "name", "value", "path", "secure", "host only"};
+        private final String[] cols = {"domain", "name", "value", "path", "secure", "host only", "manual"};
         private List<Cookie> rows = java.util.List.of();
         void refresh() { rows = sm.jar().all(); fireTableDataChanged(); }
         @Override public int getRowCount() { return rows.size(); }
@@ -457,7 +458,7 @@ public class SessionPanel extends JPanel {
         @Override public Class<?> getColumnClass(int c) { return c >= 4 ? Boolean.class : String.class; }
         @Override public Object getValueAt(int r, int c) {
             Cookie k = rows.get(r);
-            return switch (c) { case 0 -> k.domain; case 1 -> k.name; case 2 -> k.value; case 3 -> k.path; case 4 -> k.secure; default -> k.hostOnly; };
+            return switch (c) { case 0 -> k.domain; case 1 -> k.name; case 2 -> k.value; case 3 -> k.path; case 4 -> k.secure; case 5 -> k.hostOnly; default -> k.manual; };
         }
     }
 }
