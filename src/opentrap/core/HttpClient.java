@@ -31,7 +31,10 @@ public class HttpClient {
         /** Protocol to use. HTTP/1.x is the raw byte-exact default. */
         public HttpMode mode = HttpMode.HTTP_1;
         /** Optional upstream override (e.g. the ZAP engine for live passive scanning);
-         *  falls back to a direct connection if it cannot be reached. */
+         *  if it cannot be reached the send falls back to the upstream rule that
+         *  covers the target, and to a direct connection only when none does. A
+         *  send in an HTTP/2 or auto mode ignores it: only the proxy sets it, and
+         *  the proxy always sends HTTP/1. */
         public UpstreamProxy upstream;
         /**
          * Optional check run before the socket connects, with the resolved address
@@ -140,17 +143,21 @@ public class HttpClient {
      * <p>
      * Connect, optionally through an override upstream (used for live passive
      * scanning through the ZAP engine). If the override cannot be reached the
-     * connection falls back to direct, so the scan engine being down never breaks
-     * the user's traffic. The guard, when not null, is asked with the address the
-     * base socket connects to before it connects.
+     * connection falls back to the upstream rule that covers the target, and to
+     * direct only when no rule does, so the scan engine being down never breaks
+     * the user's traffic and never sends it around the user's proxy. The guard, when not null, is asked
+     * with the address the base socket connects to before it connects.
      */
     private static Socket connect(HttpService svc, int ct, int rt, UpstreamProxy override, ConnectGuard guard) throws Exception {
         if (override != null) {
             try { return connectVia(svc, ct, rt, override, guard); }
             catch (Exception e) {
+                UpstreamProxy rule = upstreamFor(svc);
                 Debug.log("upstream proxy " + override.host + ":" + override.port
-                        + " failed (" + e + "); falling back to a direct connection");
-                return connectVia(svc, ct, rt, null, guard); // fail-safe: go direct
+                        + " failed (" + e + "); " + (rule != null
+                                ? "falling back to the upstream rule " + rule.host + ":" + rule.port
+                                : "falling back to a direct connection"));
+                return connectVia(svc, ct, rt, rule, guard); // fail-safe: the target's rule, else direct
             }
         }
         return connectVia(svc, ct, rt, upstreamFor(svc), guard);
