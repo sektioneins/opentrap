@@ -31,7 +31,9 @@ public class HttpClient {
         /** Protocol to use. HTTP/1.x is the raw byte-exact default. */
         public HttpMode mode = HttpMode.HTTP_1;
         /** Optional upstream override (e.g. the ZAP engine for live passive scanning);
-         *  falls back to a direct connection if it cannot be reached. */
+         *  falls back to a direct connection if it cannot be reached. A send in an
+         *  HTTP/2 or auto mode ignores it: only the proxy sets it, and the proxy
+         *  always sends HTTP/1. */
         public UpstreamProxy upstream;
         /**
          * Optional check run before the socket connects, with the resolved address

@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import javax.net.ssl.SSLContext;
 import opentrap.core.UpstreamProxy;
+import opentrap.testkit.ConnectProxy;
 import opentrap.testkit.Expect;
 import opentrap.testkit.Harness;
 import opentrap.testkit.TestTls;
@@ -438,82 +439,5 @@ public final class FetcherTest {
         p.user = user;
         p.pass = pass;
         return p;
-    }
-
-    /**
-     * A minimal HTTP CONNECT proxy on loopback that pipes bytes both ways. With a
-     * {@code user:pass} login it answers 407 to a CONNECT without that Basic login.
-     * It counts tunnels and keeps every Proxy-Authorization it was sent.
-     */
-    private static final class ConnectProxy implements AutoCloseable {
-        private final java.net.ServerSocket socket;
-        private final String required;
-        final AtomicInteger tunnels = new AtomicInteger();
-        final List<String> logins = Collections.synchronizedList(new ArrayList<>());
-
-        ConnectProxy(String login) throws IOException {
-            required = login == null ? null : "Basic " + Base64.getEncoder().encodeToString(login.getBytes());
-            socket = new java.net.ServerSocket(0, 50, java.net.InetAddress.getByName(IP));
-            Thread.ofVirtual().start(() -> {
-                while (!socket.isClosed()) {
-                    try {
-                        java.net.Socket client = socket.accept();
-                        Thread.ofVirtual().start(() -> tunnel(client));
-                    } catch (IOException e) {
-                        return;
-                    }
-                }
-            });
-        }
-
-        int port() { return socket.getLocalPort(); }
-
-        private void tunnel(java.net.Socket client) {
-            try (client) {
-                var in = client.getInputStream();
-                String head;
-                while (true) {
-                    head = head(in);
-                    if (head == null) return;
-                    String login = null;
-                    for (String line : head.split("\r\n")) {
-                        if (line.regionMatches(true, 0, "Proxy-Authorization:", 0, 20)) login = line.substring(20).trim();
-                    }
-                    if (login != null) logins.add(login);
-                    if (required == null || required.equals(login)) break;
-                    client.getOutputStream().write(("HTTP/1.1 407 Proxy Authentication Required\r\n"
-                            + "Proxy-Authenticate: Basic realm=\"test\"\r\nContent-Length: 0\r\n\r\n").getBytes());
-                    client.getOutputStream().flush();
-                }
-                String[] target = head.split(" ")[1].split(":");
-                try (java.net.Socket upstream = new java.net.Socket(target[0], Integer.parseInt(target[1]))) {
-                    tunnels.incrementAndGet();
-                    client.getOutputStream().write("HTTP/1.1 200 Connection established\r\n\r\n".getBytes());
-                    client.getOutputStream().flush();
-                    Thread back = Thread.ofVirtual().start(() -> {
-                        try { upstream.getInputStream().transferTo(client.getOutputStream()); }
-                        catch (IOException ignored) { }
-                    });
-                    try { in.transferTo(upstream.getOutputStream()); } catch (IOException ignored) { }
-                    upstream.shutdownOutput();
-                    back.join();
-                }
-            } catch (IOException | InterruptedException ignored) {
-                // the test sees a failed fetch
-            }
-        }
-
-        /** One request head up to the blank line, or null at the end of the stream. */
-        private static String head(java.io.InputStream in) throws IOException {
-            StringBuilder head = new StringBuilder();
-            while (!head.toString().endsWith("\r\n\r\n")) {
-                int b = in.read();
-                if (b < 0) return null;
-                head.append((char) b);
-            }
-            return head.toString();
-        }
-
-        @Override public void close() throws IOException { socket.close(); }
     }
 }

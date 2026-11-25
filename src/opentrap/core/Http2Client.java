@@ -2,8 +2,14 @@ package opentrap.core;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.X509ExtendedTrustManager;
+import java.net.Authenticator;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.PasswordAuthentication;
+import java.net.ProxySelector;
+import java.net.Socket;
 import java.net.URI;
 import java.net.http.HttpOption;
 import java.net.http.HttpRequest;
@@ -21,6 +27,13 @@ import java.util.Locale;
  * translated into a JDK request and the response translated back, so the rest of
  * the suite sees the same model it always has.
  *
+ * <p>Which client sends is decided by the upstream proxy rule for the target
+ * ({@link HttpClient#upstreamFor}). With no rule the direct client is used, which
+ * names no proxy. An HTTP rule gets a client of its own that sends through that
+ * proxy. A SOCKS rule is refused in every mode here: the JDK connects direct when
+ * the selected proxy is not an HTTP one, which would bypass the rule. Only the
+ * direct client sends HTTP/3, as QUIC cannot be tunnelled.
+ *
  * <p>Known limitation: because HTTP/2 is binary and the JDK manages the header
  * block, this path is not byte-exact the way the HTTP/1.x socket path is, and it
  * does not expose raw HTTP/2 frame editing. Raw HTTP/1.x stays the default.
@@ -37,28 +50,78 @@ public final class Http2Client {
         } catch (Exception _) {}
     }
 
-    private static volatile java.net.http.HttpClient shared;
+    private record Route(String host, int port, String user, String pass) {}
 
-    private static java.net.http.HttpClient client(HttpClient.Options opt) throws Exception {
-        if (shared == null) {
+    private static final java.util.concurrent.ConcurrentHashMap<Route, java.net.http.HttpClient> routed =
+            new java.util.concurrent.ConcurrentHashMap<>();
+    private static volatile java.net.http.HttpClient direct;
+    private static volatile SSLContext trustAll;
+
+    private static SSLContext trustAll() throws Exception {
+        if (trustAll == null) {
             synchronized (Http2Client.class) {
-                if (shared == null) {
+                if (trustAll == null) {
                     SSLContext ssl = SSLContext.getInstance("TLS");
-                    ssl.init(null, new TrustManager[]{ new X509TrustManager() {
+                    ssl.init(null, new TrustManager[]{ new X509ExtendedTrustManager() {
+                        // The extended form is what keeps the JDK from checking the host name
+                        // too, as the HTTP/1 path does not.
                         public void checkClientTrusted(X509Certificate[] c, String a) {}
                         public void checkServerTrusted(X509Certificate[] c, String a) {}
+                        public void checkClientTrusted(X509Certificate[] c, String a, Socket s) {}
+                        public void checkServerTrusted(X509Certificate[] c, String a, Socket s) {}
+                        public void checkClientTrusted(X509Certificate[] c, String a, SSLEngine e) {}
+                        public void checkServerTrusted(X509Certificate[] c, String a, SSLEngine e) {}
                         public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
                     }}, new java.security.SecureRandom());
-                    shared = java.net.http.HttpClient.newBuilder()
-                            .version(java.net.http.HttpClient.Version.HTTP_2)
-                            .followRedirects(java.net.http.HttpClient.Redirect.NEVER)
-                            .connectTimeout(Duration.ofMillis(Math.max(1000, opt.connectTimeoutMs)))
-                            .sslContext(ssl)
-                            .build();
+                    trustAll = ssl;
                 }
             }
         }
-        return shared;
+        return trustAll;
+    }
+
+    private static java.net.http.HttpClient.Builder builder(HttpClient.Options opt) throws Exception {
+        return java.net.http.HttpClient.newBuilder()
+                .version(java.net.http.HttpClient.Version.HTTP_2)
+                .followRedirects(java.net.http.HttpClient.Redirect.NEVER)
+                .connectTimeout(Duration.ofMillis(Math.max(1000, opt.connectTimeoutMs)))
+                .sslContext(trustAll());
+    }
+
+    /**
+     * The JDK client for a send: the direct one when {@code up} is null, else the
+     * one for that HTTP upstream proxy, built once per host, port and login. The
+     * direct client names no proxy, so the JVM-wide default selector cannot
+     * route it. A proxied client leaves the target unresolved and answers the
+     * proxy's 407 on the CONNECT with the rule's login, never anywhere else.
+     */
+    static java.net.http.HttpClient clientFor(UpstreamProxy up, HttpClient.Options opt) throws Exception {
+        if (up == null) {
+            if (direct == null) {
+                synchronized (Http2Client.class) {
+                    if (direct == null)
+                        direct = builder(opt).proxy(java.net.http.HttpClient.Builder.NO_PROXY).build();
+                }
+            }
+            return direct;
+        }
+        Route key = new Route(up.host, up.port, up.user, up.pass);
+        java.net.http.HttpClient known = routed.get(key);
+        if (known != null) return known;
+        java.net.http.HttpClient.Builder b = builder(opt)
+                .proxy(ProxySelector.of(InetSocketAddress.createUnresolved(up.host, up.port)));
+        if (up.user != null && !up.user.isEmpty()) {
+            PasswordAuthentication login = new PasswordAuthentication(up.user,
+                    (up.pass == null ? "" : up.pass).toCharArray());
+            b.authenticator(new Authenticator() {
+                @Override protected PasswordAuthentication getPasswordAuthentication() {
+                    return getRequestorType() == RequestorType.PROXY ? login : null;
+                }
+            });
+        }
+        java.net.http.HttpClient made = b.build();
+        known = routed.putIfAbsent(key, made);
+        return known != null ? known : made;
     }
 
     /** The HTTP version a mode asks the JDK for. */
@@ -83,11 +146,19 @@ public final class Http2Client {
         HttpClient.Result r = new HttpClient.Result();
         long t0 = System.currentTimeMillis();
         try {
-            // QUIC cannot be tunnelled through an HTTP or SOCKS upstream, and going
-            // direct would bypass the rule, so refuse before any socket is opened.
-            if (opt.mode == HttpMode.HTTP_3 && HttpClient.upstreamFor(svc) != null) {
+            // Going direct would bypass the rule, so refuse what cannot follow it
+            // before any socket is opened: QUIC cannot be tunnelled, and the JDK
+            // connects direct when the proxy it is given is not an HTTP one.
+            UpstreamProxy up = HttpClient.upstreamFor(svc);
+            if (up != null && opt.mode == HttpMode.HTTP_3) {
                 r.error = "HTTP/3 cannot go through the upstream proxy set for " + svc.host()
                         + "; choose HTTP/1 or HTTP/2, or remove the rule";
+                r.millis = System.currentTimeMillis() - t0;
+                return r;
+            }
+            if (up != null && up.type == UpstreamProxy.Type.SOCKS) {
+                r.error = opt.mode + " cannot go through the SOCKS upstream proxy set for " + svc.host()
+                        + "; choose HTTP/1, or make the rule an HTTP proxy";
                 r.millis = System.currentTimeMillis() - t0;
                 return r;
             }
@@ -123,7 +194,7 @@ public final class Http2Client {
                 try { b.header(n, v); } catch (Exception _) {}
             }
 
-            HttpResponse<byte[]> resp = client(opt).send(b.build(), HttpResponse.BodyHandlers.ofByteArray());
+            HttpResponse<byte[]> resp = clientFor(up, opt).send(b.build(), HttpResponse.BodyHandlers.ofByteArray());
 
             StringBuilder sb = new StringBuilder();
             sb.append(versionLabel(resp.version())).append(' ').append(resp.statusCode()).append("\r\n");
@@ -135,7 +206,8 @@ public final class Http2Client {
             HttpMessage out = new HttpMessage(Bytes.concat(Bytes.bytes(sb.toString()), resp.body()));
             if (opt.unpackGzip) HttpClient.unpack(out);
             r.response = out;
-            try { r.remoteIp = InetAddress.getByName(svc.host()).getHostAddress(); } catch (Exception _) {}
+            // Through a rule the connection is to the proxy, and the target is never resolved here.
+            try { r.remoteIp = InetAddress.getByName(up == null ? svc.host() : up.host).getHostAddress(); } catch (Exception _) {}
         } catch (Exception e) {
             r.error = e.getMessage() == null ? e.toString() : e.getMessage();
         }
