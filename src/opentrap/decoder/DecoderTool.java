@@ -96,7 +96,7 @@ public class DecoderTool implements ToolModule {
             if (s.opKind == null) break;
             byte[] out;
             try {
-                out = Transforms.apply(s.opKind, s.opName, s.data);
+                out = Transforms.apply(s.opKind, s.opName, s.data, Transforms.MAX_OUTPUT);
             } catch (Exception ex) {
                 out = s.data;                    // malformed input leaves the data alone
                 s.showError(describe(ex));

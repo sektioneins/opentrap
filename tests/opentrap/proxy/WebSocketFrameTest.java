@@ -1,5 +1,6 @@
 package opentrap.proxy;
 
+import opentrap.testkit.Allocation;
 import opentrap.testkit.Expect;
 import opentrap.testkit.Harness;
 
@@ -8,7 +9,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.management.ManagementFactory;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
@@ -28,32 +28,6 @@ public final class WebSocketFrameTest {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-    }
-
-    /** Bytes the current thread allocates while {@code body} runs, measured on a fresh platform thread. */
-    private static long allocated(ThrowingRunnable body) {
-        com.sun.management.ThreadMXBean mx = (com.sun.management.ThreadMXBean) ManagementFactory.getThreadMXBean();
-        long[] result = {-2};
-        Throwable[] failure = {null};
-        Thread t = new Thread(() -> {
-            long before = mx.getCurrentThreadAllocatedBytes();
-            try {
-                body.run();
-            } catch (Throwable e) {
-                failure[0] = e;
-            }
-            long after = mx.getCurrentThreadAllocatedBytes();
-            result[0] = (before < 0 || after < 0) ? -1 : after - before;
-        });
-        t.start();
-        try {
-            t.join();
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-        if (failure[0] != null) throw new RuntimeException(failure[0]);
-        Expect.isTrue(result[0] >= 0, "thread allocation counter available");
-        return result[0];
     }
 
     private interface ThrowingRunnable {
@@ -138,7 +112,7 @@ public final class WebSocketFrameTest {
             byte[] wire = {(byte) 0x82, 0x7F, 0, 0, 0, 0, 0x7F, (byte) 0xFF, (byte) 0xFF, (byte) 0xF0};
             ByteArrayInputStream in = new ByteArrayInputStream(wire);
             WebSocketFrame[] f = new WebSocketFrame[1];
-            long bytes = allocated(() -> f[0] = WebSocketFrame.readHeader(in));
+            long bytes = Allocation.during(() -> f[0] = WebSocketFrame.readHeader(in));
             Expect.equal(f[0].length, 0x7FFFFFF0L, "declared length");
             Expect.equal(f[0].payload.length, 0, "payload held");
             Expect.equal(in.available(), 0, "bytes left unread");
@@ -154,7 +128,7 @@ public final class WebSocketFrameTest {
             byte[] wire = concat(header(0x82, 0x7F, 16L << 20), new byte[100 * 1024]);
             ByteArrayInputStream in = new ByteArrayInputStream(wire);
             boolean[] threw = {false};
-            long bytes = allocated(() -> {
+            long bytes = Allocation.during(() -> {
                 WebSocketFrame f = WebSocketFrame.readHeader(in);
                 threw[0] = throwsIo(() -> f.readPayload(in));
             });
@@ -201,7 +175,7 @@ public final class WebSocketFrameTest {
             ByteArrayInputStream in = new ByteArrayInputStream(wire);
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             boolean[] threw = {false};
-            long bytes = allocated(() -> {
+            long bytes = Allocation.during(() -> {
                 WebSocketFrame f = WebSocketFrame.readHeader(in);
                 threw[0] = throwsIo(() -> f.streamPayload(in, out, null, 16 << 20));
             });
