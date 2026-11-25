@@ -16,8 +16,9 @@ import java.util.zip.ZipFile;
  * one entry per TLD, named in Unicode; each line of an entry is a type byte
  * (0 ICANN, 1 private), a rule ({@code co.uk}, {@code *.sch.uk},
  * {@code !www.ck}) and a newline. Rules are read per TLD on first use and
- * cached, except after a failed read, which is tried again. When the file is missing or unreadable only the list's default rule
- * applies: a single label is a public suffix.
+ * cached, except after a failed read, which is tried again. When the file is
+ * missing or unreadable only the list's default rule applies: a single label
+ * is a public suffix.
  */
 final class PublicSuffixes {
 

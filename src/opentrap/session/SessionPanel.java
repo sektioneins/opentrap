@@ -323,7 +323,7 @@ public class SessionPanel extends JPanel {
     private JComponent buildCookieJar() {
         JTable table = new JTable(cookieModel);
         Ui.styleTable(table);
-        Ui.distributeWidths(table, 160, 120, 220, 90, 60, 70);
+        Ui.distributeWidths(table, 160, 120, 220, 90, 60, 70, 70);
 
         JButton add = Ui.primaryButton("add cookie", "add a cookie to the jar");
         JButton del = Ui.button("delete");

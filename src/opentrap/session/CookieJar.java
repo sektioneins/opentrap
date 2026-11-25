@@ -86,8 +86,8 @@ public final class CookieJar implements Serializable {
             // A Domain the host may not set (5.3 steps 5 and 6) is ignored: it must
             // domain-match the host, checked first so a junk TLD never reaches the
             // suffix list. A public suffix is kept host-only when it is the host itself.
-            // A trailing dot is ignored for the public-suffix check only.
             if (!Cookie.domainMatch(reqHost, domainAttr)) return null;
+            // A trailing dot is ignored for the public-suffix check only.
             if (!PublicSuffixes.jdk().isPublicSuffix(stripTrailingDot(domainAttr))) {
                 c.domain = domainAttr;
                 c.hostOnly = false;
@@ -117,7 +117,7 @@ public final class CookieJar implements Serializable {
      */
     public synchronized String headerFor(HttpService svc, HttpMessage req, String existingCookie) {
         String path = req == null ? "/" : req.path();
-        Map<String, Cookie> winners = new LinkedHashMap<>();   // name -> winner, in jar order of the winner
+        Map<String, Cookie> winners = new LinkedHashMap<>();   // name -> winner, in the slot of the first match
         Map<Cookie, Integer> position = new java.util.IdentityHashMap<>();
         int n = 0;
         for (Cookie c : cookies.values()) {
