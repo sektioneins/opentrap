@@ -13,6 +13,7 @@ import java.net.Socket;
 import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.zip.DeflaterOutputStream;
 import java.util.zip.GZIPOutputStream;
 
@@ -155,6 +156,63 @@ public final class UnpackTest {
             Expect.isTrue(Arrays.equals(before, m.raw()), "raw unchanged");
         });
 
+        Harness.test("a body that breaks off after some output gives the budget back", () -> {
+            byte[] whole = gzip(zeros(1 << 20));
+            HttpMessage m = new HttpMessage(response("gzip", Arrays.copyOf(whole, whole.length - 8)));
+            byte[] before = m.raw().clone();
+            Expect.isNull(apply(m, MB16), "no note");
+            Expect.isTrue(Arrays.equals(before, m.raw()), "raw unchanged");
+        });
+
+        Harness.test("a body encoded twice is decoded in reverse order", () -> {
+            byte[] hello = Bytes.bytes("hello");
+            HttpMessage a = new HttpMessage(response("gzip, deflate", deflate(gzip(hello))));
+            Expect.isNull(apply(a, MB16), "gzip, deflate has no note");
+            unpackedTo(a, hello);
+            HttpMessage b = new HttpMessage(response("deflate, gzip", gzip(deflate(hello))));
+            Expect.isNull(apply(b, MB16), "deflate, gzip has no note");
+            unpackedTo(b, hello);
+        });
+
+        Harness.test("a coding the client cannot decode leaves the whole body as received", () -> {
+            for (String enc : new String[] {"gzip, zstd", "zstd, gzip"}) {
+                HttpMessage m = new HttpMessage(response(enc, gzip(Bytes.bytes("hello"))));
+                byte[] before = m.raw().clone();
+                Expect.isNull(apply(m, MB16), enc + " has no note");
+                Expect.isTrue(Arrays.equals(before, m.raw()), enc + " raw unchanged");
+            }
+        });
+
+        Harness.test("identity, letter case and x-gzip are understood", () -> {
+            byte[] hello = Bytes.bytes("hello");
+            HttpMessage a = new HttpMessage(response("Identity, GZIP", gzip(hello)));
+            Expect.isNull(apply(a, MB16), "Identity, GZIP has no note");
+            unpackedTo(a, hello);
+            HttpMessage b = new HttpMessage(response("x-gzip", gzip(hello)));
+            Expect.isNull(apply(b, MB16), "x-gzip has no note");
+            unpackedTo(b, hello);
+        });
+
+        Harness.test("two Content-Encoding lines are one list in order", () -> {
+            byte[] hello = Bytes.bytes("hello");
+            byte[] body = deflate(gzip(hello));
+            HttpMessage m = new HttpMessage(Bytes.concat(Bytes.bytes("HTTP/1.1 200 OK\r\nContent-Encoding: gzip"
+                    + "\r\nContent-Encoding: deflate\r\nContent-Length: " + body.length + "\r\n\r\n"), body));
+            Expect.isNull(apply(m, MB16), "no note");
+            unpackedTo(m, hello);
+            Expect.isFalse(m.headerText().toLowerCase().contains("content-encoding"), "no Content-Encoding line left");
+        });
+
+        Harness.test("a body compressed twice is bounded by its final output", () -> {
+            HttpMessage m = new HttpMessage(response("gzip, gzip", gzip(repeat(gzip(zeros(1 << 20)), 10240))));
+            byte[] before = m.raw().clone();
+            String[] note = new String[1];
+            long bytes = Allocation.during(() -> note[0] = apply(m, MB16));
+            Expect.equal(note[0], limitNote("gzip, gzip", "16 MB"), "note");
+            Expect.isTrue(Arrays.equals(before, m.raw()), "raw unchanged");
+            Expect.isTrue(bytes < 3L * MB16, "allocated " + bytes);
+        });
+
         Harness.test("the shared budget refuses a take past its capacity and changes nothing", () -> {
             Unpack.Budget b = new Unpack.Budget(100);
             Expect.isTrue(b.take(60), "take 60");
@@ -169,13 +227,14 @@ public final class UnpackTest {
         Harness.test("a response over the limit reaches the caller as the server sent it", () -> {
             byte[] sent = response("gzip", gzip(zeros(4096)));
             try (ServerSocket server = new ServerSocket(0, 1, LOOPBACK)) {
-                serve(server, sent);
+                CompletableFuture<Void> done = serve(server, sent);
                 HttpClient.Options o = new HttpClient.Options();
                 o.unpackLimit = 1024;
                 HttpClient.Result r = sendGet(server, o);
                 Expect.isTrue(r.ok(), "response: " + r.error);
                 Expect.equal(r.unpackNote, limitNote("gzip", "1024 bytes"), "note");
                 Expect.isTrue(Arrays.equals(sent, r.response.raw()), "the bytes the server sent");
+                joinServer(done);
             } catch (IOException e) { throw new RuntimeException(e); }
         });
 
@@ -184,7 +243,7 @@ public final class UnpackTest {
             byte[] moved = Bytes.concat(Bytes.bytes("HTTP/1.1 302 Found\r\nLocation: /next\r\nContent-Encoding: gzip"
                     + "\r\nContent-Length: " + big.length + "\r\n\r\n"), big);
             try (ServerSocket server = new ServerSocket(0, 1, LOOPBACK)) {
-                serve(server, moved, response("gzip", gzip(Bytes.bytes("hello"))));
+                CompletableFuture<Void> done = serve(server, moved, response("gzip", gzip(Bytes.bytes("hello"))));
                 HttpClient.Options o = new HttpClient.Options();
                 o.followRedirects = true;
                 o.unpackLimit = 1024;
@@ -193,8 +252,15 @@ public final class UnpackTest {
                 Expect.equal(r.redirectsFollowed, 1, "one redirect");
                 Expect.equal(r.unpackNote, "", "no note");
                 Expect.equal(r.response.bodyText(), "hello", "final body");
+                joinServer(done);
             } catch (IOException e) { throw new RuntimeException(e); }
         });
+    }
+
+    /** Waits for the server thread, so a failure on its side shows its cause. */
+    private static void joinServer(CompletableFuture<Void> done) {
+        try { done.get(5, TimeUnit.SECONDS); }
+        catch (Exception e) { throw new RuntimeException("server side failed", e); }
     }
 
     private static HttpClient.Result sendGet(ServerSocket server, HttpClient.Options o) {

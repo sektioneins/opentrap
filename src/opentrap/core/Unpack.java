@@ -3,6 +3,7 @@ package opentrap.core;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicLong;
@@ -15,6 +16,11 @@ import java.util.zip.InflaterInputStream;
  * the size of its output, and a budget shared by every decode at once keeps
  * many such bodies arriving together from adding up. A body that would pass
  * either stays as the server sent it, and the caller gets a note saying why.
+ * Stacked codings are undone in reverse order of the header, one stream over
+ * the next, so only the final output is held. The budget counts that decoded
+ * output while a decode runs; it does not count decoder state (the brotli
+ * window, up to 16 MB per decode) or the array a successful decode builds, so
+ * it bounds those allocations only loosely.
  */
 final class Unpack {
     private Unpack() {}
@@ -56,18 +62,15 @@ final class Unpack {
      * what the budget has left; the message is then left as it was.
      */
     static String apply(HttpMessage m, int limit, Budget budget) {
-        String ce = m.header("Content-Encoding");
-        if (ce == null) return null;
-        String enc = ce.trim().toLowerCase(Locale.ROOT);
+        List<String> codings = codings(m);
+        if (codings.isEmpty()) return null;
+        for (String c : codings) if (!known(c)) return null;
         byte[] raw = m.raw();
         int off = m.bodyOffset();
         if (off >= raw.length) return null;
-        String name = enc.contains("gzip") ? "gzip"
-                : enc.contains("deflate") ? "deflate"
-                : enc.contains("br") ? "br" : null;
-        if (name == null) return null;
+        String enc = String.join(", ", codings);
         long taken = 0;
-        try (InputStream dec = decoder(name, new ByteArrayInputStream(raw, off, raw.length - off))) {
+        try (InputStream dec = decoders(codings, new ByteArrayInputStream(raw, off, raw.length - off))) {
             List<byte[]> chunks = new ArrayList<>();
             long total = 0;
             while (true) {
@@ -75,16 +78,17 @@ final class Unpack {
                 int k = 0, n;
                 while (k < CHUNK && (n = dec.read(chunk, k, CHUNK - k)) > 0) k += n;
                 if (!budget.take(k)) {
-                    return "Response body left compressed (" + name + "): responses decoding at the same time"
+                    return "Response body left compressed (" + enc + "): responses decoding at the same time"
                             + " already hold most of the " + size(budget.capacity) + " they may share.";
                 }
                 taken += k;
                 total += k;
                 if (total > limit) {
-                    return "Response body left compressed (" + name + "): it decodes to more than "
+                    return "Response body left compressed (" + enc + "): it decodes to more than "
                             + size(limit) + ", the unpack limit.";
                 }
-                if (k > 0) chunks.add(chunk);
+                // A chunk that came back short ended the stream; keep only what it holds.
+                if (k > 0) chunks.add(k < CHUNK ? Arrays.copyOf(chunk, k) : chunk);
                 if (k < CHUNK) break;
             }
             replaceBody(m, chunks, (int) total);
@@ -100,9 +104,36 @@ final class Unpack {
         }
     }
 
-    private static InputStream decoder(String name, InputStream src) throws Exception {
-        return switch (name) {
-            case "gzip" -> new GZIPInputStream(src);
+    /** The codings of every Content-Encoding line in order, lowercased, without empty tokens and identity. */
+    private static List<String> codings(HttpMessage m) {
+        List<String> out = new ArrayList<>();
+        for (String line : m.headerLines()) {
+            if (!line.regionMatches(true, 0, "Content-Encoding:", 0, 17)) continue;
+            for (String t : line.substring(17).split(",")) {
+                String c = t.trim().toLowerCase(Locale.ROOT);
+                if (!c.isEmpty() && !c.equals("identity")) out.add(c);
+            }
+        }
+        return out;
+    }
+
+    private static boolean known(String coding) {
+        return switch (coding) {
+            case "gzip", "x-gzip", "deflate", "br" -> true;
+            default -> false;
+        };
+    }
+
+    /** Chains the decoders over the body, the last coding applied being the first undone. */
+    private static InputStream decoders(List<String> codings, InputStream src) throws Exception {
+        InputStream in = src;
+        for (int i = codings.size() - 1; i >= 0; i--) in = decoder(codings.get(i), in);
+        return in;
+    }
+
+    private static InputStream decoder(String coding, InputStream src) throws Exception {
+        return switch (coding) {
+            case "gzip", "x-gzip" -> new GZIPInputStream(src);
             case "deflate" -> new InflaterInputStream(src);
             default -> new org.brotli.dec.BrotliInputStream(src);
         };
@@ -121,9 +152,8 @@ final class Unpack {
         System.arraycopy(h, 0, out, 0, h.length);
         int at = h.length;
         for (byte[] c : chunks) {
-            int n = Math.min(c.length, out.length - at);
-            System.arraycopy(c, 0, out, at, n);
-            at += n;
+            System.arraycopy(c, 0, out, at, c.length);
+            at += c.length;
         }
         m.setRaw(out);
     }
