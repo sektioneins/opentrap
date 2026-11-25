@@ -19,8 +19,8 @@ import java.util.zip.InflaterInputStream;
  * Stacked codings are undone in reverse order of the header, one stream over
  * the next, so only the final output is held. The budget counts that decoded
  * output while a decode runs; it does not count decoder state (the brotli
- * window, up to 16 MB per decode) or the array a successful decode builds, so
- * it bounds those allocations only loosely.
+ * window, up to 16 MB per decode) at all, and the array a successful decode
+ * builds is bounded only by the per-body limit.
  */
 final class Unpack {
     private Unpack() {}
@@ -127,7 +127,13 @@ final class Unpack {
     /** Chains the decoders over the body, the last coding applied being the first undone. */
     private static InputStream decoders(List<String> codings, InputStream src) throws Exception {
         InputStream in = src;
-        for (int i = codings.size() - 1; i >= 0; i--) in = decoder(codings.get(i), in);
+        try {
+            for (int i = codings.size() - 1; i >= 0; i--) in = decoder(codings.get(i), in);
+        } catch (Exception | LinkageError e) {
+            // A stage that fails to build (a bad gzip header) leaves the ones below it open.
+            try { in.close(); } catch (Exception ignored) { }
+            throw e;
+        }
         return in;
     }
 
@@ -135,7 +141,8 @@ final class Unpack {
         return switch (coding) {
             case "gzip", "x-gzip" -> new GZIPInputStream(src);
             case "deflate" -> new InflaterInputStream(src);
-            default -> new org.brotli.dec.BrotliInputStream(src);
+            case "br" -> new org.brotli.dec.BrotliInputStream(src);
+            default -> throw new IllegalStateException("no decoder for " + coding);
         };
     }
 
