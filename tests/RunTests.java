@@ -95,6 +95,7 @@ public final class RunTests {
         new opentrap.core.OwnerOnlyTest().run();
         new opentrap.extensions.store.VersionTest().run();
         new opentrap.extensions.store.ZapFeedTest().run();
+        new opentrap.extensions.store.PlainTextTest().run();
         new opentrap.extensions.store.ZapAddOnFileTest().run();
         new opentrap.extensions.store.FetcherTest().run();
         new opentrap.extensions.store.StoreRecordTest().run();

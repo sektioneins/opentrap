@@ -8,9 +8,10 @@ public final class PlainText {
 
     private PlainText() {}
 
-    private static final Pattern LI = Pattern.compile("(?i)<li\\b[^>]*>");
-    private static final Pattern BLOCK = Pattern.compile("(?i)</?(p|br|div|h[1-6]|ul|ol|li|tr|table|pre)\\b[^>]*>");
-    private static final Pattern TAG = Pattern.compile("<[^>]*>");
+    // A tag's match stops at the next "<", so text with many unclosed tags is reduced in linear time, not quadratic.
+    private static final Pattern LI = Pattern.compile("(?i)<li\\b[^<>]*>");
+    private static final Pattern BLOCK = Pattern.compile("(?i)</?(p|br|div|h[1-6]|ul|ol|li|tr|table|pre)\\b[^<>]*>");
+    private static final Pattern TAG = Pattern.compile("<[^<>]*>");
     private static final Pattern ENTITY = Pattern.compile("&(#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6}|[A-Za-z]+);");
 
     public static String of(String html) {
