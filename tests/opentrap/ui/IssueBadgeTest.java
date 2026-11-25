@@ -84,7 +84,8 @@ public final class IssueBadgeTest {
             // A machine with no usable font draws no glyph at all; that is the
             // runner's business, not a regression, so only compare when there
             // is something to compare.
-            if (countOf(certain, Theme.onBadge(Ui.SEV_LOW)) > 0 && countOf(tentative, Theme.onBadge(Ui.SEV_LOW)) > 0) {
+            Color glyph = Theme.onBadge(Ui.SEV_LOW);
+            if (countOf(certain, glyph) > 0 && countOf(tentative, glyph) > 0) {
                 Expect.isFalse(identical(tentative, certain),
                         "a tentative badge paints the same as a certain one");
             }

@@ -23,8 +23,10 @@ public final class ThemeColourScanTest {
     /** The fully transparent colour that switches painting off, allowed by its exact text. */
     private static final String TRANSPARENT = "new Color(0, 0, 0, 0)";
 
+    /** A Color constructor, decode or constant, a {@code "#RRGGBB"} string, or a CSS colour or background given by name. */
     private static final Pattern LITERAL = Pattern.compile(
-            "new Color\\(|Color\\.decode|\\bColor\\.(?!class\\b)(?:[A-Z][A-Z_]*|[a-z]+)\\b(?!\\s*\\()|\"#[0-9A-Fa-f]{6}\"");
+            "new Color\\(|Color\\.decode|\\bColor\\.(?!class\\b)(?:[A-Z][A-Z_]*|[a-z]+)\\b(?!\\s*\\()|\"#[0-9A-Fa-f]{6}\""
+            + "|\\b(?:color|background)(?:-color)?\\s*:\\s*[a-z]+\\b");
 
     public void run() {
         Harness.suite("theme colour scan");
@@ -43,6 +45,17 @@ public final class ThemeColourScanTest {
                 }
             } catch (IOException e) { throw new RuntimeException(e); }
             Expect.equal(found.toString(), "{}", "files");
+        });
+
+        Harness.test("the scan's pattern finds each kind of literal it is meant to find", () -> {
+            for (String literal : List.of("\"#ABCDEF\"", "Color.WHITE", "Color.red", "new Color(1, 2, 3)", "Color.decode(s)",
+                    "'color:white;'", "background: black", "background-color:navy")) {
+                Expect.isTrue(LITERAL.matcher(literal).find(), "found: " + literal);
+            }
+            for (String themed : List.of("Theme.css(Theme.TEXT)", "\"color:\" + Theme.css(c)", "background:\").append(",
+                    "Color.class", "\"#ABC\"")) {
+                Expect.isFalse(LITERAL.matcher(themed).find(), "not a literal: " + themed);
+            }
         });
 
         Harness.test("a stored highlight name maps to its theme colour and none or unknown maps to nothing", () -> {

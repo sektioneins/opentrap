@@ -55,11 +55,6 @@ public final class Contrast {
         new Pair("SEVERITY_MEDIUM", "BG", 3.0),
         new Pair("SEVERITY_LOW", "BG", 3.0));
 
-    /** The contrast ratio of two colours, from 1 to 21, ignoring alpha; {@link #failures} composites it. */
-    public static double ratio(Color a, Color b) {
-        return ratio(a.getRGB(), b.getRGB());
-    }
-
     /** The fills that badges, pills and tinted list rows carry a glyph or a number on. */
     public static final List<String> BADGE_FILLS = List.of("ACCENT", "WARN", "DIALOG_ERROR", "SEVERITY_HIGH",
         "SEVERITY_MEDIUM", "SEVERITY_LOW", "SEVERITY_INFO", "DECODE_URL", "DECODE_HTML", "DECODE_BASE64",
@@ -67,6 +62,11 @@ public final class Contrast {
 
     /** What a badge fill is checked with: the light on-colour or the dark one, whichever reads better. */
     public static final String BADGE_TEXT = "TEXT_ON_BADGE or TEXT_ON_BADGE_DARK";
+
+    /** The contrast ratio of two colours, from 1 to 21, ignoring alpha; {@link #failures} composites it. */
+    public static double ratio(Color a, Color b) {
+        return ratio(a.getRGB(), b.getRGB());
+    }
 
     /**
      * The on-colour of the two that reads better on {@code fill}. With white and pure

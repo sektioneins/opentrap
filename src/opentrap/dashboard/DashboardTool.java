@@ -1516,8 +1516,10 @@ public class DashboardTool implements ToolModule {
         StringBuilder html = new StringBuilder("<html>");
         for (int i = 0; i < nums.length; i++) {
             boolean on = done || i < nums.length - 1;
-            html.append("<span style='background:").append(Theme.css(on ? Ui.SEV_LOW : Theme.TOGGLE_OFF))
-                .append(";color:white;padding:1px 5px;margin-right:3px;border-radius:3px'>")
+            Color fill = on ? Ui.SEV_LOW : Theme.TOGGLE_OFF;
+            html.append("<span style='background:").append(Theme.css(fill))
+                .append(";color:").append(Theme.css(Theme.onBadge(fill)))
+                .append(";padding:1px 5px;margin-right:3px;border-radius:3px'>")
                 .append(opentrap.ui.Advisory.esc(nums[i])).append("</span> ");
         }
         return html + "</html>";
