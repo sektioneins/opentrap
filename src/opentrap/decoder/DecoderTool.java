@@ -216,7 +216,7 @@ public class DecoderTool implements ToolModule {
         @Override public Component getListCellRendererComponent(JList<?> list, Object v, int i, boolean sel, boolean f) {
             super.getListCellRendererComponent(list, v, i, sel, f);
             Color c = opColour(String.valueOf(v));
-            if (c != null && !sel && i >= 0) { setOpaque(true); setBackground(c); setForeground(opentrap.ui.Theme.TEXT_ON_BADGE); }
+            if (c != null && !sel && i >= 0) { setOpaque(true); setBackground(c); setForeground(opentrap.ui.Theme.onBadge(c)); }
             return this;
         }
     }

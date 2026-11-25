@@ -125,6 +125,7 @@ A key you do not set comes from the base, derived from its constants. Set a key 
 | `TOGGLE_OFF` | The track of a switched-off toggle. |
 | `SCROLL_THUMB`, `SCROLL_THUMB_HOVER` | The scrollbar thumb. |
 | `TEXT_ON_ACCENT`, `TEXT_ON_CONTROL`, `TEXT_ON_SELECTION`, `TEXT_ON_BADGE` | Text and icons on an accent fill, a control fill, a selected row, a round badge. |
+| `TEXT_ON_BADGE_DARK` | The dark glyph or number on a badge, pill or coloured row where `TEXT_ON_BADGE` does not read. Each badge uses whichever of the two reads better on its fill. Keep it at or near black, so that one of the two always reaches 4.5 to 1. |
 
 **Status and severity**
 
@@ -169,7 +170,7 @@ A key you do not set comes from the base, derived from its constants. Set a key 
 
 ## Contrast
 
-When you add a theme, OpenTRAP checks the colour pairs that text and marks are drawn with, for example `TEXT` on `BG`, `TEXT` on `CARD`, `LINK` on `BG`, and `TEXT` on `POSITION_MARK`. Text pairs need 4.5 to 1; secondary text, severity colours and marks need 3 to 1. The summary lists the pairs your theme changes and that fall short; it does not block the theme. A weakness the base already has is not blamed on you.
+When you add a theme, OpenTRAP checks the colour pairs that text and marks are drawn with, for example `TEXT` on `BG`, `TEXT` on `CARD`, `LINK` on `BG`, and `TEXT` on `POSITION_MARK`, and every badge, pill and coloured row fill (the accent, the warning and error icons, the severity and Decoder colours) with the better of `TEXT_ON_BADGE` and `TEXT_ON_BADGE_DARK`. Text pairs need 4.5 to 1; secondary text, severity colours and marks need 3 to 1. The summary lists the pairs your theme changes and that fall short; it does not block the theme. A weakness the base already has is not blamed on you.
 
 ## Where themes go and Add from file
 

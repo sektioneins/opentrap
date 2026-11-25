@@ -122,6 +122,8 @@ public final class Theme {
     public static Color TEXT_ON_SELECTION;
     /** The glyph on a round severity or dialog badge. */
     public static Color TEXT_ON_BADGE;
+    /** The dark text and glyph on a badge or pill fill that white does not read on. */
+    public static Color TEXT_ON_BADGE_DARK;
     /** Site map: the open padlock of a plain-text host. */
     public static Color SITE_INSECURE;
     /** Site map: the folder body. */
@@ -215,6 +217,9 @@ public final class Theme {
             default -> null;
         };
     }
+
+    /** The glyph or number colour for a badge, pill or tinted row on {@code fill}: white or the dark one, whichever reads better. */
+    public static Color onBadge(Color fill) { return Contrast.onBadge(fill, TEXT_ON_BADGE, TEXT_ON_BADGE_DARK); }
 
     /** The colour with its alpha channel set to {@code alpha} (0 to 255). */
     public static Color alpha(Color c, int alpha) {

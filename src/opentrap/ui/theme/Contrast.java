@@ -61,6 +61,22 @@ public final class Contrast {
         return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
     }
 
+    /** The fills that badges, pills and tinted list rows carry a glyph or a number on. */
+    public static final List<String> BADGE_FILLS = List.of("ACCENT", "WARN", "DIALOG_ERROR", "SEVERITY_HIGH",
+        "SEVERITY_MEDIUM", "SEVERITY_LOW", "SEVERITY_INFO", "DECODE_URL", "DECODE_HTML", "DECODE_BASE64",
+        "DECODE_HEX", "DECODE_OCTAL", "DECODE_BINARY", "DECODE_COMPRESSED", "CONTROL");
+
+    /** What a badge fill is checked with: the light on-colour or the dark one, whichever reads better. */
+    public static final String BADGE_TEXT = "TEXT_ON_BADGE or TEXT_ON_BADGE_DARK";
+
+    /**
+     * The on-colour of the two that reads better on {@code fill}. With white and pure
+     * black one of them always reaches 4.5 to 1, so a badge never needs a third colour.
+     */
+    public static Color onBadge(Color fill, Color light, Color dark) {
+        return ratio(dark, fill) > ratio(light, fill) ? dark : light;
+    }
+
     private static double luminance(Color c) {
         return 0.2126 * channel(c.getRed()) + 0.7152 * channel(c.getGreen()) + 0.0722 * channel(c.getBlue());
     }
@@ -79,6 +95,14 @@ public final class Contrast {
                 if (r < p.min()) out.add(new Failure(p, r));
             }
         }
+        if (values.get("TEXT_ON_BADGE") instanceof Color light && values.get("TEXT_ON_BADGE_DARK") instanceof Color dark) {
+            for (String fill : BADGE_FILLS) {
+                if (values.get(fill) instanceof Color bg) {
+                    double r = Math.max(ratio(light, bg), ratio(dark, bg));
+                    if (r < 4.5) out.add(new Failure(new Pair(BADGE_TEXT, fill, 4.5), r));
+                }
+            }
+        }
         return out;
     }
 
@@ -90,8 +114,11 @@ public final class Contrast {
         List<Failure> out = new ArrayList<>();
         for (Failure f : failures(theme)) {
             Pair p = f.pair();
-            if (!java.util.Objects.equals(theme.get(p.fg()), baseAlone.get(p.fg()))
-                    || !java.util.Objects.equals(theme.get(p.bg()), baseAlone.get(p.bg()))) out.add(f);
+            boolean moved = !java.util.Objects.equals(theme.get(p.bg()), baseAlone.get(p.bg()));
+            for (String key : p.fg().split(" or ")) {
+                moved |= !java.util.Objects.equals(theme.get(key), baseAlone.get(key));
+            }
+            if (moved) out.add(f);
         }
         return out;
     }

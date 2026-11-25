@@ -88,6 +88,40 @@ public final class ContrastTest {
             Expect.isTrue(bad.length() == 0, "pairs below the high-contrast target:" + bad);
         });
 
+        Harness.test("every badge fill has a readable on-colour in every shipped theme", () -> {
+            ThemeCatalog c = new ThemeCatalog(java.nio.file.Path.of("/dev/null/themes"));
+            StringBuilder bad = new StringBuilder();
+            for (String id : ThemeCatalog.SHIPPED) {
+                Map<String, Object> v;
+                try {
+                    v = c.resolve(id).values();
+                } catch (ThemeException | java.io.IOException e) {
+                    throw new AssertionError(e);
+                }
+                double need = id.equals("high-contrast") ? 7.0 : 4.5;
+                Color light = (Color) v.get("TEXT_ON_BADGE"), dark = (Color) v.get("TEXT_ON_BADGE_DARK");
+                Expect.isTrue(dark != null, id + " has TEXT_ON_BADGE_DARK");
+                for (String f : Contrast.BADGE_FILLS) {
+                    Color fill = (Color) v.get(f);
+                    double best = Math.max(Contrast.ratio(light, fill), Contrast.ratio(dark, fill));
+                    if (best < need) bad.append(String.format(java.util.Locale.ROOT, "\n  %s: %s is %.2f, needs %.1f", id, f, best, need));
+                }
+            }
+            Expect.isTrue(bad.length() == 0, "badge fills without a readable on-colour:" + bad);
+        });
+
+        Harness.test("a badge on amber takes the dark on-colour and one on the dialog red keeps white", () -> {
+            try {
+                Theme.configure(false);
+                Expect.equal(Theme.onBadge(Theme.WARN), Theme.TEXT_ON_BADGE_DARK, "amber gets the dark glyph");
+                Expect.equal(Theme.onBadge(Theme.DIALOG_ERROR), Theme.TEXT_ON_BADGE, "the dialog red keeps white");
+                Expect.equal(Contrast.onBadge(new Color(255, 255, 0), Color.WHITE, Color.BLACK), Color.BLACK, "yellow");
+                Expect.equal(Contrast.onBadge(new Color(0, 0, 80), Color.WHITE, Color.BLACK), Color.WHITE, "navy");
+            } finally {
+                Theme.configure(false);
+            }
+        });
+
         Harness.test("a failing pair the theme did not change is not reported", () -> {
             Color grey = new Color(120, 120, 120), white = new Color(255, 255, 255);
             Map<String, Object> base = Map.of("TEXT", grey, "BG", white, "MUTED", grey);

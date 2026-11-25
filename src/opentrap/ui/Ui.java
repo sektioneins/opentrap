@@ -87,7 +87,7 @@ public final class Ui {
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 g2.setColor(col);
                 g2.fillOval(x + 1, y + 1, 13, 13);
-                g2.setColor(Theme.TEXT_ON_BADGE);
+                g2.setColor(Theme.onBadge(col));
                 g2.setFont(new Font("Dialog", Font.BOLD, 11));
                 FontMetrics fm = g2.getFontMetrics();
                 g2.drawString(glyph, x + 1 + (13 - fm.stringWidth(glyph)) / 2f,

@@ -35,7 +35,7 @@ public class DialogIcon implements Icon, UIResource {
             case QUESTION -> "?";
             case WARNING, ERROR -> "!";
         };
-        g2.setColor(Theme.TEXT_ON_BADGE);
+        g2.setColor(Theme.onBadge(fill));
         g2.setFont(new Font("Dialog", Font.BOLD, 20));
         FontMetrics fm = g2.getFontMetrics();
         int tx = x + (SIZE - fm.stringWidth(glyph)) / 2;

@@ -2057,7 +2057,7 @@ public class DashboardTool implements ToolModule {
         }
     }
 
-    /** A capsule-shaped, coloured issue-count pill with white text. */
+    /** A capsule-shaped, coloured issue-count pill with white or dark text. */
     private static JComponent pill(int count, Color bg) {
         final String text = Integer.toString(count);
         JComponent c = new JComponent() {
@@ -2067,7 +2067,7 @@ public class DashboardTool implements ToolModule {
                 int w = getWidth(), h = getHeight();
                 g2.setColor(bg);
                 g2.fillRoundRect(0, 0, w - 1, h - 1, h, h);   // radius = height: a capsule
-                g2.setColor(Theme.TEXT_ON_BADGE);
+                g2.setColor(Theme.onBadge(bg));
                 g2.setFont(Fonts.ui(Font.BOLD, 11));
                 FontMetrics fm = g2.getFontMetrics();
                 int tw = fm.stringWidth(text);
