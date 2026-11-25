@@ -104,6 +104,18 @@ public final class ThemeStyleTest {
             Expect.isNull(b.getIcon(), "the dot goes once the panel is read");
         });
 
+        Harness.test("a selected vertical tab's title takes the accent's text colour, not the fill", () -> {
+            try {
+                for (boolean dark : new boolean[] {false, true}) {
+                    Theme.configure(dark);
+                    Expect.equal(VerticalTab.textColour(true), Theme.ACCENT_TEXT, (dark ? "dark" : "light") + " selected");
+                    Expect.equal(VerticalTab.textColour(false), Theme.MUTED, (dark ? "dark" : "light") + " unselected");
+                }
+            } finally {
+                Theme.configure(false);
+            }
+        });
+
         Harness.test("a wider line keeps the border's insets", () -> {
             try {
                 RoundedBorder b = new RoundedBorder(Theme.BORDER, null, Theme.RADIUS, new Insets(4, 7, 4, 7));

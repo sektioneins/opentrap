@@ -31,6 +31,38 @@ public final class Contrast {
         new Pair("TEXT_ON_SELECTION", "ACCENT_LIGHT", 4.5),
         new Pair("LINK", "BG", 4.5),
         new Pair("ERROR", "BG", 4.5),
+        // Error labels on cards and surfaces, and a failed row in a zebra-striped table.
+        new Pair("ERROR", "CARD", 4.5),
+        new Pair("ERROR", "SURFACE", 4.5),
+        new Pair("ERROR", "ACCENT_FAINT", 4.5),
+        // The accent as text: accent links on cards, a selected vertical tab, queued rows, a heading.
+        new Pair("ACCENT_TEXT", "BG", 4.5),
+        new Pair("ACCENT_TEXT", "CARD", 4.5),
+        new Pair("ACCENT_TEXT", "SURFACE", 4.5),
+        new Pair("ACCENT_TEXT", "ACCENT_FAINT", 4.5),
+        new Pair("ACCENT_TEXT", "ACCENT_LIGHT", 4.5),
+        // The severity in an advisory, as text on the page.
+        new Pair("ADVISORY_HIGH", "BG", 4.5),
+        new Pair("ADVISORY_MEDIUM", "BG", 4.5),
+        new Pair("ADVISORY_LOW", "BG", 4.5),
+        new Pair("ADVISORY_INFO", "BG", 4.5),
+        // Syntax colours in a message view, on the page and under a search match.
+        new Pair("CODE_NAME", "BG", 4.5),
+        new Pair("CODE_START", "BG", 4.5),
+        new Pair("CODE_KEY", "BG", 4.5),
+        new Pair("CODE_STRING", "BG", 4.5),
+        new Pair("CODE_NUMBER", "BG", 4.5),
+        new Pair("CODE_NAME", "HIGHLIGHT", 4.5),
+        new Pair("CODE_START", "HIGHLIGHT", 4.5),
+        new Pair("CODE_KEY", "HIGHLIGHT", 4.5),
+        new Pair("CODE_STRING", "HIGHLIGHT", 4.5),
+        new Pair("CODE_NUMBER", "HIGHLIGHT", 4.5),
+        // The Discover hero: its text on the band, and the accented headline word, large text.
+        new Pair("HERO_TEXT", "HERO_TOP", 4.5),
+        new Pair("HERO_BODY", "HERO_TOP", 4.5),
+        new Pair("HERO_MUTED", "HERO_TOP", 4.5),
+        new Pair("HERO_ACCENT", "HERO_TOP", 3.0),
+        new Pair("HERO_ACCENT", "HERO_BOTTOM", 3.0),
         // The chosen preset and scan row, and a flashing tab, are on ACCENT_LIGHT.
         new Pair("TEXT", "ACCENT_LIGHT", 4.5),
         new Pair("TAB_TEXT", "ACCENT_LIGHT", 4.5),

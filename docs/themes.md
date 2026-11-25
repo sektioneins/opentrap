@@ -118,6 +118,7 @@ A key you do not set comes from the base, derived from its constants. Set a key 
 | Key | Colours |
 |---|---|
 | `ACCENT`, `ACCENT_DARK` | Primary buttons and the active tab marker; the hover shade. |
+| `ACCENT_TEXT` | The accent as text: accent links, a selected vertical tab, queued add-on changes, an issue definition's heading. The bases derive it from `@accent`, so a theme that sets the `ACCENT` key instead should set this too. |
 | `ACCENT_LIGHT` | Selected rows, a flashing tab. |
 | `CONTROL`, `CONTROL_TINT` | Switched-on controls; the tint behind a selected card or list row. |
 | `SEGMENT_OFF` | An unselected segment. |
@@ -153,6 +154,7 @@ A key you do not set comes from the base, derived from its constants. Set a key 
 |---|---|
 | `DECODE_URL`, `_HTML`, `_BASE64`, `_HEX`, `_OCTAL`, `_BINARY`, `_COMPRESSED` | The Decoder transforms. |
 | `HERO_TOP`, `HERO_BOTTOM`, `HERO_GLOW`, `HERO_TEXT`, `HERO_BODY`, `HERO_MUTED` | The Discover hero band. |
+| `HERO_ACCENT` | The accented word of the Discover headline. It sits on the hero band, not on the page. The bases set it to `@accent`, so a theme that sets the `ACCENT` key instead should set this too. |
 | `INTERCEPT_BEAM`, `_BODY`, `_FACE`, `_LAMP_OFF`, `_LAMP_ON` | The Proxy intercept illustration. |
 | `SITE_INSECURE`, `SITE_FOLDER`, `SITE_FOLDER_LIGHT`, `SITE_OVERLAY`, `SITE_PAGE` | Site map icons. |
 | `EMPTY_ICON` | The icon of an empty panel. |
@@ -170,7 +172,7 @@ A key you do not set comes from the base, derived from its constants. Set a key 
 
 ## Contrast
 
-When you add a theme, OpenTRAP checks the colour pairs that text and marks are drawn with, for example `TEXT` on `BG`, `TEXT` on `CARD`, `LINK` on `BG`, and `TEXT` on `POSITION_MARK`, and every badge, pill and coloured row fill (the accent, the warning and error icons, the severity and Decoder colours, and `TOGGLE_OFF` under the dashboard's waiting phase numbers) with the better of `TEXT_ON_BADGE` and `TEXT_ON_BADGE_DARK`. Text pairs and badges need 4.5 to 1; secondary text on the page and on a selection, and the severity colours on the page, need 3 to 1. A colour with an alpha is measured as it is painted: over the page, and text over the colour it sits on. The summary lists the pairs your theme changes and that fall short; it does not block the theme. A weakness the base already has is not blamed on you.
+When you add a theme, OpenTRAP checks the colour pairs that text and marks are drawn with, for example `TEXT` on `BG`, `TEXT` on `CARD`, `LINK` on `BG`, `TEXT` on `POSITION_MARK`, `ACCENT_TEXT` on the page, cards, surfaces and a selection, `ERROR` on cards and surfaces, the `ADVISORY_` colours on the page, the `CODE_` colours on the page and on `HIGHLIGHT`, and the hero's text and `HERO_ACCENT` on its band, and every badge, pill and coloured row fill (the accent, the warning and error icons, the severity and Decoder colours, and `TOGGLE_OFF` under the dashboard's waiting phase numbers) with the better of `TEXT_ON_BADGE` and `TEXT_ON_BADGE_DARK`. Text pairs and badges need 4.5 to 1; secondary text on the page and on a selection, the severity colours on the page, and the large `HERO_ACCENT` on the hero band need 3 to 1. A colour with an alpha is measured as it is painted: over the page, and text over the colour it sits on. The summary lists the pairs your theme changes and that fall short; it does not block the theme. A weakness the base already has is not blamed on you.
 
 ## Where themes go and Add from file
 

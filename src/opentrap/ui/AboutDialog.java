@@ -41,7 +41,7 @@ public final class AboutDialog {
     }
 
     private static String html() {
-        String accent = String.format("#%06x", Theme.ACCENT.getRGB() & 0xFFFFFF);
+        String link = String.format("#%06x", Theme.LINK.getRGB() & 0xFFFFFF);
         String muted = String.format("#%06x", Theme.MUTED.getRGB() & 0xFFFFFF);
         StringBuilder sb = new StringBuilder();
         sb.append("<html><body style='font-family:").append(Fonts.css(Fonts.uiFamily()))
@@ -50,7 +50,7 @@ public final class AboutDialog {
         sb.append("<div style='color:").append(muted).append("'>Open Traffic Replay and Analysis Proxy</div>");
         sb.append("<p>An open-source web security testing suite built around an intercepting proxy.</p>");
         sb.append("<p style='margin-bottom:10px'>").append(Main.NAME).append(" is a fork maintained by <a href='").append(SEKTIONEINS).append("' style='color:")
-          .append(accent).append("'>SektionEins</a>.</p>");
+          .append(link).append("'>SektionEins</a>.</p>");
         sb.append("<table cellpadding='1' cellspacing='0'>");
         row(sb, "Build", Main.VERSION);
         row(sb, "Scan engine", engineVersion());
@@ -60,13 +60,13 @@ public final class AboutDialog {
         row(sb, "Licence", "GNU AGPL v3.0");
         sb.append("</table>");
         sb.append("<p><b>").append(Main.NAME).append("</b><br>");
-        link(sb, accent, FORK_REPO, "Source and issues on GitHub");
-        link(sb, accent, FORK_REPO + "/releases", "Releases");
+        link(sb, link, FORK_REPO, "Source and issues on GitHub");
+        link(sb, link, FORK_REPO + "/releases", "Releases");
         sb.append("</p>");
         sb.append("<p><b>Original OpenTRAP</b><br>");
-        link(sb, accent, Upstream.URL, "Source and issues on GitHub");
-        link(sb, accent, SITE, "Project site");
-        link(sb, accent, Upstream.URL + "/blob/main/CONTRIBUTING.md", "How to contribute");
+        link(sb, link, Upstream.URL, "Source and issues on GitHub");
+        link(sb, link, SITE, "Project site");
+        link(sb, link, Upstream.URL + "/blob/main/CONTRIBUTING.md", "How to contribute");
         sb.append("</p>");
         sb.append("</body></html>");
         return sb.toString();

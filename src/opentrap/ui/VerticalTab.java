@@ -31,6 +31,11 @@ public final class VerticalTab extends JToggleButton {
                 fm.stringWidth(getText()) + 26 + extra);
     }
     @Override public Dimension getMaximumSize() { return getPreferredSize(); }
+    /** The title's colour: the accent as text on the selection fill, muted otherwise. */
+    static Color textColour(boolean selected) {
+        return selected ? Theme.ACCENT_TEXT : Theme.MUTED;
+    }
+
     @Override protected void paintComponent(Graphics g) {
         Graphics2D g2 = (Graphics2D) g.create();
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
@@ -40,7 +45,7 @@ public final class VerticalTab extends JToggleButton {
             top = mark.getIconHeight() + 6;
             mark.paintIcon(this, g2, (getWidth() - mark.getIconWidth()) / 2, 4);
         }
-        g2.setColor(isSelected() ? Ui.ACCENT : Theme.MUTED);
+        g2.setColor(textColour(isSelected()));
         g2.setFont(getFont());
         FontMetrics fm = g2.getFontMetrics();
         int tw = fm.stringWidth(getText());

@@ -19,6 +19,7 @@ description = The OpenTRAP-S1 logo colours on a light page: navy for text, links
 
 ACCENT_LIGHT = mix(#ECB92C, @page, 38%)
 HERO_GLOW = #ECB92C
+HERO_ACCENT = #ECB92C
 WARN = #ECB92C
 SEVERITY_LOW = #3A5FB0
 TOGGLE_OFF = mix(@muted, @page, 44%)

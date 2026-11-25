@@ -52,7 +52,7 @@ public class DiscoverTool implements ToolModule {
         heroText.setLayout(new BoxLayout(heroText, BoxLayout.Y_AXIS));
         heroText.setOpaque(false);
         JLabel headline = opentrap.ui.theme.HtmlGuard.allowHtml(new JLabel("<html>" + opentrap.ui.Main.NAME + ", <span style='color:"
-                + opentrap.ui.Theme.css(opentrap.ui.Theme.ACCENT) + "'>open.</span></html>"));
+                + opentrap.ui.Theme.css(opentrap.ui.Theme.HERO_ACCENT) + "'>open.</span></html>"));
         headline.setFont(Fonts.ui(Font.BOLD, 36));
         headline.setForeground(Theme.HERO_TEXT);
         JLabel blurb = opentrap.ui.theme.HtmlGuard.allowHtml(new JLabel("<html><div style='width:560px'>A free, open-source web security testing suite: proxy, crawler, scanner, "

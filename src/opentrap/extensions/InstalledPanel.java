@@ -927,8 +927,8 @@ public final class InstalledPanel extends JPanel {
             if (sel || r >= rows.size()) return this;
             Row row = rows.get(r);
             if (c == 5) setForeground(Theme.MUTED);
-            else if (row.error() != null || "Missing".equals(row.group())) setForeground(Ui.SEV_HIGH);
-            else if ("Pending".equals(row.group())) setForeground(Theme.ACCENT);
+            else if (row.error() != null || "Missing".equals(row.group())) setForeground(Theme.ERROR);
+            else if ("Pending".equals(row.group())) setForeground(Theme.ACCENT_TEXT);
             else setForeground(t.getForeground());
             return this;
         }
