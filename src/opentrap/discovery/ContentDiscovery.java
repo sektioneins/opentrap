@@ -86,6 +86,7 @@ public final class ContentDiscovery {
             LogEntry e = new LogEntry("discovery", base, req);
             e.setResponse(r.response);
             e.setRemoteIp(r.remoteIp);
+            e.setUnpackNote(r.unpackNote);
             ctx.store().add(e);
             ctx.siteMapChanged(e);
         }

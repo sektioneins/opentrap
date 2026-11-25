@@ -499,6 +499,7 @@ public class ProxyServer {
             HttpClient.Result res = new HttpClient().send(svc, request, opt);
             entry.setDurationMillis(System.currentTimeMillis() - t0);
             entry.setRemoteIp(res.remoteIp);
+            entry.setUnpackNote(res.unpackNote);
 
             if (!res.ok()) {
                 entry.setError(res.error);

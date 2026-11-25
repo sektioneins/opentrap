@@ -119,6 +119,58 @@ public final class ProjectSlimTest {
             } catch (Exception e) { throw new RuntimeException(e); }
         });
 
+        final String unpackSentence = "Response body left compressed (gzip): it decodes to more than 16 MB, the unpack limit.";
+
+        Harness.test("a response left compressed keeps its note through a saved project", () -> {
+            try {
+                SuiteContext ctx = new SuiteContext();
+                LogEntry e = entry("proxy", SVC, "/packed", 100);
+                e.setUnpackNote(unpackSentence);
+                ctx.store().add(e);
+                File f = tmp();
+                try {
+                    StateIO.save(ctx, f, new StateIO.SaveOptions());
+                    SuiteContext back = new SuiteContext();
+                    StateIO.restore(back, f);
+                    LogEntry got = back.store().all().get(0);
+                    Expect.equal(got.unpackNote(), unpackSentence, "the note is kept");
+                    Expect.equal(got.bodyNote(), unpackSentence, "the viewer shows it");
+                } finally { f.delete(); }
+            } catch (Exception e) { throw new RuntimeException(e); }
+        });
+
+        Harness.test("a response left compressed and cut to the cap carries both notes", () -> {
+            try {
+                SuiteContext ctx = new SuiteContext();
+                LogEntry e = entry("proxy", SVC, "/packed", 10_000);
+                e.setUnpackNote(unpackSentence);
+                ctx.store().add(e);
+                StateIO.SaveOptions o = new StateIO.SaveOptions();
+                o.bodyCapBytes = 1024;
+                File f = tmp();
+                try {
+                    StateIO.save(ctx, f, o);
+                    SuiteContext back = new SuiteContext();
+                    StateIO.restore(back, f);
+                    String note = back.store().all().get(0).bodyNote();
+                    Expect.notNull(note, "a note is there");
+                    Expect.isTrue(note.startsWith(unpackSentence + " Response body cut to the project's cap"),
+                            "the unpack note comes first, one space, then the cap note");
+                } finally { f.delete(); }
+            } catch (Exception e) { throw new RuntimeException(e); }
+        });
+
+        Harness.test("an entry from a project saved before the unpack note reads as having none", () -> {
+            try {
+                LogEntry e = entry("proxy", SVC, "/old", 100);
+                java.lang.reflect.Field fld = LogEntry.class.getDeclaredField("unpackNote");
+                fld.setAccessible(true);
+                fld.set(e, null);
+                Expect.equal(e.unpackNote(), "", "null reads as empty");
+                Expect.isTrue(e.bodyNote() == null, "no note to show");
+            } catch (Exception ex) { throw new RuntimeException(ex); }
+        });
+
         Harness.test("a saved copy can keep in-scope items only, some tools and no scan cards", () -> {
             try {
                 SuiteContext ctx = new SuiteContext();

@@ -31,6 +31,9 @@ public class LogEntry implements Serializable {
     private volatile HttpMessage originalResponse;
     private final Date time;
     private String remoteIp = "";
+    // Why the response body was left compressed (see HttpClient.Result.unpackNote).
+    // Null in a project saved before this field existed; read through unpackNote().
+    private String unpackNote = "";
     private boolean edited;
     private String notes = "";
     private String highlight = "";
@@ -95,6 +98,7 @@ public class LogEntry implements Serializable {
         this.originalResponse = src.originalResponse;
         this.time = src.time;
         this.remoteIp = src.remoteIp;
+        this.unpackNote = src.unpackNote;
         this.edited = src.edited;
         this.notes = src.notes;
         this.highlight = src.highlight;
@@ -259,6 +263,9 @@ public class LogEntry implements Serializable {
     public void setOriginalRequest(HttpMessage m) { this.originalRequest = m; }
     public void setOriginalResponse(HttpMessage m) { this.originalResponse = m; }
     public void setRemoteIp(String s)      { this.remoteIp = s == null ? "" : s; }
+    public void setUnpackNote(String s)    { this.unpackNote = s == null ? "" : s; }
+    /** Why the response body stayed compressed, or "" when it did not. */
+    public String unpackNote()             { return unpackNote == null ? "" : unpackNote; }
     public void setEdited(boolean b)       { this.edited = b; }
     public void setNotes(String s)         { this.notes = s == null ? "" : s; }
     public void setHighlight(String s)     { this.highlight = s == null ? "" : s; }
@@ -275,15 +282,17 @@ public class LogEntry implements Serializable {
      * here, or null when the response is complete.
      */
     public String bodyNote() {
+        String stored = null;
         if (bodyDropped) {
-            return "Response body not kept in the project (" + fullResponseLength
+            stored = "Response body not kept in the project (" + fullResponseLength
                     + " bytes with headers). The findings that point at this request hold the full response.";
-        }
-        if (bodyTruncated) {
-            return "Response body cut to the project's cap; the full response was "
+        } else if (bodyTruncated) {
+            stored = "Response body cut to the project's cap; the full response was "
                     + fullResponseLength + " bytes with headers.";
         }
-        return null;
+        String unpack = unpackNote();
+        if (unpack.isEmpty()) return stored;
+        return stored == null ? unpack : unpack + " " + stored;
     }
 
     /**
