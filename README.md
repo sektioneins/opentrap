@@ -62,7 +62,9 @@ For everything else, the original project is the place to go:
   handling rules, macros, cookies and project settings take effect; declined,
   they stay in the file unused.
 - **Security fixes in the toolset.** Text from captured traffic is no longer
-  rendered as HTML in tables and labels, "Copy as curl" quotes every part of the
+  rendered as HTML in tables and labels, the Render tab loads nothing a page
+  names (images, frames and objects show as placeholders, style sheets are not
+  fetched, forms do not submit), "Copy as curl" quotes every part of the
   request, and redirects no longer carry cookies and credentials to another
   origin. Repeater's "On-site only" and "In-scope only" modes stop at a redirect
   that leaves the site or the scope, and the status says why. Scope checks

@@ -530,7 +530,10 @@ public final class Theme {
      * that brings its own styles still overrides these, as a render should.
      * The sheet belongs to this kit alone: {@code HTMLEditorKit.setStyleSheet}
      * would replace the app-wide default, which Swing's HTML labels and
-     * buttons copy, and paint the page background behind their text.
+     * buttons copy, and paint the page background behind their text. The kit
+     * is an {@link OfflineHtmlKit}, so a page loads nothing it names. A
+     * HyperlinkListener on such a pane must not follow links or open
+     * {@code e.getURL()} for a FormSubmitEvent; the kit relies on there being none.
      */
     public static javax.swing.text.html.HTMLEditorKit htmlKit() {
         javax.swing.text.html.StyleSheet ss = new javax.swing.text.html.StyleSheet();
@@ -539,9 +542,7 @@ public final class Theme {
                 TEXT.getRGB() & 0xFFFFFF, BG.getRGB() & 0xFFFFFF, Fonts.css(Fonts.uiFamily())));
         ss.addRule(String.format("a { color: #%06X; }", LINK.getRGB() & 0xFFFFFF));
         ss.addRule(String.format("pre, code { color: #%06X; }", TEXT.getRGB() & 0xFFFFFF));
-        return new javax.swing.text.html.HTMLEditorKit() {
-            @Override public javax.swing.text.html.StyleSheet getStyleSheet() { return ss; }
-        };
+        return new OfflineHtmlKit(ss);
     }
 
     /** A rounded hairline border for cards and grouped content. */
