@@ -153,20 +153,20 @@ public final class SettingsPagesTest {
             Expect.equal(exits.get(), 1, "exits after Yes");
         });
 
-        Harness.test("the display page shows the active UI font with change and reset, and no size box", () -> {
-            var all = parts(InterfacePages.display(new SuiteContext(), null));
+        Harness.test("the display page shows the active UI font with change and reset, and no size box", () -> inThemeFolder(dir -> {
+            var all = parts(InterfacePages.display(new SuiteContext(), null, new ThemeCatalog(dir)));
             Expect.isTrue(all.stream().anyMatch(c -> c instanceof JLabel l
                     && Fonts.describe(Fonts.uiFamily(), Fonts.uiSize()).equals(l.getText())), "active font label");
             Expect.equal(count(all, "Change font ..."), 1, "change buttons");
             Expect.equal(count(all, "Reset to default"), 1, "reset buttons");
             Expect.isTrue(all.stream().noneMatch(c -> c instanceof JComboBox<?> b && has(b, "13") && has(b, "20")),
                     "no size combo");
-        });
+        }));
 
-        Harness.test("the display page offers scaling only where the system can scale", () -> {
-            var titles = InterfacePages.display(new SuiteContext(), null).blockTitles();
+        Harness.test("the display page offers scaling only where the system can scale", () -> inThemeFolder(dir -> {
+            var titles = InterfacePages.display(new SuiteContext(), null, new ThemeCatalog(dir)).blockTitles();
             Expect.equal(titles.contains("Scaling"), opentrap.ui.UiScale.supported(), "Scaling block");
-        });
+        }));
 
         Harness.test("the message editor page shows the active monospace font with change and reset", () -> {
             var all = parts(InterfacePages.messageEditor(new SuiteContext()));
@@ -259,25 +259,78 @@ public final class SettingsPagesTest {
             var c = new ThemeCatalog.Entry("harbour", "Harbour", "dark", "dark", false);
             var all = List.of(a, b, c);
             Expect.equal(InterfacePages.themeLabel(c, all), "Harbour (dark)", "unique name");
-            Expect.equal(InterfacePages.themeLabel(a, all), "Dark (dark, dark)", "built-in");
+            Expect.equal(InterfacePages.themeLabel(a, all), "Dark (dark)", "a built-in keeps its plain label");
             Expect.equal(InterfacePages.themeLabel(b, all), "Dark (dark, my-dark)", "user theme");
         });
 
-        Harness.test("the display page lists the shipped themes with add and remove", () -> {
-            java.nio.file.Path dir;
-            try { dir = java.nio.file.Files.createTempDirectory("opentrap-themes"); }
-            catch (java.io.IOException e) { throw new RuntimeException(e); }
-            try {
-                var all = parts(InterfacePages.display(new SuiteContext(), null, new ThemeCatalog(dir)));
-                Expect.isTrue(all.stream().anyMatch(c -> c instanceof JComboBox<?> b && has(b, "Light (light)") && has(b, "Dark (dark)")),
-                        "theme combo with the shipped themes");
-                Expect.equal(count(all, "Add from file ..."), 1, "add buttons");
-                Expect.equal(count(all, "Remove"), 1, "remove buttons");
-                Expect.isTrue(all.stream().noneMatch(c -> c instanceof JRadioButton r && "Light".equals(r.getText())), "no radios");
-                Expect.isTrue(all.stream().anyMatch(c -> c instanceof JButton b && "Remove".equals(b.getText()) && !b.isEnabled()),
-                        "remove is off for a built-in theme");
-            } finally { dir.toFile().delete(); }
+        Harness.test("the Add summary shows the description and the header fields it ignores", () -> {
+            var r = new ThemeCatalog.Report("harbour", "Harbour", "dark", "dark", "Ann", "Night blues for long shifts",
+                    List.of("website", "license"), List.of(), List.of(), List.of(), List.of(), false);
+            String text = InterfacePages.themeSummary(r, "light");
+            Expect.isTrue(text.contains("Description: Night blues for long shifts\n"), text);
+            Expect.isTrue(text.contains("Ignored header fields: website, license\n"), text);
+            Expect.isFalse(text.contains("restart"), "a new theme needs no restart: " + text);
         });
+
+        Harness.test("replacing the active theme says it takes effect after a restart", () -> {
+            var r = new ThemeCatalog.Report("harbour", "Harbour", "dark", "dark", null, null,
+                    List.of(), List.of(), List.of(), List.of(), List.of(), true);
+            Expect.isTrue(InterfacePages.themeSummary(r, "harbour").contains("takes effect after a restart"), "active");
+            Expect.isFalse(InterfacePages.themeSummary(r, "light").contains("restart"), "not active");
+        });
+
+        Harness.test("removing a theme that is chosen but not yet active saves the built-in of its appearance", () -> {
+            Settings s = new Settings();
+            AtomicInteger n = new AtomicInteger();
+            String oldT = s.get("ui.theme", null), oldN = s.get("ui.theme.name", null);
+            try {
+                var dark = new ThemeCatalog.Entry("dark", "Dark", null, "dark", true);
+                var linen = new ThemeCatalog.Entry("linen", "Linen", "light", "light", true);
+                var harbour = new ThemeCatalog.Entry("harbour", "Harbour", "dark", "dark", false);
+                s.set("ui.theme", "dark"); s.set("ui.theme.name", "harbour");
+                InterfacePages.afterRemove(s, harbour, List.of(dark, linen), "linen", n::incrementAndGet);
+                Expect.equal(s.get("ui.theme", null), "dark", "appearance");
+                Expect.isNull(s.get("ui.theme.name", null), "the removed name is not saved");
+                Expect.equal(n.get(), 0, "no restart: the active theme stays");
+                s.set("ui.theme", "light"); s.set("ui.theme.name", "linen");
+                InterfacePages.afterRemove(s, harbour, List.of(dark, linen), "linen", n::incrementAndGet);
+                Expect.equal(s.get("ui.theme.name", null), "linen", "another saved theme is left alone");
+                Expect.equal(n.get(), 0, "still no restart");
+            } finally { restoreTheme(s, oldT, oldN); }
+        });
+
+        Harness.test("removing the active theme switches to the built-in of its appearance with a restart", () -> {
+            Settings s = new Settings();
+            AtomicInteger n = new AtomicInteger();
+            String oldT = s.get("ui.theme", null), oldN = s.get("ui.theme.name", null);
+            try {
+                var dark = new ThemeCatalog.Entry("dark", "Dark", null, "dark", true);
+                var harbour = new ThemeCatalog.Entry("harbour", "Harbour", "dark", "dark", false);
+                s.set("ui.theme", "dark"); s.set("ui.theme.name", "harbour");
+                InterfacePages.afterRemove(s, harbour, List.of(dark), "harbour", n::incrementAndGet);
+                Expect.isNull(s.get("ui.theme.name", null), "name removed");
+                Expect.equal(n.get(), 1, "restarts");
+            } finally { restoreTheme(s, oldT, oldN); }
+        });
+
+        Harness.test("the display page lists the shipped themes with add and remove", () -> inThemeFolder(dir -> {
+            var all = parts(InterfacePages.display(new SuiteContext(), null, new ThemeCatalog(dir)));
+            Expect.isTrue(all.stream().anyMatch(c -> c instanceof JComboBox<?> b && has(b, "Light (light)") && has(b, "Dark (dark)")),
+                    "theme combo with the shipped themes");
+            Expect.equal(count(all, "Add from file ..."), 1, "add buttons");
+            Expect.equal(count(all, "Remove"), 1, "remove buttons");
+            Expect.isTrue(all.stream().noneMatch(c -> c instanceof JRadioButton r && "Light".equals(r.getText())), "no radios");
+            Expect.isTrue(all.stream().anyMatch(c -> c instanceof JButton b && "Remove".equals(b.getText()) && !b.isEnabled()),
+                    "remove is off for a built-in theme");
+        }));
+    }
+
+    /** Runs {@code body} with an empty theme folder of its own, so no case reads the user's real one. */
+    private static void inThemeFolder(java.util.function.Consumer<java.nio.file.Path> body) {
+        java.nio.file.Path dir;
+        try { dir = java.nio.file.Files.createTempDirectory("opentrap-themes"); }
+        catch (java.io.IOException e) { throw new RuntimeException(e); }
+        try { body.accept(dir); } finally { dir.toFile().delete(); }
     }
 
     private static void restoreTheme(Settings s, String t, String n) {

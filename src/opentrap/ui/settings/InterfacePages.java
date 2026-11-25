@@ -369,6 +369,20 @@ public final class InterfacePages {
         if (!e.id().equals(activeId)) restart.run();
     }
 
+    /**
+     * After {@code gone} was removed: when it was the active theme, switches to the built-in of its
+     * appearance with a restart; when it was only chosen for the next start, saves that built-in
+     * instead, so the next start does not look for a theme that is gone.
+     */
+    public static void afterRemove(Settings s, ThemeCatalog.Entry gone, List<ThemeCatalog.Entry> remaining,
+                                   String activeId, Runnable restart) {
+        boolean active = gone.id().equals(activeId);
+        if (!active && !gone.id().equals(s.get("ui.theme.name", null))) return;
+        remaining.stream().filter(x -> x.id().equals(gone.appearance())).findFirst().ifPresent(b -> {
+            if (active) applyTheme(s, b, activeId, restart); else storeTheme(s, b);
+        });
+    }
+
     /** Saves the default theme as the chosen one, for Restore defaults; it applies at the next start. */
     public static void resetTheme(Settings s, ThemeCatalog themes) {
         for (ThemeCatalog.Entry e : themes.list()) {
@@ -386,25 +400,35 @@ public final class InterfacePages {
         if (e.id().equals("light") || e.id().equals("dark")) s.remove("ui.theme.name"); else s.set("ui.theme.name", e.id());
     }
 
-    /** {@code Harbour (dark)}, or {@code Dark (dark, my-dark)} with the id when another theme has the same name. */
+    /**
+     * {@code Harbour (dark)}, or {@code Dark (dark, my-dark)} with the id when another theme has the
+     * same name. Only a user theme gets the id; a shipped one keeps its plain label.
+     */
     public static String themeLabel(ThemeCatalog.Entry e, List<ThemeCatalog.Entry> all) {
-        boolean clash = all.stream().anyMatch(o -> o != e && !o.id().equals(e.id()) && o.name().equals(e.name()));
+        boolean clash = !e.shipped() && all.stream().anyMatch(o -> o != e && !o.id().equals(e.id()) && o.name().equals(e.name()));
         return e.name() + " (" + e.appearance() + (clash ? ", " + e.id() : "") + ")";
     }
 
-    private static String themeSummary(ThemeCatalog.Report r) {
+    /** What checking a theme file found, as the Add dialog shows it before asking. */
+    public static String themeSummary(ThemeCatalog.Report r, String activeId) {
         StringBuilder b = new StringBuilder();
         b.append("Name: ").append(r.name()).append('\n');
         b.append("Based on: ").append(r.base()).append('\n');
         b.append("Appearance: ").append(r.appearance()).append('\n');
         if (r.author() != null && !r.author().isBlank()) b.append("Author: ").append(r.author()).append('\n');
+        if (r.description() != null && !r.description().isBlank()) b.append("Description: ").append(r.description()).append('\n');
+        if (!r.ignoredHeader().isEmpty()) b.append("Ignored header fields: ").append(String.join(", ", r.ignoredHeader())).append('\n');
         if (!r.leftToBase().isEmpty()) b.append("Keys left to the base theme: ").append(r.leftToBase().size()).append('\n');
         if (!r.unknownKeys().isEmpty()) b.append("Ignored keys: ").append(String.join(", ", r.unknownKeys())).append('\n');
         if (!r.clamped().isEmpty()) b.append("Values brought into range: ").append(String.join(", ", r.clamped())).append('\n');
         for (var f : r.contrast())
             b.append(String.format(java.util.Locale.ROOT, "Low contrast: %s on %s is %.1f, wanted %.1f%n",
                     f.pair().fg(), f.pair().bg(), f.ratio(), f.pair().min()));
-        if (r.replaces()) b.append("Replaces the theme ").append(r.id()).append(" you already have.\n");
+        if (r.replaces()) {
+            b.append("Replaces the theme ").append(r.id()).append(" you already have.");
+            if (r.id().equals(activeId)) b.append(" It is the active theme, so the change takes effect after a restart.");
+            b.append('\n');
+        }
         b.append("\nAdd this theme?");
         return b.toString();
     }
@@ -512,7 +536,7 @@ public final class InterfacePages {
             Path file = fc.getSelectedFile().toPath();
             try {
                 ThemeCatalog.Report r = themes.check(file);
-                plainDialog(addTheme, themeSummary(r), "Add theme", JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE, () -> {
+                plainDialog(addTheme, themeSummary(r, Theme.activeId()), "Add theme", JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE, () -> {
                     try { themes.add(file); refresh.run(); }
                     catch (ThemeException | java.io.IOException ex) {
                         plainDialog(addTheme, String.valueOf(ex.getMessage()), "Add theme", JOptionPane.DEFAULT_OPTION, JOptionPane.ERROR_MESSAGE, null);
@@ -530,10 +554,7 @@ public final class InterfacePages {
                 try {
                     themes.remove(gone.id());
                     refresh.run();
-                    if (gone.id().equals(Theme.activeId())) {
-                        entries.stream().filter(x -> x.id().equals(gone.appearance())).findFirst()
-                                .ifPresent(b -> applyTheme(s, b, Theme.activeId(), () -> restartApp(ctx)));
-                    }
+                    afterRemove(s, gone, entries, Theme.activeId(), () -> restartApp(ctx));
                 } catch (java.io.IOException ex) {
                     plainDialog(removeTheme, String.valueOf(ex.getMessage()), "Remove theme", JOptionPane.DEFAULT_OPTION, JOptionPane.ERROR_MESSAGE, null);
                 }

@@ -42,9 +42,9 @@ public final class ThemeCatalog {
     public record Entry(String id, String name, String base, String appearance, boolean shipped) { }
 
     /** What checking a file found. {@code replaces} is true when a user theme of that id exists. */
-    public record Report(String id, String name, String base, String appearance, String author,
-                         List<String> leftToBase, List<String> unknownKeys, List<String> clamped,
-                         List<Contrast.Failure> contrast, boolean replaces) { }
+    public record Report(String id, String name, String base, String appearance, String author, String description,
+                         List<String> ignoredHeader, List<String> leftToBase, List<String> unknownKeys,
+                         List<String> clamped, List<Contrast.Failure> contrast, boolean replaces) { }
 
     /** The theme picked at startup, and the sentence to show the user when it is a fallback. */
     public record Choice(String id, ThemeResolver.Resolved resolved, String notice) { }
@@ -132,8 +132,8 @@ public final class ThemeCatalog {
         ThemeResolver.Resolved r = resolveOnBase(theme);
         ThemeResolver.Resolved baseAlone =
             ThemeResolver.resolve(ThemeKeys.builtIn(theme.base()), null, ThemeKeys.spec());
-        return new Report(id, theme.name(), theme.base(), r.appearance(), theme.author(), r.leftToBase(),
-            r.unknownKeys(), r.clamped(), Contrast.changed(r.values(), baseAlone.values()),
+        return new Report(id, theme.name(), theme.base(), r.appearance(), theme.author(), theme.description(),
+            r.ignoredHeader(), r.leftToBase(), r.unknownKeys(), r.clamped(), Contrast.changed(r.values(), baseAlone.values()),
             Files.exists(userDir.resolve(id + EXT)));
     }
 
