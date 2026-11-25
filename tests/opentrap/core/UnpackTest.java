@@ -174,6 +174,21 @@ public final class UnpackTest {
             unpackedTo(b, hello);
         });
 
+        Harness.test("a body with more than three content codings is left as received with a note", () -> {
+            HttpMessage m = new HttpMessage(response("gzip, gzip, gzip, gzip",
+                    gzip(gzip(gzip(gzip(Bytes.bytes("hello")))))));
+            byte[] before = m.raw().clone();
+            Expect.equal(apply(m, MB16), "Response body left compressed: more than 3 content codings.", "note");
+            Expect.isTrue(Arrays.equals(before, m.raw()), "raw unchanged");
+        });
+
+        Harness.test("a body with three content codings is still decoded", () -> {
+            byte[] hello = Bytes.bytes("hello");
+            HttpMessage m = new HttpMessage(response("gzip, gzip, gzip", gzip(gzip(gzip(hello)))));
+            Expect.isNull(apply(m, MB16), "no note");
+            unpackedTo(m, hello);
+        });
+
         Harness.test("a coding the client cannot decode leaves the whole body as received", () -> {
             for (String enc : new String[] {"gzip, zstd", "zstd, gzip"}) {
                 HttpMessage m = new HttpMessage(response(enc, gzip(Bytes.bytes("hello"))));

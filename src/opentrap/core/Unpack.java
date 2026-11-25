@@ -18,9 +18,11 @@ import java.util.zip.InflaterInputStream;
  * either stays as the server sent it, and the caller gets a note saying why.
  * Stacked codings are undone in reverse order of the header, one stream over
  * the next, so only the final output is held. The budget counts that decoded
- * output while a decode runs; it does not count decoder state (the brotli
- * window, up to 16 MB per decode) at all, and the array a successful decode
- * builds is bounded only by the per-body limit.
+ * output while a decode runs; it does not count decoder state at all. Each
+ * brotli stage keeps a window of up to 16 MB, so a body with more than
+ * {@link #MAX_CODINGS} codings is left as received, which bounds that state at
+ * {@code MAX_CODINGS} x 16 MB per decode. The array a successful decode builds
+ * is bounded only by the per-body limit.
  */
 final class Unpack {
     private Unpack() {}
@@ -28,6 +30,9 @@ final class Unpack {
     /** How many decoded bytes all responses decoding at the same time may hold together. */
     static final long SHARED_BYTES = 256L << 20;
     static final Budget SHARED = new Budget(SHARED_BYTES);
+
+    /** How many stacked content codings a body may have and still be decoded. */
+    static final int MAX_CODINGS = 3;
 
     private static final int CHUNK = 64 * 1024;
 
@@ -58,12 +63,18 @@ final class Unpack {
     /**
      * Replaces the body with its plaintext and drops Content-Encoding. Returns
      * null when the body was replaced or there was nothing to decode, and the
-     * note saying why when the body would decode past {@code limit} or past
-     * what the budget has left; the message is then left as it was.
+     * note saying why when the body has more than {@link #MAX_CODINGS} codings
+     * or would decode past {@code limit} or past what the budget has left; the
+     * message is then left as it was.
      */
     static String apply(HttpMessage m, int limit, Budget budget) {
         List<String> codings = codings(m);
         if (codings.isEmpty()) return null;
+        // Checked before any decoder is built or the list is joined, so a long
+        // header costs neither decoder state nor a note that repeats it.
+        if (codings.size() > MAX_CODINGS) {
+            return "Response body left compressed: more than " + MAX_CODINGS + " content codings.";
+        }
         for (String c : codings) if (!known(c)) return null;
         byte[] raw = m.raw();
         int off = m.bodyOffset();
@@ -129,9 +140,9 @@ final class Unpack {
         InputStream in = src;
         try {
             for (int i = codings.size() - 1; i >= 0; i--) in = decoder(codings.get(i), in);
-        } catch (Exception | LinkageError e) {
+        } catch (Throwable e) {
             // A stage that fails to build (a bad gzip header) leaves the ones below it open.
-            try { in.close(); } catch (Exception ignored) { }
+            try { in.close(); } catch (Exception _) { }
             throw e;
         }
         return in;
