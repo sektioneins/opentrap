@@ -251,6 +251,16 @@ public final class SessionTest {
                     "not sent to x.co.uk.");
         });
 
+        Harness.test("a cookie stored with a leading dot is replaced by the same cookie without it", () -> {
+            CookieJar jar = new CookieJar();
+            jar.set(new Cookie("sid", "old", ".example.com", "/", false, 0));
+            jar.updateFrom(new HttpService("www.example.com", 443, true),
+                    resp("HTTP/1.1 200 OK\nSet-Cookie: sid=new; Domain=example.com\nContent-Length: 0\n\n"));
+            Expect.equal(jar.size(), 1, "one cookie");
+            Expect.equal(jar.headerFor(new HttpService("api.example.com", 443, true),
+                    get("/", "api.example.com"), null), "sid=new", "new value sent");
+        });
+
         Harness.test("a host name in upper case is compared in lower case", () -> {
             CookieJar jar = new CookieJar();
             jar.updateFrom(new HttpService("WWW.Example.com", 443, true),
