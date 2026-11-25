@@ -7,7 +7,6 @@ import opentrap.extensions.store.Dependency;
 import opentrap.extensions.store.Entry;
 import opentrap.extensions.store.Installed;
 import opentrap.extensions.store.Pending;
-import opentrap.extensions.store.PlainText;
 import opentrap.extensions.store.Resolver;
 import opentrap.extensions.store.Source;
 import opentrap.extensions.store.SourceStatus;
@@ -385,7 +384,7 @@ public final class StorePanel extends JPanel {
 
     private static boolean matches(Entry e, String q) {
         return e.name().toLowerCase(Locale.ROOT).contains(q) || e.id().toLowerCase(Locale.ROOT).contains(q)
-                || PlainText.of(e.description()).toLowerCase(Locale.ROOT).contains(q);
+                || e.description().toLowerCase(Locale.ROOT).contains(q);
     }
 
     /** Whether any enabled source other than the bundled set has a list, fetched now or cached before. */
@@ -523,12 +522,12 @@ public final class StorePanel extends JPanel {
         }
         add(col, Ui.form(form.toArray()));
 
-        String description = PlainText.of(e.description());
+        String description = e.description();
         if (!description.isEmpty()) {
             add(col, Box.createVerticalStrut(10));
             add(col, para(description));
         }
-        String changes = PlainText.of(e.changes());
+        String changes = e.changes();
         if (!changes.isEmpty()) {
             add(col, Box.createVerticalStrut(10));
             add(col, Ui.bold("Changes"));
@@ -610,6 +609,31 @@ public final class StorePanel extends JPanel {
             if (java.util.Objects.equals(it.id(), sourceId)) { source.setSelectedItem(it); return; }
         }
         throw new IllegalArgumentException("No source " + sourceId + " in the Source filter");
+    }
+
+    /** Types {@code q} into the search field, which reloads the list at once; for tests. */
+    void search(String q) { search.setText(q); }
+
+    /** Selects the table row of the add-on with this id; for tests. */
+    void select(String id) {
+        for (int i = 0; i < rows.size(); i++) {
+            if (rows.get(i).id().equals(id)) { table.setRowSelectionInterval(i, i); return; }
+        }
+        throw new IllegalArgumentException("No add-on " + id + " in the list");
+    }
+
+    /** The text of every paragraph in the detail card, in order, blank-line separated; for tests. */
+    String detailText() {
+        List<String> out = new ArrayList<>();
+        collectText(detail, out);
+        return String.join("\n\n", out);
+    }
+
+    private static void collectText(Container c, List<String> out) {
+        for (Component k : c.getComponents()) {
+            if (k instanceof JTextArea a) out.add(a.getText());
+            else if (k instanceof Container sub) collectText(sub, out);
+        }
     }
 
     /** The row's action for {@code id}, or null when it is not listed; for tests. */

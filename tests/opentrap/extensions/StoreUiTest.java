@@ -327,6 +327,27 @@ public final class StoreUiTest {
                     Expect.equal(onEdt(panel::tabTitle), "Store (1)", "the tab title counts the update");
                 }));
 
+        Harness.test("the store search finds an add-on by the text its card shows", () ->
+                StoreFixtures.inTemp(CRAWL, (store, engine) -> {
+                    zapCache(engine, escaped());
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    StorePanel panel = panel(store);
+                    onEdt(() -> { panel.search("<b>"); return null; });
+                    Expect.equal(onEdt(() -> panel.model().getRowCount()), 1, "one add-on matches");
+                    Expect.equal(onEdt(() -> panel.model().getValueAt(0, 0)), "Add-on retire", "the match");
+                }));
+
+        Harness.test("an add-on's card shows its description and changes as the source escaped them", () ->
+                StoreFixtures.inTemp(CRAWL, (store, engine) -> {
+                    zapCache(engine, escaped());
+                    store.startHook().beforeLaunch(engine, "2.17.0");
+                    StorePanel panel = panel(store);
+                    onEdt(() -> { panel.select("retire"); return null; });
+                    String text = onEdt(panel::detailText);
+                    Expect.isTrue(text.contains("Use <b> for bold."), "the description keeps its escaped tag: " + text);
+                    Expect.isTrue(text.contains("Escapes <br> now"), "the changes keep their escaped tag: " + text);
+                }));
+
         Harness.test("an update queued already is not counted in the tab title", () ->
                 StoreFixtures.inTemp(CRAWL, (store, engine) -> {
                     Path folder = folderSource(engine, false);
@@ -1302,6 +1323,15 @@ public final class StoreUiTest {
         sources.add(new Source("src-1", "Mine", SourceType.LOCAL_FOLDER, folder.toString(), "", true));
         sources.save();
         return folder;
+    }
+
+    /** A feed entry whose description and changes hold text the source escaped on purpose. */
+    private static String escaped() {
+        return ZapFixtures.addon("retire", "1.0.0", "release", ZAP_URL + "retire.zap", HASH)
+                .replaceFirst("<description>.*?</description>",
+                        java.util.regex.Matcher.quoteReplacement("<description>Use &amp;lt;b&amp;gt; for bold.</description>"))
+                .replaceFirst("<changes>.*?</changes>",
+                        java.util.regex.Matcher.quoteReplacement("<changes>&lt;p&gt;Escapes &amp;lt;br&amp;gt; now&lt;/p&gt;</changes>"));
     }
 
     /** ZAP's feed as if fetched just now, from the cache alone. */
