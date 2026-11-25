@@ -312,7 +312,7 @@ public class MessageEditor extends JPanel {
         Graphics2D g = img.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g.setColor(Theme.ICON);
-        g.setStroke(new BasicStroke(1.4f));
+        g.setStroke(new BasicStroke(Theme.stroke(1.4f)));
         g.draw(new java.awt.geom.Arc2D.Double(1, 2, 14, 12, 20, 140, java.awt.geom.Arc2D.OPEN));
         g.draw(new java.awt.geom.Arc2D.Double(1, 2, 14, 12, 200, 140, java.awt.geom.Arc2D.OPEN));
         g.draw(new java.awt.geom.Ellipse2D.Double(5.5, 5.5, 5, 5));

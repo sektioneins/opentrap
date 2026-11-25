@@ -51,7 +51,7 @@ public final class SiteIcons {
         return cached("host:" + secure + ":" + muted, g -> {
             Color body = tone(secure ? Theme.TEXT : Theme.SITE_INSECURE, muted);
             g.setColor(body);
-            g.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g.setStroke(new BasicStroke(Theme.stroke(1.6f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
             // Shackle: an arc over the body; the open one swings up to the left.
             if (secure) {
                 g.draw(new Arc2D.Float(4.2f, 1.2f, 7.6f, 8f, 0, 180, Arc2D.OPEN));
@@ -89,7 +89,7 @@ public final class SiteIcons {
             g.setColor(tone(Theme.SITE_PAGE, muted));
             g.fillRect(3, 1, 10, 14);
             g.setColor(edge);
-            g.setStroke(new BasicStroke(1.2f));
+            g.setStroke(new BasicStroke(Theme.stroke(1.2f)));
             g.drawLine(3, 1, 9, 1); g.drawLine(9, 1, 13, 5); g.drawLine(13, 5, 13, 15);
             g.drawLine(13, 15, 3, 15); g.drawLine(3, 15, 3, 1);
             g.drawLine(9, 1, 9, 5); g.drawLine(9, 5, 13, 5);

@@ -177,7 +177,7 @@ public class ProxyTool implements ToolModule {
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             // Grey "beam" lines behind the head.
             g.setColor(opentrap.ui.Theme.INTERCEPT_BEAM);
-            g.setStroke(new BasicStroke(4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g.setStroke(new BasicStroke(Theme.stroke(4f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
             g.drawLine(20, 20, 50, 42); g.drawLine(130, 20, 160, 42); g.drawLine(20, 110, 50, 92); g.drawLine(130, 110, 160, 92);
             g.rotate(Math.toRadians(-12), 90, 75);
             // Body: a rounded dark-blue slab with a lighter face.
@@ -201,7 +201,7 @@ public class ProxyTool implements ToolModule {
             Graphics2D g = img.createGraphics();
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g.setColor(Theme.ICON);
-            g.setStroke(new BasicStroke(1.4f));
+            g.setStroke(new BasicStroke(Theme.stroke(1.4f)));
             g.draw(new java.awt.geom.Arc2D.Double(1, 1, 16, 12, 20, 140, java.awt.geom.Arc2D.OPEN));
             g.draw(new java.awt.geom.Arc2D.Double(1, 1, 16, 12, 200, 140, java.awt.geom.Arc2D.OPEN));
             g.draw(new java.awt.geom.Ellipse2D.Double(6.5, 4.5, 5, 5));
@@ -214,7 +214,7 @@ public class ProxyTool implements ToolModule {
             Graphics2D g = img.createGraphics();
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g.setColor(Theme.ICON);
-            g.setStroke(new BasicStroke(1.3f));
+            g.setStroke(new BasicStroke(Theme.stroke(1.3f)));
             g.drawOval(1, 1, 13, 13); g.drawOval(5, 1, 5, 13); g.drawLine(1, 8, 14, 8);
             g.dispose();
             return new ImageIcon(img);

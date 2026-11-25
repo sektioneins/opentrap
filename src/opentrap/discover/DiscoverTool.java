@@ -41,7 +41,7 @@ public class DiscoverTool implements ToolModule {
                 g2.fillRect(0, 0, getWidth(), getHeight());
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 g2.setColor(Theme.alpha(Theme.HERO_GLOW, 90));
-                g2.setStroke(new BasicStroke(2f));
+                g2.setStroke(new BasicStroke(Theme.stroke(2f)));
                 g2.drawLine(getWidth() / 4, getHeight(), getWidth() / 2, 0);
                 g2.dispose();
             }

@@ -102,6 +102,25 @@ public final class ThemeStyleTest {
             }
         });
 
+        Harness.test("every drawn icon's stroke goes through the theme's stroke weight", () -> {
+            // Outlines follow LINE_WIDTH instead; brand marks and what leaves the app are not themed.
+            List<String> notIcons = List.of("ui/theme/RoundedBorder.java", "ui/theme/FlatButtonUI.java",
+                    "ui/AppIcon.java", "ui/Wordmark.java", "proxy/BrowserDesktopEntry.java");
+            java.util.regex.Pattern unscaled = java.util.regex.Pattern.compile("new (?:java\\.awt\\.)?BasicStroke\\((?!Theme\\.stroke\\()");
+            java.util.TreeMap<String, Integer> found = new java.util.TreeMap<>();
+            try (var files = java.nio.file.Files.walk(java.nio.file.Path.of("src"))) {
+                for (java.nio.file.Path f : (Iterable<java.nio.file.Path>) files.filter(x -> x.toString().endsWith(".java"))::iterator) {
+                    String rel = java.nio.file.Path.of("src", "opentrap").relativize(f).toString().replace('\\', '/');
+                    if (notIcons.contains(rel) || rel.equals("ui/Theme.java")) continue;
+                    var m = unscaled.matcher(java.nio.file.Files.readString(f));
+                    int n = 0;
+                    while (m.find()) n++;
+                    if (n > 0) found.put(rel, n);
+                }
+            } catch (java.io.IOException e) { throw new RuntimeException(e); }
+            Expect.equal(found.toString(), "{}", "strokes not scaled by ICON_STROKE");
+        });
+
         Harness.test("a table built by Ui follows the grid choice", () -> {
             try {
                 boolean[][] want = {{false, false}, {true, false}, {true, true}};
