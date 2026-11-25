@@ -124,8 +124,8 @@ For everything else, the original project is the place to go:
   still raises its findings after it is switched off and on again, search
   highlights in the message editor sit on the text they found instead of
   drifting right line by line, a tool with unread results shows a larger dot
-  in the accent colour on its tab, and the test suite runs in about 3 seconds
-  instead of 24.
+  in the accent colour on its tab, as do the Event log and All issues links in
+  the status bar, and the test suite runs in about 3 seconds instead of 24.
 
 ## Licence
 

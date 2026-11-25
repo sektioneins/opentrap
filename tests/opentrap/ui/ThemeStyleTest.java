@@ -10,6 +10,7 @@ import opentrap.ui.theme.ThemeKeys;
 
 import javax.swing.*;
 import java.awt.Color;
+import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.Insets;
 import java.awt.Rectangle;
@@ -74,6 +75,33 @@ public final class ThemeStyleTest {
             double glyph = tp.getFont().createGlyphVector(frc, "\u2022").getVisualBounds().getWidth();
             Expect.isTrue(maxX - minX + 1 > glyph, "dot width " + (maxX - minX + 1) + " over the glyph's " + glyph);
             Expect.isTrue(Math.abs((maxX - minX) - (maxY - minY)) <= 1, "round, not a bar");
+        });
+
+        Harness.test("an unread status-bar link gets the tab's accent dot after its text, not a bullet glyph", () -> {
+            JButton b = new JButton("Event log (3)");
+            b.setBorder(BorderFactory.createEmptyBorder(1, 2, 1, 2));
+            b.setContentAreaFilled(false);
+            SuiteFrame.markUnread(b, true);
+            Expect.isFalse(b.getText().contains("•"), "no bullet in the text");
+            Dimension size = b.getPreferredSize();
+            BufferedImage img = paint(b, size.width, size.height);
+            int textEnd = 2 + b.getFontMetrics(b.getFont()).stringWidth(b.getText());
+            int minX = -1, maxX = -1, minY = Integer.MAX_VALUE, maxY = -1;
+            for (int x = 0; x < size.width; x++) {
+                for (int y = 0; y < size.height; y++) {
+                    if (chroma(new Color(img.getRGB(x, y), true)) * 3 > chroma(Theme.ACCENT)) {
+                        if (minX < 0) minX = x;
+                        maxX = x; minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+                    }
+                }
+            }
+            Expect.isTrue(minX >= textEnd, "accent dot after the text: from " + minX + ", text ends at " + textEnd);
+            java.awt.font.FontRenderContext frc = new java.awt.font.FontRenderContext(null, true, true);
+            double glyph = b.getFont().createGlyphVector(frc, "•").getVisualBounds().getWidth();
+            Expect.isTrue(maxX - minX + 1 > glyph, "dot width " + (maxX - minX + 1) + " over the glyph's " + glyph);
+            Expect.isTrue(Math.abs((maxX - minX) - (maxY - minY)) <= 1, "round, not a bar");
+            SuiteFrame.markUnread(b, false);
+            Expect.isNull(b.getIcon(), "the dot goes once the panel is read");
         });
 
         Harness.test("a wider line keeps the border's insets", () -> {
