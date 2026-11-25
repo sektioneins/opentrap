@@ -4,10 +4,8 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.X509ExtendedTrustManager;
-import java.net.Authenticator;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.PasswordAuthentication;
 import java.net.ProxySelector;
 import java.net.Socket;
 import java.net.URI;
@@ -15,7 +13,9 @@ import java.net.http.HttpOption;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.security.cert.X509Certificate;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Base64;
 import java.util.Locale;
 
 /**
@@ -30,7 +30,9 @@ import java.util.Locale;
  * <p>Which client sends is decided by the upstream proxy rule for the target
  * ({@link HttpClient#upstreamFor}). With no rule the direct client is used, which
  * names no proxy. An HTTP rule gets a client of its own that sends through that
- * proxy. A SOCKS rule is refused in every mode here: the JDK connects direct when
+ * proxy, and the rule's login goes to it preemptively as a Basic
+ * {@code Proxy-Authorization} header, as on the HTTP/1 path, so the JDK never
+ * runs an authenticator that a server's own 401 or 407 could trigger. A SOCKS rule is refused in every mode here: the JDK connects direct when
  * the selected proxy is not an HTTP one, which would bypass the rule. Only the
  * direct client sends HTTP/3, as QUIC cannot be tunnelled.
  *
@@ -92,8 +94,9 @@ public final class Http2Client {
      * The JDK client for a send: the direct one when {@code up} is null, else the
      * one for that HTTP upstream proxy, built once per host, port and login. The
      * direct client names no proxy, so the JVM-wide default selector cannot
-     * route it. A proxied client leaves the target unresolved and answers the
-     * proxy's 407 on the CONNECT with the rule's login, never anywhere else.
+     * route it. A proxied client leaves the target unresolved. It has no
+     * authenticator: {@link #send} puts the rule's login on each request, and the
+     * login stays in the key so a changed password gets fresh pooled tunnels.
      */
     static java.net.http.HttpClient clientFor(UpstreamProxy up, HttpClient.Options opt) throws Exception {
         if (up == null) {
@@ -110,15 +113,6 @@ public final class Http2Client {
         if (known != null) return known;
         java.net.http.HttpClient.Builder b = builder(opt)
                 .proxy(ProxySelector.of(InetSocketAddress.createUnresolved(up.host, up.port)));
-        if (up.user != null && !up.user.isEmpty()) {
-            PasswordAuthentication login = new PasswordAuthentication(up.user,
-                    (up.pass == null ? "" : up.pass).toCharArray());
-            b.authenticator(new Authenticator() {
-                @Override protected PasswordAuthentication getPasswordAuthentication() {
-                    return getRequestorType() == RequestorType.PROXY ? login : null;
-                }
-            });
-        }
         java.net.http.HttpClient made = b.build();
         known = routed.putIfAbsent(key, made);
         return known != null ? known : made;
@@ -192,6 +186,14 @@ public final class Http2Client {
                         || nl.equals("transfer-encoding") || nl.equals("connection")
                         || nl.equals("upgrade") || nl.equals("keep-alive") || nl.equals("host")) continue;
                 try { b.header(n, v); } catch (Exception _) {}
+            }
+
+            // Sent preemptively, replacing any copy the request carries: the JDK puts a
+            // Proxy-Authorization header on the CONNECT and keeps it from the server.
+            if (up != null && up.user != null && !up.user.isEmpty()) {
+                String login = up.user + ":" + (up.pass == null ? "" : up.pass);
+                b.setHeader("Proxy-Authorization", "Basic "
+                        + Base64.getEncoder().encodeToString(login.getBytes(StandardCharsets.ISO_8859_1)));
             }
 
             HttpResponse<byte[]> resp = clientFor(up, opt).send(b.build(), HttpResponse.BodyHandlers.ofByteArray());

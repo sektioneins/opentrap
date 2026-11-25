@@ -125,6 +125,36 @@ public final class UpstreamProxyTest {
             }
         }));
 
+        Harness.test("a 401 from the server comes back through an upstream rule with a login", guard(() -> {
+            AtomicInteger hits = new AtomicInteger();
+            HttpsServer server = statusServer(401, "WWW-Authenticate", "Basic realm=\"t\"", hits);
+            try (ConnectProxy proxy = new ConnectProxy("u:p", server.getAddress())) {
+                HttpClient.setProxyProvider(svc -> ruleOn(proxy, "u", "p"));
+                HttpClient.Result r = send(new HttpService("h2.invalid", 443, true), HttpMode.HTTP_2);
+                Expect.isTrue(r.ok(), "send ok: " + r.error);
+                Expect.equal(r.response.statusCode(), 401, "status");
+                Expect.equal(hits.get(), 1, "the server was asked once");
+            } finally {
+                HttpClient.setProxyProvider(null);
+                server.stop(0);
+            }
+        }));
+
+        Harness.test("a 407 from the server is returned, not taken for the proxy's", guard(() -> {
+            AtomicInteger hits = new AtomicInteger();
+            HttpsServer server = statusServer(407, "Proxy-Authenticate", "Basic realm=\"t\"", hits);
+            try (ConnectProxy proxy = new ConnectProxy("u:p", server.getAddress())) {
+                HttpClient.setProxyProvider(svc -> ruleOn(proxy, "u", "p"));
+                HttpClient.Result r = send(new HttpService("h2.invalid", 443, true), HttpMode.HTTP_2);
+                Expect.isTrue(r.ok(), "send ok: " + r.error);
+                Expect.equal(r.response.statusCode(), 407, "status");
+                Expect.equal(hits.get(), 1, "the server was asked once");
+            } finally {
+                HttpClient.setProxyProvider(null);
+                server.stop(0);
+            }
+        }));
+
         Harness.test("a mode the JDK sends is refused under a SOCKS upstream rule before any connection", guard(() -> {
             try (ServerSocket target = new ServerSocket(0, 5, InetAddress.getLoopbackAddress());
                  ServerSocket socks = new ServerSocket(0, 5, InetAddress.getLoopbackAddress())) {
@@ -305,6 +335,20 @@ public final class UpstreamProxyTest {
             byte[] b = Bytes.bytes("hello");
             ex.sendResponseHeaders(200, b.length);
             try (var o = ex.getResponseBody()) { o.write(b); }
+        });
+        server.start();
+        return server;
+    }
+
+    /** An HTTPS server on loopback answering every request with a status, one header and no body; it counts requests. */
+    private static HttpsServer statusServer(int status, String header, String value, AtomicInteger hits) throws Exception {
+        HttpsServer server = HttpsServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.setHttpsConfigurator(new HttpsConfigurator(TestTls.serverContext("127.0.0.1")));
+        server.createContext("/", ex -> {
+            hits.incrementAndGet();
+            ex.getResponseHeaders().add(header, value);
+            ex.sendResponseHeaders(status, -1);
+            ex.close();
         });
         server.start();
         return server;
