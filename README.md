@@ -127,7 +127,9 @@ For everything else, the original project is the place to go:
   highlights in the message editor sit on the text they found instead of
   drifting right line by line, a tool with unread results shows a larger dot
   in the accent colour on its tab, as do the Event log and All issues links in
-  the status bar, and the test suite runs in about 3 seconds instead of 24.
+  the status bar, the HTML report and the proxy's certificate page use the
+  fork's accent and badge colours that read at 4.5 to 1, and the test suite
+  runs in about 3 seconds instead of 24.
 
 ## Licence
 
