@@ -114,6 +114,7 @@ public final class RunTests {
         new opentrap.ui.ScopeEditorTest().run();
         new opentrap.ui.HtmlGuardTest().run();
         new opentrap.ui.HtmlSitesTest().run();
+        new opentrap.ui.RenderOfflineTest().run();
         new opentrap.dashboard.PhaseHtmlTest().run();
         new opentrap.dashboard.DashboardContextTest().run();
         new opentrap.ui.QuitRequestTest().run();
