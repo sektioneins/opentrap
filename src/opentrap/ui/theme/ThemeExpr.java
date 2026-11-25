@@ -68,7 +68,7 @@ public final class ThemeExpr {
         if (NAME.matcher(t).matches()) return p.lookup(t);
         if (t.startsWith("#") || IDENT.matcher(t).lookingAt()) return p.colourValue();
         if (t.startsWith("@") || WHOLE.matcher(t).lookingAt()) return p.numberExpr();
-        throw p.error("needs a colour or a number, got " + t);
+        throw p.error("needs a colour or a number, got " + shown(t));
     }
 
     // --- values by key type ---
@@ -76,7 +76,7 @@ public final class ThemeExpr {
     private Color colourValue() throws ThemeException {
         Color c = colour(1);
         skip();
-        if (pos < text.length()) throw error("needs a colour, got " + text);
+        if (pos < text.length()) throw error("needs a colour, got " + shown(text));
         return c;
     }
 
@@ -89,7 +89,7 @@ public final class ThemeExpr {
 
     private String choiceValue(KeyType.Choice choice) throws ThemeException {
         if (choice.words().contains(text)) return text;
-        throw error("takes " + join(choice.words()) + ", got " + text);
+        throw error("takes " + join(choice.words()) + ", got " + shown(text));
     }
 
     private static String join(List<String> words) {
@@ -104,7 +104,7 @@ public final class ThemeExpr {
         if (peek() == '#') {
             Matcher m = HEX.matcher(text);
             m.region(pos, text.length());
-            if (!m.lookingAt()) throw error("needs a colour, got " + text);
+            if (!m.lookingAt()) throw error("needs a colour, got " + shown(text));
             pos = m.end();
             String h = m.group(1);
             int rgb = Integer.parseInt(h.substring(0, 6), 16);
@@ -114,7 +114,7 @@ public final class ThemeExpr {
         if (peek() == '@') {
             String ref = word();
             if (lookup(ref) instanceof Color c) return c;
-            throw error("needs a colour, " + ref + " is a number");
+            throw error("needs a colour, " + shown(ref) + " is a number");
         }
         Matcher id = IDENT.matcher(text);
         id.region(pos, text.length());
@@ -122,12 +122,12 @@ public final class ThemeExpr {
             pos = id.end() + 1;
             return function(id.group(), depth);
         }
-        throw error("needs a colour, got " + text);
+        throw error("needs a colour, got " + shown(text));
     }
 
     private Color function(String fn, int depth) throws ThemeException {
         if (!fn.equals("darker") && !fn.equals("lighter") && !fn.equals("mix") && !fn.equals("alpha")) {
-            throw new ThemeException(line, "unknown function " + fn);
+            throw new ThemeException(line, "unknown function " + shown(fn));
         }
         if (depth > MAX_DEPTH) throw error("nests functions deeper than " + MAX_DEPTH);
         Color a = colour(depth + 1);
@@ -139,7 +139,7 @@ public final class ThemeExpr {
         comma();
         double p = percent();
         skip();
-        if (peek() != ')') throw error("is missing a closing bracket in " + text);
+        if (peek() != ')') throw error("is missing a closing bracket in " + shown(text));
         pos++;
         return switch (fn) {
             case "darker" -> new Color(ch(a.getRed() * (1 - p)), ch(a.getGreen() * (1 - p)),
@@ -165,7 +165,7 @@ public final class ThemeExpr {
         String tok = text.substring(pos, end).strip();
         if (!PERCENT.matcher(tok).matches()
                 || Double.parseDouble(tok.substring(0, tok.length() - 1)) > 100) {
-            throw error("needs a percent from 0% to 100% with at most one decimal, got " + tok);
+            throw error("needs a percent from 0% to 100% with at most one decimal, got " + shown(tok));
         }
         pos = end;
         return Double.parseDouble(tok.substring(0, tok.length() - 1)) / 100;
@@ -173,7 +173,7 @@ public final class ThemeExpr {
 
     private void comma() throws ThemeException {
         skip();
-        if (peek() != ',') throw error("needs a comma in " + text);
+        if (peek() != ',') throw error("needs a comma in " + shown(text));
         pos++;
     }
 
@@ -189,7 +189,8 @@ public final class ThemeExpr {
             long t = term();
             sum = c == '+' ? sum + t : sum - t;
         }
-        if (pos < text.length()) throw error("needs a number, got " + text);
+        if (pos < text.length()) throw error("needs a number, got " + shown(text));
+        if (sum < Integer.MIN_VALUE || sum > Integer.MAX_VALUE) throw error("is out of range");
         return (int) sum;
     }
 
@@ -198,11 +199,11 @@ public final class ThemeExpr {
         if (peek() == '@') {
             String ref = word();
             if (lookup(ref) instanceof Integer i) return i;
-            throw error("needs a number, " + ref + " is a colour");
+            throw error("needs a number, " + shown(ref) + " is a colour");
         }
         Matcher m = WHOLE.matcher(text);
         m.region(pos, text.length());
-        if (!m.lookingAt()) throw error("needs a number, got " + text);
+        if (!m.lookingAt()) throw error("needs a number, got " + shown(text));
         pos = m.end();
         return Long.parseLong(m.group());
     }
@@ -211,7 +212,7 @@ public final class ThemeExpr {
 
     private Object lookup(String ref) throws ThemeException {
         Object v = constant.apply(ref.substring(1));
-        if (v == null) throw new ThemeException(line, "unknown constant " + ref);
+        if (v == null) throw new ThemeException(line, "unknown constant " + shown(ref));
         return v;
     }
 
@@ -219,7 +220,7 @@ public final class ThemeExpr {
     private String word() throws ThemeException {
         Matcher m = NAME.matcher(text);
         m.region(pos, text.length());
-        if (!m.lookingAt()) throw error("needs a constant name after @, got " + text);
+        if (!m.lookingAt()) throw error("needs a constant name after @, got " + shown(text));
         pos = m.end();
         return m.group();
     }
@@ -230,6 +231,10 @@ public final class ThemeExpr {
 
     private char peek() {
         return pos < text.length() ? text.charAt(pos) : '\0';
+    }
+
+    private static String shown(String value) {
+        return ThemeException.excerpt(value);
     }
 
     private ThemeException error(String message) {

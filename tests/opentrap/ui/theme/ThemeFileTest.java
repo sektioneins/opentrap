@@ -248,6 +248,41 @@ public final class ThemeFileTest {
             Expect.equal(f.ignoredHeader(), List.of("website", "license"), "ignored");
         });
 
+        Harness.test("an error quotes at most 60 characters of a long value, on one line", () -> {
+            String colour = evalError("#" + "z".repeat(60_000), COLOUR);
+            Expect.isTrue(colour.startsWith("line 3: KEY needs a colour, got #zzz") && colour.endsWith("..."), colour);
+            Expect.isTrue(colour.length() < 100, "length " + colour.length());
+            String spaced = evalError("a \t b" + " c".repeat(40), COLOUR);
+            Expect.isTrue(spaced.startsWith("line 3: KEY needs a colour, got a b c c") && spaced.endsWith("..."), spaced);
+            Expect.isTrue(evalError("@" + "a".repeat(5_000), COLOUR).length() < 100, "unknown constant");
+            Expect.isTrue(evalError("f" + "x".repeat(5_000) + "(#000000, 1%)", COLOUR).length() < 100, "unknown function");
+            Expect.isTrue(parseError("name = T\nappearance = " + "g".repeat(5_000) + "\n").length() < 120, "appearance");
+            Expect.isTrue(parseError("format = " + "x".repeat(5_000) + "\n" + HEAD).length() < 120, "format");
+        });
+
+        Harness.test("a name over 64 characters and an author or description over 500 are refused with their line", () -> {
+            Expect.equal(parseError("name = " + "n".repeat(65) + "\nappearance = dark\n"),
+                "line 1: name is longer than 64 characters", "name");
+            Expect.equal(parse("name = " + "n".repeat(64) + "\nappearance = dark\n").name().length(), 64, "64 is fine");
+            Expect.equal(parseError(HEAD + "author = " + "a".repeat(501) + "\n"),
+                "line 4: author is longer than 500 characters", "author");
+            Expect.equal(parseError(HEAD + "description = " + "d".repeat(501) + "\n"),
+                "line 4: description is longer than 500 characters", "description");
+        });
+
+        Harness.test("a sum beyond the range of a whole number is refused, not wrapped", () -> {
+            Expect.equal(evalError("999999999+999999999+999999999+999999999+294967305", new KeyType.Number(0, 12)),
+                "line 3: KEY is out of range", "wraps to 5 when cast");
+            Expect.equal(evalError("0 - 999999999 - 999999999 - 999999999", new KeyType.Number(0, 12)),
+                "line 3: KEY is out of range", "below");
+        });
+
+        Harness.test("a format with too many digits for a number asks for a newer OpenTRAP", () -> {
+            Expect.equal(parseError("format = 99999999999\n" + HEAD),
+                "line 1: needs a newer OpenTRAP (format 99999999999)", "message");
+            Expect.equal(parseError("format = 1.5\n" + HEAD), "line 1: format takes a whole number, got 1.5", "not a number");
+        });
+
         Harness.test("exceptions format their line only when there is one", () -> {
             Expect.equal(new ThemeException(5, "x").getMessage(), "line 5: x", "with line");
             Expect.equal(new ThemeException(0, "x").getMessage(), "x", "without line");

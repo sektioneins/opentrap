@@ -20,6 +20,8 @@ public final class ThemeFile {
     public static final int MAX_BYTES = 65_536;
     public static final int MAX_LINES = 2_000;
     public static final int MAX_NAME = 64;
+    /** The longest author or description. */
+    public static final int MAX_TEXT = 500;
     public static final int FORMAT = 1;
 
     /** A value as written, and the line it was written on. */
@@ -28,6 +30,7 @@ public final class ThemeFile {
     private static final Pattern HEADER = Pattern.compile("[a-z][a-z0-9_]*");
     private static final Pattern CONSTANT = Pattern.compile("@[a-z][a-z0-9_]*");
     private static final Pattern KEY = Pattern.compile("[A-Z][A-Z0-9_]*");
+    private static final Pattern WHOLE = Pattern.compile("\\d+");
 
     private int format = FORMAT;
     private String name, base, appearance, author, description;
@@ -53,7 +56,7 @@ public final class ThemeFile {
     public static ThemeFile parse(String text) throws ThemeException {
         int bytes = text.getBytes(StandardCharsets.UTF_8).length;
         if (bytes > MAX_BYTES) throw new ThemeException(0, "theme is " + bytes + " bytes, above " + MAX_BYTES);
-        if (text.startsWith("﻿")) text = text.substring(1);
+        if (text.startsWith("\uFEFF")) text = text.substring(1);
         String[] lines = text.split("\r?\n", -1);
         int count = lines.length;
         if (count > 0 && lines[count - 1].isEmpty()) count--;
@@ -96,33 +99,35 @@ public final class ThemeFile {
     private void header(String key, String value, int no) throws ThemeException {
         switch (key) {
             case "format" -> {
-                int n;
-                try {
-                    n = Integer.parseInt(value);
-                } catch (NumberFormatException e) {
-                    throw new ThemeException(no, "format takes a whole number, got " + value);
+                if (!WHOLE.matcher(value).matches()) {
+                    throw new ThemeException(no, "format takes a whole number, got " + ThemeException.excerpt(value));
                 }
-                if (n > FORMAT) throw new ThemeException(no, "needs a newer OpenTRAP (format " + n + ")");
+                String digits = value.replaceFirst("^0+(?=\\d)", "");
+                if (digits.length() > 9 || Integer.parseInt(digits) > FORMAT) {
+                    throw new ThemeException(no, "needs a newer OpenTRAP (format " + ThemeException.excerpt(digits) + ")");
+                }
+                int n = Integer.parseInt(digits);
                 if (n < 1) throw new ThemeException(no, "format takes a whole number from 1, got " + value);
                 format = n;
             }
-            case "name" -> name = nonEmpty(key, value, no);
-            case "author" -> author = nonEmpty(key, value, no);
-            case "description" -> description = nonEmpty(key, value, no);
+            case "name" -> name = text(key, value, MAX_NAME, no);
+            case "author" -> author = text(key, value, MAX_TEXT, no);
+            case "description" -> description = text(key, value, MAX_TEXT, no);
             case "base" -> base = appearanceWord(key, value, no);
             case "appearance" -> appearance = appearanceWord(key, value, no);
             default -> ignoredHeader.add(key);
         }
     }
 
-    private static String nonEmpty(String key, String value, int no) throws ThemeException {
+    private static String text(String key, String value, int max, int no) throws ThemeException {
         if (value.isEmpty()) throw new ThemeException(no, key + " has no value");
+        if (value.length() > max) throw new ThemeException(no, key + " is longer than " + max + " characters");
         return value;
     }
 
     private static String appearanceWord(String key, String value, int no) throws ThemeException {
         if (!value.equals("light") && !value.equals("dark")) {
-            throw new ThemeException(no, key + " takes light or dark, got " + value);
+            throw new ThemeException(no, key + " takes light or dark, got " + ThemeException.excerpt(value));
         }
         return value;
     }

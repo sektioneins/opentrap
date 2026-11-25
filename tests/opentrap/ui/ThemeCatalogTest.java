@@ -166,15 +166,39 @@ public final class ThemeCatalogTest {
             Expect.equal(s.resolved().appearance(), "light", "appearance");
         }));
 
-        Harness.test("a saved name whose appearance disagrees with ui.theme gives way to ui.theme and is cleared", () -> inFolder(dir -> {
+        Harness.test("a saved name whose appearance disagrees with ui.theme gives way to ui.theme, is cleared and is named", () -> inFolder(dir -> {
             write(dir, "night.theme", theme("Night", "dark", ""));
             Preferences p = prefs();
             p.put("ui.theme", "light");
             p.put("ui.theme.name", "night");
             ThemeCatalog.Choice s = ThemeCatalog.pick(new ThemeCatalog(dir), null, p);
             Expect.equal(s.id(), "light", "ui.theme wins");
-            Expect.isNull(s.notice(), "no notice");
+            Expect.equal(s.notice(), "The theme night is a dark theme, but the saved appearance is light. Using Light;"
+                + " choose the theme again in Settings to use it.", "notice");
             Expect.isNull(p.get("ui.theme.name", null), "the saved name is cleared");
+        }));
+
+        Harness.test("the reason in a startup notice and the Add error stay one short line for a long cycle", () -> inFolder(dir -> {
+            StringBuilder sb = new StringBuilder(theme("Loop", "light", ""));
+            String stem = "c".repeat(60);
+            for (int i = 0; i < 40; i++) sb.append('@').append(stem).append(i).append(" = @").append(stem).append((i + 1) % 40).append('\n');
+            sb.append("ACCENT = @").append(stem).append("0\n");
+            write(dir, "loop.theme", sb.toString());
+            Preferences p = prefs();
+            p.put("ui.theme", "light");
+            p.put("ui.theme.name", "loop");
+            ThemeCatalog.Choice s = ThemeCatalog.pick(new ThemeCatalog(dir), null, p);
+            Expect.equal(s.id(), "light", "fallback");
+            String reason = s.notice().substring("The theme loop could not be loaded (".length(), s.notice().length() - "). Using Light.".length());
+            Expect.isTrue(reason.startsWith("line ") && reason.contains("cycle"), reason);
+            Expect.isTrue(reason.length() <= 200, "reason length " + reason.length());
+            Expect.isFalse(reason.contains("\n"), "one line");
+            try {
+                new ThemeCatalog(dir.resolve("store")).check(dir.resolve("loop.theme"));
+                throw new AssertionError("expected a refusal");
+            } catch (ThemeException e) {
+                Expect.isTrue(e.getMessage().length() <= 220, "the Add error too: " + e.getMessage().length());
+            }
         }));
 
         Harness.test("with no theme saved, the app starts in Linen", () -> {

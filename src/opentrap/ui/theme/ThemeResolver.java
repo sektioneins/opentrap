@@ -138,7 +138,7 @@ public final class ThemeResolver {
         if (at >= 0) {
             StringBuilder cycle = new StringBuilder("cycle: ");
             for (int i = at; i < visiting.size(); i++) cycle.append('@').append(visiting.get(i)).append(" -> ");
-            throw new ThemeException(def.line(), cycle.append('@').append(name).toString());
+            throw new ThemeException(def.line(), ThemeException.excerpt(cycle.append('@').append(name).toString(), 200));
         }
         if (visiting.size() >= MAX_DEPTH) {
             throw new ThemeException(def.line(), "@" + name + " is more than " + MAX_DEPTH

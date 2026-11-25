@@ -34,6 +34,8 @@ public final class ThemeCatalog {
     public static final String DEFAULT = "linen";
 
     private static final Pattern ID = Pattern.compile("[a-z0-9_-]{1,64}");
+    /** The most of an error's text a startup notice quotes. */
+    private static final int MAX_REASON = 200;
     private static final String EXT = ".theme";
 
     /** One theme in the list. */
@@ -178,7 +180,8 @@ public final class ThemeCatalog {
      * saved {@code ui.theme.name}, else {@code ui.theme}, else {@link #DEFAULT}
      * when neither is saved. A theme that cannot be loaded falls back to the
      * built-in that {@code ui.theme} names (light when absent), with a notice.
-     * Never throws.
+     * Never throws for a user theme or a bad setting; a broken theme in the jar
+     * is a build error, which the tests catch, and throws.
      */
     public static Choice pick(ThemeCatalog c, String sysprop, Preferences prefs) {
         String fallback = "light";
@@ -207,20 +210,26 @@ public final class ThemeCatalog {
         try {
             ThemeResolver.Resolved r = c.resolve(id);
             if (!fromSaved || r.appearance().equals(fallback)) return new Choice(id, r, null);
-            // The saved appearance was changed after the theme was chosen: ui.theme wins.
+            // The saved appearance and the theme's disagree: the appearance was changed
+            // elsewhere, or the theme file was edited. ui.theme wins, and the user is told.
             try {
                 prefs.remove("ui.theme.name");
             } catch (RuntimeException e) {
                 Debug.log("cannot clear ui.theme.name: " + e);
             }
-            return builtIn(c, fallback, null);
+            return builtIn(c, fallback, "The theme " + id + " is a " + r.appearance() + " theme, but the saved appearance is "
+                + fallback + ". Using " + label(fallback) + "; choose the theme again in Settings to use it.");
         } catch (ThemeException | IOException | RuntimeException | StackOverflowError e) {
             String m = e.getMessage();
-            reason = m == null || m.isBlank() ? e.getClass().getSimpleName() : m.strip();
+            reason = m == null || m.isBlank() ? e.getClass().getSimpleName() : ThemeException.excerpt(m, MAX_REASON);
         }
         Debug.log("theme " + id + " not loaded: " + reason);
-        String label = fallback.equals("dark") ? "Dark" : "Light";
-        return builtIn(c, fallback, "The theme " + id + " could not be loaded (" + reason + "). Using " + label + ".");
+        return builtIn(c, fallback, "The theme " + ThemeException.excerpt(id) + " could not be loaded (" + reason + "). Using "
+            + label(fallback) + ".");
+    }
+
+    private static String label(String builtIn) {
+        return builtIn.equals("dark") ? "Dark" : "Light";
     }
 
     private static Choice builtIn(ThemeCatalog c, String id, String notice) {
