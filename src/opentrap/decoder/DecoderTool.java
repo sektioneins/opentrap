@@ -29,7 +29,15 @@ public class DecoderTool implements ToolModule {
     /** Suppresses the editor and combo listeners while the chain is rebuilt. */
     private boolean updating;
 
+    /** Longest output a decode may produce before it is cut off. */
+    private final int maxOutput;
+
     public DecoderTool() {
+        this(Transforms.MAX_OUTPUT);
+    }
+
+    DecoderTool(int maxOutput) {
+        this.maxOutput = maxOutput;
         column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
         column.setOpaque(false);
 
@@ -96,7 +104,10 @@ public class DecoderTool implements ToolModule {
             if (s.opKind == null) break;
             byte[] out;
             try {
-                out = Transforms.apply(s.opKind, s.opName, s.data, Transforms.MAX_OUTPUT);
+                out = Transforms.apply(s.opKind, s.opName, s.data, maxOutput);
+            } catch (Transforms.Truncated ex) {
+                out = ex.partial();              // the stages below work on the first part
+                s.showError(ex.getMessage());
             } catch (Exception ex) {
                 out = s.data;                    // malformed input leaves the data alone
                 s.showError(describe(ex));
@@ -340,7 +351,7 @@ public class DecoderTool implements ToolModule {
 
         private void smartDecode() {
             if (updating) return;
-            String guess = Transforms.guess(data);
+            String guess = Transforms.guess(data, maxOutput);
             if (guess == null) {
                 showError("no encoding recognised");
                 return;
