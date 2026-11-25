@@ -154,6 +154,20 @@ public final class ContrastTest {
                 "a see-through page is taken as opaque");
         });
 
+        Harness.test("a theme that leaves a badge unreadable is reported, and a badge weak in the base alone is not", () -> {
+            Color white = new Color(255, 255, 255), black = new Color(0, 0, 0), amber = new Color(0xE0, 0x8A, 0x1E);
+            Map<String, Object> base = Map.of("BG", white, "TEXT_ON_BADGE", white, "TEXT_ON_BADGE_DARK", black, "WARN", amber);
+            Expect.isTrue(Contrast.failures(base).isEmpty(), "black reads on amber");
+            Map<String, Object> theme = Map.of("BG", white, "TEXT_ON_BADGE", white, "TEXT_ON_BADGE_DARK", white, "WARN", amber);
+            var failed = Contrast.changed(theme, base);
+            Expect.equal(failed.size(), 1, "white is the only on-colour left: " + failed);
+            Expect.equal(failed.get(0).pair().fg(), Contrast.BADGE_TEXT, "the badge pair");
+            Expect.equal(failed.get(0).pair().bg(), "WARN", "on amber");
+            Map<String, Object> moved = new java.util.HashMap<>(theme);
+            moved.put("ACCENT", black);
+            Expect.isTrue(Contrast.changed(moved, theme).isEmpty(), "the same weak badge in the base alone is not blamed");
+        });
+
         Harness.test("a failing pair the theme did not change is not reported", () -> {
             Color grey = new Color(120, 120, 120), white = new Color(255, 255, 255);
             Map<String, Object> base = Map.of("TEXT", grey, "BG", white, "MUTED", grey);

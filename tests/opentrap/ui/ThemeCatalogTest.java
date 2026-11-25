@@ -107,9 +107,9 @@ public final class ThemeCatalogTest {
             }
         }));
 
-        Harness.test("a theme of 2,000 chained constants is refused, not a crash", () -> inFolder(dir -> {
+        Harness.test("a theme of about 2,000 chained constants is refused, not a crash", () -> inFolder(dir -> {
             StringBuilder sb = new StringBuilder(theme("Deep", "light", ""));
-            int n = 1_900;
+            int n = 1_996;   // with the 3 header lines and the last constant, the 2,000 lines the parser allows
             for (int i = 0; i < n; i++) sb.append("@c").append(i).append(" = @c").append(i + 1).append('\n');
             sb.append("@c").append(n).append(" = #112233\n");
             Path src = write(dir, "deep.theme", sb.toString());
@@ -270,6 +270,31 @@ public final class ThemeCatalogTest {
             }
             Expect.isTrue(onLight && onDark, "a shipped theme sits on each base");
         });
+
+        Harness.test("installing the theme sets the active id, and a fallback sets the startup notice", () -> inFolder(dir -> {
+            write(dir, "harbour.theme", theme("Harbour", "dark", ""));
+            write(dir, "broken.theme", "this is not a theme\n");
+            Preferences p = Preferences.userRoot().node("opentrap.v1");
+            String oldT = p.get("ui.theme", null), oldN = p.get("ui.theme.name", null);
+            try {
+                p.put("ui.theme", "dark");
+                p.put("ui.theme.name", "harbour");
+                Theme.install(dir);
+                Expect.equal(Theme.activeId(), "harbour", "the saved user theme");
+                Expect.isNull(Theme.startupNotice(), "no notice");
+                Expect.isTrue(Theme.dark, "dark values are in place");
+                p.put("ui.theme", "light");
+                p.put("ui.theme.name", "broken");
+                Theme.install(dir);
+                Expect.equal(Theme.activeId(), "light", "the fallback");
+                Expect.isTrue(Theme.startupNotice() != null && Theme.startupNotice().startsWith("The theme broken could not be loaded"),
+                    String.valueOf(Theme.startupNotice()));
+            } finally {
+                if (oldT == null) p.remove("ui.theme"); else p.put("ui.theme", oldT);
+                if (oldN == null) p.remove("ui.theme.name"); else p.put("ui.theme.name", oldN);
+                Theme.configure(false);
+            }
+        }));
 
         Harness.test("the app icon and wordmark follow the theme's appearance, not its base", () -> inFolder(dir -> {
             Path src = write(dir, "night.theme",

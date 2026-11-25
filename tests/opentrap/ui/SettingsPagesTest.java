@@ -219,6 +219,25 @@ public final class SettingsPagesTest {
             } finally { restoreTheme(s, oldT, oldN); }
         });
 
+        Harness.test("choosing a shipped theme other than Light and Dark saves its id, and the next start picks it", () -> {
+            Settings s = new Settings();
+            AtomicInteger n = new AtomicInteger();
+            String oldT = s.get("ui.theme", null), oldN = s.get("ui.theme.name", null);
+            try {
+                var linen = new ThemeCatalog.Entry("linen", "Linen", "light", "light", true);
+                InterfacePages.applyTheme(s, linen, "dark", n::incrementAndGet);
+                Expect.equal(s.get("ui.theme", null), "light", "appearance");
+                Expect.equal(s.get("ui.theme.name", null), "linen", "the id is kept");
+                Expect.equal(n.get(), 1, "restarts");
+                java.util.prefs.Preferences p = new opentrap.testkit.MemoryPreferences(null, "");
+                p.put("ui.theme", s.get("ui.theme", null));
+                p.put("ui.theme.name", s.get("ui.theme.name", null));
+                ThemeCatalog.Choice c = ThemeCatalog.pick(new ThemeCatalog(java.nio.file.Path.of("/dev/null/themes")), null, p);
+                Expect.equal(c.id(), "linen", "picked at the next start");
+                Expect.isNull(c.notice(), "no notice");
+            } finally { restoreTheme(s, oldT, oldN); }
+        });
+
         Harness.test("restoring the appearance defaults chooses Linen", () -> {
             Settings s = new Settings();
             String oldT = s.get("ui.theme", null), oldN = s.get("ui.theme.name", null);
