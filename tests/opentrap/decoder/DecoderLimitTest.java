@@ -125,5 +125,33 @@ public final class DecoderLimitTest {
             settle();
             expectTruncated(root);
         });
+
+        Harness.test("a stage longer than the wrap limit is not wrapped", () -> {
+            JComponent root = new DecoderTool(1 << 20).tabs()[0].component();
+            JTextArea top = all(root, JTextArea.class, new ArrayList<>()).get(0);
+            byte[] gz;
+            try {
+                gz = Transforms.encode("gzip", new byte[32768]);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+            onEdt(() -> top.replaceSelection(Bytes.str(gz)));
+            settle();
+            @SuppressWarnings("unchecked")
+            JComboBox<String> decode = all(stageOf(top), JComboBox.class, new ArrayList<>()).get(0);
+            onEdt(() -> decode.setSelectedItem(" gzip"));
+            settle();
+            List<JTextArea> areas = all(root, JTextArea.class, new ArrayList<>());
+            Expect.equal(areas.size(), 2, "stages");
+            Expect.isTrue(areas.get(1).getText().length() > DecoderTool.WRAP_LIMIT, "the second stage is long");
+            Expect.isFalse(areas.get(1).getLineWrap(), "the long stage wraps");
+            Expect.isTrue(areas.get(0).getLineWrap(), "the short top stage wraps");
+        });
+
+        Harness.test("a short stage is still wrapped", () -> {
+            List<JTextArea> areas = all(typed(16, false), JTextArea.class, new ArrayList<>());
+            Expect.equal(areas.size(), 2, "stages");
+            Expect.isTrue(areas.get(1).getLineWrap(), "the short stage wraps");
+        });
     }
 }

@@ -21,6 +21,8 @@ public class DecoderTool implements ToolModule {
 
     private static final int CONTROL_WIDTH = 150;
     private static final int STAGE_HEIGHT = 110;
+    /** Wrapping one long line costs time quadratic in its length in a JTextArea, so longer stages scroll sideways. */
+    static final int WRAP_LIMIT = 64 * 1024;
 
     private final JPanel root = new JPanel(new BorderLayout(0, 6));
     private final JPanel column = new JPanel();
@@ -161,7 +163,9 @@ public class DecoderTool implements ToolModule {
     private void render(Stage s) {
         boolean was = updating;
         updating = true;
-        s.area.setText(s.hexView ? Transforms.spacedHex(s.data) : Bytes.str(s.data));
+        String text = s.hexView ? Transforms.spacedHex(s.data) : Bytes.str(s.data);
+        s.area.setLineWrap(text.length() <= WRAP_LIMIT);
+        s.area.setText(text);
         s.area.setCaretPosition(0);
         updating = was;
     }
