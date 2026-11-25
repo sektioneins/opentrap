@@ -5,7 +5,9 @@ import opentrap.testkit.Harness;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.lang.management.ManagementFactory;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -77,6 +79,15 @@ public final class WebSocketFrameTest {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    /** A stream that hands out at most 3 bytes per read, so reads split the mask phase. */
+    private static InputStream trickle(InputStream in) {
+        return new FilterInputStream(in) {
+            @Override public int read(byte[] b, int off, int len) throws IOException {
+                return super.read(b, off, Math.min(len, 3));
+            }
+        };
     }
 
     private static byte[] header(int b0, int b1, long len) {
@@ -152,20 +163,20 @@ public final class WebSocketFrameTest {
         }));
 
         Harness.test("a streamed masked payload arrives clear and keeps its first bytes", () -> io(() -> {
-            byte[] p = new byte[200000];
+            byte[] p = new byte[200003];
             for (int i = 0; i < p.length; i++) p[i] = (byte) (i * 31 + 7);
-            ByteArrayInputStream in = new ByteArrayInputStream(WebSocketFrame.encode(true, 2, p, true));
+            InputStream in = trickle(new ByteArrayInputStream(WebSocketFrame.encode(true, 2, p, true)));
             WebSocketFrame f = WebSocketFrame.readHeader(in);
             ByteArrayOutputStream out = new ByteArrayOutputStream();
-            byte[] kept = f.streamPayload(in, out, null, 100);
+            byte[] kept = f.streamPayload(in, out, null, 100000);
             Expect.isTrue(Arrays.equals(p, out.toByteArray()), "streamed payload");
-            Expect.isTrue(Arrays.equals(Arrays.copyOf(p, 100), kept), "kept prefix");
+            Expect.isTrue(Arrays.equals(Arrays.copyOf(p, 100000), kept), "kept prefix");
         }));
 
         Harness.test("a re-masked streamed payload reads back as the same frame", () -> io(() -> {
             byte[] p = new byte[150001];
             for (int i = 0; i < p.length; i++) p[i] = (byte) (i * 13 + 5);
-            ByteArrayInputStream in = new ByteArrayInputStream(WebSocketFrame.encode(true, 2, p, false));
+            InputStream in = trickle(new ByteArrayInputStream(WebSocketFrame.encode(true, 2, p, false)));
             WebSocketFrame f = WebSocketFrame.readHeader(in);
             byte[] key = WebSocketFrame.newMaskKey();
             ByteArrayOutputStream out = new ByteArrayOutputStream();
