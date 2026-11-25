@@ -21,6 +21,8 @@ public class DecoderTool implements ToolModule {
 
     private static final int CONTROL_WIDTH = 150;
     private static final int STAGE_HEIGHT = 110;
+    /** Wrapping one long line costs time quadratic in its length in a JTextArea, so longer stages scroll sideways. */
+    static final int WRAP_LIMIT = 64 * 1024;
 
     private final JPanel root = new JPanel(new BorderLayout(0, 6));
     private final JPanel column = new JPanel();
@@ -29,7 +31,15 @@ public class DecoderTool implements ToolModule {
     /** Suppresses the editor and combo listeners while the chain is rebuilt. */
     private boolean updating;
 
+    /** Longest output a decode may produce before it is cut off. */
+    private final int maxOutput;
+
     public DecoderTool() {
+        this(Transforms.MAX_OUTPUT);
+    }
+
+    DecoderTool(int maxOutput) {
+        this.maxOutput = maxOutput;
         column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
         column.setOpaque(false);
 
@@ -96,7 +106,10 @@ public class DecoderTool implements ToolModule {
             if (s.opKind == null) break;
             byte[] out;
             try {
-                out = Transforms.apply(s.opKind, s.opName, s.data);
+                out = Transforms.apply(s.opKind, s.opName, s.data, maxOutput);
+            } catch (Transforms.Truncated ex) {
+                out = ex.partial();              // the stages below work on the first part
+                s.showError(ex.getMessage());
             } catch (Exception ex) {
                 out = s.data;                    // malformed input leaves the data alone
                 s.showError(describe(ex));
@@ -150,7 +163,9 @@ public class DecoderTool implements ToolModule {
     private void render(Stage s) {
         boolean was = updating;
         updating = true;
-        s.area.setText(s.hexView ? Transforms.spacedHex(s.data) : Bytes.str(s.data));
+        String text = s.hexView ? Transforms.spacedHex(s.data) : Bytes.str(s.data);
+        s.area.setLineWrap(text.length() <= WRAP_LIMIT);
+        s.area.setText(text);
         s.area.setCaretPosition(0);
         updating = was;
     }
@@ -340,7 +355,7 @@ public class DecoderTool implements ToolModule {
 
         private void smartDecode() {
             if (updating) return;
-            String guess = Transforms.guess(data);
+            String guess = Transforms.guess(data, maxOutput);
             if (guess == null) {
                 showError("no encoding recognised");
                 return;

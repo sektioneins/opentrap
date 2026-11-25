@@ -5,6 +5,7 @@ import opentrap.core.Bytes;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.security.MessageDigest;
 import java.security.Security;
 import java.util.ArrayList;
@@ -26,6 +27,8 @@ import java.util.zip.InflaterInputStream;
  * The decode, encode and hash operations offered by the decoder. Everything
  * works on bytes: text is only ever a 1:1 ISO-8859-1 view of those bytes, so a
  * decode followed by the matching encode gives back what you started with.
+ * Decompression stops at a limit, so a small compressed input cannot become an
+ * allocation the size of its output.
  */
 final class Transforms {
     private Transforms() {}
@@ -37,6 +40,25 @@ final class Transforms {
     /** Raised for input a decoder cannot make sense of. */
     static final class Failure extends Exception {
         Failure(String message) { super(message); }
+    }
+
+    /** Most bytes a gzip, deflate or brotli decode returns; the rest is cut off. */
+    static final int MAX_OUTPUT = 16 * 1024 * 1024;
+
+    /**
+     * A decompression that hit its limit. The first {@code limit} bytes are in
+     * {@link #partial()}. Not a {@link Failure} and not an IOException, so no
+     * caller treats the cut-off as a malformed input by accident.
+     */
+    static final class Truncated extends Exception {
+        private final byte[] partial;
+
+        Truncated(byte[] partial, int limit) {
+            super("output truncated at " + (limit % (1 << 20) == 0 ? (limit >> 20) + " MB" : limit + " bytes"));
+            this.partial = partial;
+        }
+
+        byte[] partial() { return partial; }
     }
 
     /** Transform names in menu order. The leading space is the house style. */
@@ -93,10 +115,10 @@ final class Transforms {
         return names.toArray(new String[0]);
     }
 
-    static byte[] apply(String kind, String name, byte[] data) throws Exception {
+    static byte[] apply(String kind, String name, byte[] data, int limit) throws Exception {
         String n = name.trim();
         return switch (kind) {
-            case DECODE -> decode(n, data);
+            case DECODE -> decode(n, data, limit);
             case ENCODE -> encode(n, data);
             case HASH   -> MessageDigest.getInstance(n).digest(data);
             default     -> data;
@@ -104,6 +126,11 @@ final class Transforms {
     }
 
     static byte[] decode(String name, byte[] data) throws Exception {
+        return decode(name, data, MAX_OUTPUT);
+    }
+
+    /** The limit applies to gzip, deflate and brotli only. */
+    static byte[] decode(String name, byte[] data, int limit) throws Exception {
         return switch (name) {
             case "url"       -> urlDecode(data);
             case "html"      -> htmlDecode(data);
@@ -112,9 +139,9 @@ final class Transforms {
             case "hex"       -> fromBase(Bytes.str(data), 16, 2);
             case "octal"     -> fromBase(Bytes.str(data), 8, 3);
             case "binary"    -> fromBase(Bytes.str(data), 2, 8);
-            case "gzip"      -> gunzip(data);
-            case "deflate"   -> inflate(data);
-            case "brotli"    -> unbrotli(data);
+            case "gzip"      -> gunzip(data, limit);
+            case "deflate"   -> inflate(data, limit);
+            case "brotli"    -> unbrotli(data, limit);
             default          -> data;
         };
     }
@@ -142,36 +169,42 @@ final class Transforms {
      * nothing recognisable would change the data.
      */
     static String guess(byte[] data) {
+        return guess(data, MAX_OUTPUT);
+    }
+
+    static String guess(byte[] data, int limit) {
         if (data == null || data.length == 0) return null;
         // gzip has an unambiguous magic number, so it is safe to recognise.
         if (data.length >= 2 && (data[0] & 0xff) == 0x1f && (data[1] & 0xff) == 0x8b) {
-            String hit = ifChanged("gzip", data);
+            String hit = ifChanged("gzip", data, limit);
             if (hit != null) return hit;
         }
         String s = Bytes.str(data);
         if (PERCENT.matcher(s).find()) {
-            String hit = ifChanged("url", data);
+            String hit = ifChanged("url", data, limit);
             if (hit != null) return hit;
         }
         if (ENTITY.matcher(s).find()) {
-            String hit = ifChanged("html", data);
+            String hit = ifChanged("html", data, limit);
             if (hit != null) return hit;
         }
         if (looksBase64(s)) {
-            String hit = ifChanged("base64", data);
+            String hit = ifChanged("base64", data, limit);
             if (hit != null) return hit;
         }
         if (looksAsciiHex(s)) {
-            String hit = ifChanged("ascii hex", data);
+            String hit = ifChanged("ascii hex", data, limit);
             if (hit != null) return hit;
         }
         return null;
     }
 
-    private static String ifChanged(String name, byte[] data) {
+    private static String ifChanged(String name, byte[] data, int limit) {
         try {
-            byte[] out = decode(name, data);
+            byte[] out = decode(name, data, limit);
             return Arrays.equals(out, data) ? null : " " + name;
+        } catch (Truncated e) {
+            return " " + name;
         } catch (Exception e) {
             return null;
         }
@@ -358,10 +391,21 @@ final class Transforms {
         return out.toByteArray();
     }
 
-    private static byte[] gunzip(byte[] data) throws IOException {
+    private static byte[] gunzip(byte[] data, int limit) throws IOException, Truncated {
         try (GZIPInputStream g = new GZIPInputStream(new ByteArrayInputStream(data))) {
-            return g.readAllBytes();
+            return readBounded(g, limit);
         }
+    }
+
+    /**
+     * Read up to {@code limit} bytes, and throw {@link Truncated} when there is
+     * more. The buffers grow with what is read, so a small output never costs a
+     * limit-sized array.
+     */
+    private static byte[] readBounded(InputStream in, int limit) throws IOException, Truncated {
+        byte[] out = in.readNBytes(limit);
+        if (in.read() != -1) throw new Truncated(out, limit);
+        return out;
     }
 
     private static byte[] deflate(byte[] data) throws IOException {
@@ -373,21 +417,21 @@ final class Transforms {
     }
 
     /** Inflate zlib-wrapped data, falling back to raw (headerless) deflate. */
-    private static byte[] inflate(byte[] data) throws Failure {
+    private static byte[] inflate(byte[] data, int limit) throws Failure, Truncated {
         try (InflaterInputStream in = new InflaterInputStream(new ByteArrayInputStream(data))) {
-            return in.readAllBytes();
+            return readBounded(in, limit);
         } catch (IOException zlib) {
             try (InflaterInputStream in = new InflaterInputStream(new ByteArrayInputStream(data), new Inflater(true))) {
-                return in.readAllBytes();
+                return readBounded(in, limit);
             } catch (IOException raw) {
                 throw new Failure("not valid deflate data");
             }
         }
     }
 
-    private static byte[] unbrotli(byte[] data) throws Failure {
+    private static byte[] unbrotli(byte[] data, int limit) throws Failure, Truncated {
         try (org.brotli.dec.BrotliInputStream b = new org.brotli.dec.BrotliInputStream(new ByteArrayInputStream(data))) {
-            return b.readAllBytes();
+            return readBounded(b, limit);
         } catch (IOException e) {
             throw new Failure("not valid brotli data");
         }
