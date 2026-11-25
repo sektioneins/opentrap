@@ -69,7 +69,18 @@ public final class ProjectSettingsPanel extends JPanel {
                 + "cannot exhaust memory. This cap bounds the payloads kept in the heap when disk "
                 + "recording is off: past it the oldest frames are dropped as new ones arrive. "
                 + "0 keeps everything.");
-        page.section("memory", memRow, memNote, wsMemRow, wsMemNote);
+        JSpinner wsFrame = new JSpinner(new SpinnerNumberModel(
+                Math.clamp(s.getInt(ProjectOptions.WS_FRAME_MB, ProjectOptions.DEFAULT_WS_FRAME_MB),
+                        1, ProjectOptions.MAX_WS_FRAME_MB),
+                1, ProjectOptions.MAX_WS_FRAME_MB, 1));
+        wsFrame.setFont(Ui.PLAIN);
+        wsFrame.addChangeListener(e -> s.setInt(ProjectOptions.WS_FRAME_MB, (Integer) wsFrame.getValue()));
+        JPanel wsFrameRow = Ui.form("largest websocket frame held whole (MB):", wsFrame);
+        JTextArea wsFrameNote = Ui.note(
+                "A frame up to this size is held whole, so match and replace and interception can "
+                + "work on it. A larger frame is streamed through unchanged, and the history keeps "
+                + "its first part. Applies to connections opened after the change.");
+        page.section("memory", memRow, memNote, wsMemRow, wsMemNote, wsFrameRow, wsFrameNote);
 
         JCheckBox logoos = Ui.check("log out-of-scope traffic", ProjectOptions.logOutOfScope(s));
         logoos.addActionListener(e -> s.setBool(ProjectOptions.LOG_OUT_OF_SCOPE, logoos.isSelected()));

@@ -7,8 +7,8 @@ import java.util.Set;
  *
  * <p>Only the keys in {@link #KEYS} travel with the project: they live in
  * memory and in the project file and never reach the preferences store. The
- * memory caps {@link #AUDIT_MEMORY_MB} and {@link #WS_MEMORY_MB} are user keys
- * because they size this machine's memory; this class only names them and
+ * memory caps {@link #AUDIT_MEMORY_MB} and {@link #WS_MEMORY_MB} and the frame
+ * cap {@link #WS_FRAME_MB} are user keys because they size this machine's memory; this class only names them and
  * their defaults in one place.
  *
  * <p>The defaults follow the shape of a scan: the crawl's pages and everything
@@ -30,6 +30,12 @@ public final class ProjectOptions {
     public static final String AUDIT_MEMORY_MB = "project.auditMemoryMb";
     /** How much WebSocket frame payload the session keeps in memory, in MB; the oldest is dropped past this. */
     public static final String WS_MEMORY_MB = "project.wsMemoryMb";
+    /**
+     * The largest WebSocket frame payload the proxy holds whole, in MB; a
+     * larger frame is streamed through. A user key, not in {@link #KEYS}: a
+     * project from someone else must not raise it.
+     */
+    public static final String WS_FRAME_MB = "project.wsFrameMb";
     /** Whether the proxy records traffic that is outside the target scope. */
     public static final String LOG_OUT_OF_SCOPE = "proxy.logOutOfScope";
     /**
@@ -65,6 +71,8 @@ public final class ProjectOptions {
 
     public static final int DEFAULT_AUDIT_MEMORY_MB = 100;
     public static final int DEFAULT_WS_MEMORY_MB = 32;
+    public static final int DEFAULT_WS_FRAME_MB = 16;
+    public static final int MAX_WS_FRAME_MB = 256;
 
     /** The tool tag the engine gives its audit probes; the one kind of traffic saved headers-only. */
     public static final String AUDIT_TOOL = "audit";
@@ -87,6 +95,12 @@ public final class ProjectOptions {
     public static long wsMemoryBytes(Settings s) {
         int mb = s.getInt(WS_MEMORY_MB, DEFAULT_WS_MEMORY_MB);
         return mb <= 0 ? 0 : mb * 1024L * 1024L;
+    }
+
+    /** The WebSocket frame cap in bytes, clamped to 1 through {@link #MAX_WS_FRAME_MB} MB. */
+    public static int wsFrameBytes(Settings s) {
+        int mb = Math.clamp(s.getInt(WS_FRAME_MB, DEFAULT_WS_FRAME_MB), 1, MAX_WS_FRAME_MB);
+        return mb * 1024 * 1024;
     }
 
     public static boolean logOutOfScope(Settings s) { return s.getBool(LOG_OUT_OF_SCOPE, true); }
