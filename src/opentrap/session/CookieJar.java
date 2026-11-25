@@ -55,7 +55,10 @@ public final class CookieJar implements Serializable {
         c.name = parts[0].substring(0, eq).trim();
         c.value = parts[0].substring(eq + 1).trim();
         // Without a Domain attribute the cookie belongs to the sending host alone
-        // (RFC 6265 5.3 step 6). An empty Domain value is ignored, as 5.2.3 says.
+        // (RFC 6265 5.3 step 6). A literally empty Domain (or "Domain=.") still counts
+        // as the last Domain attribute and leaves the cookie host-only, as Chromium
+        // does; RFC 6265 5.2.3 says to ignore the attribute, which would let an earlier
+        // Domain stand.
         c.domain = reqHost;
         c.hostOnly = true;
         c.path = "/";
@@ -66,7 +69,7 @@ public final class CookieJar implements Serializable {
             if (al.startsWith("domain=")) {
                 String d = a.substring(7).trim();
                 if (d.startsWith(".")) d = d.substring(1);
-                domainAttr = d.toLowerCase(Locale.ROOT);   // the last one wins, even when empty (5.2.3)
+                domainAttr = d.toLowerCase(Locale.ROOT);   // the last one wins, even when empty (see above)
             } else if (al.startsWith("path=")) c.path = a.substring(5).trim();
             else if (al.equals("secure")) c.secure = true;
             else if (al.startsWith("max-age=")) {
@@ -80,17 +83,15 @@ public final class CookieJar implements Serializable {
             }
         }
         if (!domainAttr.isEmpty()) {
-            // A Domain the host may not set (5.3 steps 5 and 6): a public suffix is kept
-            // host-only when it is the host itself and ignored otherwise; anything else
-            // must domain-match the host.
+            // A Domain the host may not set (5.3 steps 5 and 6) is ignored: it must
+            // domain-match the host, checked first so a junk TLD never reaches the
+            // suffix list. A public suffix is kept host-only when it is the host itself.
             // A trailing dot is ignored for the public-suffix check only.
-            if (PublicSuffixes.jdk().isPublicSuffix(stripTrailingDot(domainAttr))) {
-                if (!domainAttr.equals(reqHost)) return null;
-            } else {
-                if (!Cookie.domainMatch(reqHost, domainAttr)) return null;
+            if (!Cookie.domainMatch(reqHost, domainAttr)) return null;
+            if (!PublicSuffixes.jdk().isPublicSuffix(stripTrailingDot(domainAttr))) {
                 c.domain = domainAttr;
                 c.hostOnly = false;
-            }
+            } else if (!domainAttr.equals(reqHost)) return null;
         }
         return c.name.isEmpty() ? null : c;
     }

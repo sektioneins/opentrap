@@ -16,7 +16,7 @@ import java.util.zip.ZipFile;
  * one entry per TLD, named in Unicode; each line of an entry is a type byte
  * (0 ICANN, 1 private), a rule ({@code co.uk}, {@code *.sch.uk},
  * {@code !www.ck}) and a newline. Rules are read per TLD on first use and
- * cached. When the file is missing or unreadable only the list's default rule
+ * cached, except after a failed read, which is tried again. When the file is missing or unreadable only the list's default rule
  * applies: a single label is a public suffix.
  */
 final class PublicSuffixes {
@@ -86,9 +86,15 @@ final class PublicSuffixes {
     }
 
     private List<Rule> rulesFor(String tld) {
-        return rulesByTld.computeIfAbsent(tld, this::read);
+        List<Rule> rules = rulesByTld.get(tld);
+        if (rules != null) return rules;
+        rules = read(tld);
+        if (rules == null) return NONE;   // a failed read is not cached, so a later lookup may succeed
+        List<Rule> raced = rulesByTld.putIfAbsent(tld, rules);
+        return raced != null ? raced : rules;
     }
 
+    /** The rules of {@code tld}, empty when the list lacks it, or null when reading failed. */
     private List<Rule> read(String tld) {
         try (ZipFile zip = new ZipFile(file.toFile())) {
             var entry = zip.getEntry(tld);
@@ -104,7 +110,7 @@ final class PublicSuffixes {
             }
             return rules;
         } catch (IOException | RuntimeException e) {
-            return NONE;
+            return null;
         }
     }
 }

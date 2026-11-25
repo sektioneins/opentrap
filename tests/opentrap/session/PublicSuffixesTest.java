@@ -86,6 +86,27 @@ public final class PublicSuffixesTest {
                 try { Files.deleteIfExists(file); } catch (IOException ignored) { }
             }
         });
+
+        Harness.test("a list that could not be read is read again on the next lookup", () -> {
+            Path file = tempFile();
+            try {
+                Files.delete(file);
+                PublicSuffixes p = PublicSuffixes.load(file);
+                is(p, "p.zz", false);
+                ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                try (ZipOutputStream zip = new ZipOutputStream(bos)) {
+                    zip.putNextEntry(new ZipEntry("zz"));
+                    zip.write(new byte[] {0, 'p', '.', 'z', 'z', '\n'});
+                    zip.closeEntry();
+                }
+                Files.write(file, bos.toByteArray());
+                is(p, "p.zz", true);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            } finally {
+                try { Files.deleteIfExists(file); } catch (IOException ignored) { }
+            }
+        });
     }
 
     private static void check(PublicSuffixes p) {
