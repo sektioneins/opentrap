@@ -121,6 +121,7 @@ public class AttackEngine {
         HttpClient.Options opt = new HttpClient.Options();
         opt.updateContentLength = false;   // already applied above
         opt.unpackGzip = true;
+        opt.unpackLimit = ProjectOptions.unpackBytes(ctx.settings());
         opt.followRedirects = followRedirects;
         opt.session = ctx.sessions();
         opt.sessionTool = "intruder";

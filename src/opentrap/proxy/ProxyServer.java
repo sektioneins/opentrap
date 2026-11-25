@@ -488,6 +488,7 @@ public class ProxyServer {
             HttpClient.Options opt = new HttpClient.Options();
             opt.updateContentLength = false;
             opt.unpackGzip = unpackGzip;
+            opt.unpackLimit = ProjectOptions.unpackBytes(ctx.settings());
             opt.followRedirects = false;
             opt.session = ctx.sessions();
             opt.sessionTool = "proxy";

@@ -72,7 +72,11 @@ public final class ContentDiscovery {
         HttpClient.Options opt = new HttpClient.Options();
         opt.followRedirects = false;
         opt.unpackGzip = true;
-        if (ctx != null) { opt.session = ctx.sessions(); opt.sessionTool = "discovery"; }
+        if (ctx != null) {
+            opt.unpackLimit = ProjectOptions.unpackBytes(ctx.settings());
+            opt.session = ctx.sessions();
+            opt.sessionTool = "discovery";
+        }
         HttpClient.Result r = new HttpClient().send(base, req, opt);
         if (!r.ok()) return;
         int status = r.response.statusCode();

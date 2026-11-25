@@ -79,7 +79,19 @@ public final class ProjectSettingsPanel extends JPanel {
                 "A frame up to this size is held whole, so match and replace and interception can "
                 + "work on it. A larger frame is streamed through unchanged, and the history keeps "
                 + "its first part. Applies to connections opened after the change.");
-        page.section("memory", memRow, memNote, wsMemRow, wsMemNote, wsFrameRow, wsFrameNote);
+        JSpinner unpack = new JSpinner(new SpinnerNumberModel(
+                ProjectOptions.unpackBytes(s) >> 20,
+                1, ProjectOptions.MAX_UNPACK_MB, 1));
+        unpack.setFont(Ui.PLAIN);
+        unpack.addChangeListener(e -> s.setInt(ProjectOptions.UNPACK_MB, (Integer) unpack.getValue()));
+        JPanel unpackRow = Ui.form("largest response body unpacked (MB):", unpack);
+        JTextArea unpackNote = Ui.note(
+                "A gzip, deflate or brotli response that decodes to more than this stays compressed. "
+                + "The browser still gets it, but match and replace, response rewriting and the "
+                + "readable view see the compressed bytes, and the history says why. All responses "
+                + "decoding at the same time share 256 MB. Applies to the next request.");
+        page.section("memory", memRow, memNote, wsMemRow, wsMemNote, wsFrameRow, wsFrameNote,
+                unpackRow, unpackNote);
 
         JCheckBox logoos = Ui.check("log out-of-scope traffic", ProjectOptions.logOutOfScope(s));
         logoos.addActionListener(e -> s.setBool(ProjectOptions.LOG_OUT_OF_SCOPE, logoos.isSelected()));

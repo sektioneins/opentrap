@@ -442,6 +442,7 @@ public class RepeaterTool implements ToolModule {
                     opt.updateContentLength = tabUpdateCl != null ? tabUpdateCl : updateContentLength;
                     applyFollowMode(opt, follow, ctx.scope());
                     opt.unpackGzip = true;
+                    opt.unpackLimit = ProjectOptions.unpackBytes(ctx.settings());
                     opt.session = ctx.sessions();
                     opt.sessionTool = "repeater";
                     opt.mode = mode;

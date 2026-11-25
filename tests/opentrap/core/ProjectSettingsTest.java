@@ -81,6 +81,36 @@ public final class ProjectSettingsTest {
             } finally { node().remove(ProjectOptions.WS_FRAME_MB); }
         });
 
+        Harness.test("the unpack limit is 16 MB unless set", () -> {
+            MemoryPreferencesFactory.reset();
+            try { Expect.equal(ProjectOptions.unpackBytes(new Settings()), 16 << 20, "default limit"); }
+            finally { node().remove(ProjectOptions.UNPACK_MB); }
+        });
+
+        Harness.test("the unpack limit stays between 1 and 256 MB", () -> {
+            MemoryPreferencesFactory.reset();
+            Settings s = new Settings();
+            try {
+                s.setInt(ProjectOptions.UNPACK_MB, 0);
+                Expect.equal(ProjectOptions.unpackBytes(s), 1 << 20, "zero");
+                s.setInt(ProjectOptions.UNPACK_MB, -5);
+                Expect.equal(ProjectOptions.unpackBytes(s), 1 << 20, "negative");
+                s.setInt(ProjectOptions.UNPACK_MB, 100000);
+                Expect.equal(ProjectOptions.unpackBytes(s), 256 << 20, "huge");
+                s.setInt(ProjectOptions.UNPACK_MB, 64);
+                Expect.equal(ProjectOptions.unpackBytes(s), 64 << 20, "in range");
+            } finally { node().remove(ProjectOptions.UNPACK_MB); }
+        });
+
+        Harness.test("the unpack limit is the user's, not the project's", () -> {
+            MemoryPreferencesFactory.reset();
+            try {
+                Expect.isFalse(ProjectOptions.isProjectKey(ProjectOptions.UNPACK_MB), "project key");
+                new Settings().setInt(ProjectOptions.UNPACK_MB, 32);
+                Expect.equal(node().get(ProjectOptions.UNPACK_MB, null), "32", "stored value");
+            } finally { node().remove(ProjectOptions.UNPACK_MB); }
+        });
+
         Harness.test("a project key an older build stored in the preferences store is not read back", () -> {
             MemoryPreferencesFactory.reset();
             node().put("proxy.logOutOfScope", "false");
