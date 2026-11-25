@@ -121,6 +121,7 @@ public class AttackEngine {
         HttpClient.Options opt = new HttpClient.Options();
         opt.updateContentLength = false;   // already applied above
         opt.unpackGzip = true;
+        opt.unpackLimit = ProjectOptions.unpackBytes(ctx.settings());
         opt.followRedirects = followRedirects;
         opt.session = ctx.sessions();
         opt.sessionTool = "intruder";
@@ -137,8 +138,8 @@ public class AttackEngine {
         boolean[] hits = grepHits(resp);
 
         window.addResult(new ResultsWindow.Result(number, combo.label(), svc, req, resp,
-                status, length, ms, error, hits));
-        record(req, resp, r.remoteIp, ms, error);
+                status, length, ms, error, hits, r.unpackNote));
+        record(req, resp, r.remoteIp, ms, error, r.unpackNote);
     }
 
     private boolean[] grepHits(HttpMessage resp) {
@@ -151,12 +152,13 @@ public class AttackEngine {
         return hits;
     }
 
-    private void record(HttpMessage req, HttpMessage resp, String remoteIp, long ms, String error) {
+    private void record(HttpMessage req, HttpMessage resp, String remoteIp, long ms, String error, String unpackNote) {
         SwingUtilities.invokeLater(() -> {
             LogEntry entry = new LogEntry("intruder", svc, req);
             if (resp != null) entry.setResponse(resp);
             if (error != null) entry.setError(error);
             if (remoteIp != null) entry.setRemoteIp(remoteIp);
+            entry.setUnpackNote(unpackNote);
             entry.setDurationMillis(ms);
             ctx.store().add(entry);
             ctx.siteMapChanged(entry);

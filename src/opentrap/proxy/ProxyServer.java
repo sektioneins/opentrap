@@ -488,6 +488,7 @@ public class ProxyServer {
             HttpClient.Options opt = new HttpClient.Options();
             opt.updateContentLength = false;
             opt.unpackGzip = unpackGzip;
+            opt.unpackLimit = ProjectOptions.unpackBytes(ctx.settings());
             opt.followRedirects = false;
             opt.session = ctx.sessions();
             opt.sessionTool = "proxy";
@@ -498,6 +499,7 @@ public class ProxyServer {
             HttpClient.Result res = new HttpClient().send(svc, request, opt);
             entry.setDurationMillis(System.currentTimeMillis() - t0);
             entry.setRemoteIp(res.remoteIp);
+            entry.setUnpackNote(res.unpackNote);
 
             if (!res.ok()) {
                 entry.setError(res.error);

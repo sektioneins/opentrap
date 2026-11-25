@@ -288,7 +288,7 @@ public class RepeaterTool implements ToolModule {
         private String tabFollow;
 
         // Per-tab history of sends, with a browser-style position for back/forward.
-        private record Snapshot(HttpService svc, byte[] request, HttpMessage response, String status, int length) {}
+        private record Snapshot(HttpService svc, byte[] request, HttpMessage response, String status, int length, String note) {}
         private final java.util.List<Snapshot> history = new java.util.ArrayList<>();
         private int historyPos = -1;
 
@@ -442,6 +442,7 @@ public class RepeaterTool implements ToolModule {
                     opt.updateContentLength = tabUpdateCl != null ? tabUpdateCl : updateContentLength;
                     applyFollowMode(opt, follow, ctx.scope());
                     opt.unpackGzip = true;
+                    opt.unpackLimit = ProjectOptions.unpackBytes(ctx.settings());
                     opt.session = ctx.sessions();
                     opt.sessionTool = "repeater";
                     opt.mode = mode;
@@ -456,6 +457,8 @@ public class RepeaterTool implements ToolModule {
                             return;
                         }
                         respEditor.setMessage(svc, r.response, req);
+                        String unpackNote = r.unpackNote.isEmpty() ? null : r.unpackNote;
+                        respEditor.setNote(unpackNote);
                         versionChip.setText(HttpMode.answeredOver(r.response.startLine()));
                         versionChip.setVisible(true);
                         String note = HttpMode.fallbackNote(mode, r.response.startLine());
@@ -463,18 +466,20 @@ public class RepeaterTool implements ToolModule {
                                 + (note.isEmpty() ? "" : "  " + note) + "  " + ms + " ms";
                         status.setText(statusText);
                         lengthLabel.setText("length: " + r.response.length());
-                        pushHistory(new Snapshot(svc, req.raw().clone(), r.response, statusText, r.response.length()));
+                        pushHistory(new Snapshot(svc, req.raw().clone(), r.response, statusText, r.response.length(), unpackNote));
 
                         LogEntry entry = new LogEntry("repeater", svc, req);
                         entry.setResponse(r.response);
                         entry.setRemoteIp(r.remoteIp);
+                        entry.setUnpackNote(r.unpackNote);
                         entry.setDurationMillis(ms);
                         ctx.store().add(entry);
                         ctx.siteMapChanged(entry);
                     });
-                } catch (Exception e) {
+                } catch (Exception | Error e) {
                     // Without this the Go button stays disabled and the tab
                     // reads "waiting" forever; nothing else would report it.
+                    // An Error (out of memory, a missing class) counts too.
                     Debug.error("repeater request failed", e);
                     SwingUtilities.invokeLater(() -> {
                         go.setEnabled(true);
@@ -508,8 +513,10 @@ public class RepeaterTool implements ToolModule {
             if (s.response() != null) {
                 respEditor.setMessage(s.svc(), s.response(), new HttpMessage(s.request().clone()));
                 lengthLabel.setText("length: " + s.length());
+                respEditor.setNote(s.note());
             } else {
                 respEditor.setMessage(s.svc(), new HttpMessage(new byte[0]));
+                respEditor.setNote(null);
             }
             status.setText(s.status());
             updateNav();

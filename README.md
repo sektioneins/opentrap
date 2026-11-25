@@ -92,6 +92,11 @@ For everything else, the original project is the place to go:
   replace and interception.
   The Decoder stops a gzip, deflate or brotli decode at 16 MB of output and
   says so, so a small compressed body can no longer exhaust the memory.
+  A gzip, deflate or brotli response that decodes to more than a set limit
+  (16 MB unless changed) stays compressed, and the history says why. All
+  responses decoding at once share 256 MB, so a small compressed body can no
+  longer exhaust the memory. A body with several content codings is decoded in
+  the right order.
 - **Scan engine scope.** The engine's crawl and scan are bound to no more than
   the URLs the app's scope covers. An advanced host, port or file pattern can no
   longer reach into the path or the userinfo, a prefix with a non-default port no

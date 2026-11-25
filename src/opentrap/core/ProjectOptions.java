@@ -7,9 +7,10 @@ import java.util.Set;
  *
  * <p>Only the keys in {@link #KEYS} travel with the project: they live in
  * memory and in the project file and never reach the preferences store. The
- * memory caps {@link #AUDIT_MEMORY_MB} and {@link #WS_MEMORY_MB} and the frame
- * cap {@link #WS_FRAME_MB} are user keys because they size this machine's
- * memory; this class only names them and their defaults in one place.
+ * memory caps {@link #AUDIT_MEMORY_MB} and {@link #WS_MEMORY_MB}, the frame
+ * cap {@link #WS_FRAME_MB} and the unpack limit {@link #UNPACK_MB} are user
+ * keys because they size this machine's memory; this class only names them
+ * and their defaults in one place.
  *
  * <p>The defaults follow the shape of a scan: the crawl's pages and everything
  * done by hand are kept in full, the audit's own probe traffic is kept as
@@ -36,6 +37,12 @@ public final class ProjectOptions {
      * project from someone else must not raise it.
      */
     public static final String WS_FRAME_MB = "project.wsFrameMb";
+    /**
+     * The largest decoded response body, in MB; a response that decodes to
+     * more stays compressed. A user key, not in {@link #KEYS}: a project from
+     * someone else must not raise it.
+     */
+    public static final String UNPACK_MB = "project.unpackMb";
     /** Whether the proxy records traffic that is outside the target scope. */
     public static final String LOG_OUT_OF_SCOPE = "proxy.logOutOfScope";
     /**
@@ -73,6 +80,8 @@ public final class ProjectOptions {
     public static final int DEFAULT_WS_MEMORY_MB = 32;
     public static final int DEFAULT_WS_FRAME_MB = 16;
     public static final int MAX_WS_FRAME_MB = 256;
+    public static final int DEFAULT_UNPACK_MB = 16;
+    public static final int MAX_UNPACK_MB = 256;
 
     /** The tool tag the engine gives its audit probes; the one kind of traffic saved headers-only. */
     public static final String AUDIT_TOOL = "audit";
@@ -100,6 +109,12 @@ public final class ProjectOptions {
     /** The WebSocket frame cap in bytes, clamped to 1 through {@link #MAX_WS_FRAME_MB} MB. */
     public static int wsFrameBytes(Settings s) {
         int mb = Math.clamp(s.getInt(WS_FRAME_MB, DEFAULT_WS_FRAME_MB), 1, MAX_WS_FRAME_MB);
+        return mb * 1024 * 1024;
+    }
+
+    /** The largest decoded response body in bytes, clamped to 1 through {@link #MAX_UNPACK_MB} MB. */
+    public static int unpackBytes(Settings s) {
+        int mb = Math.clamp(s.getInt(UNPACK_MB, DEFAULT_UNPACK_MB), 1, MAX_UNPACK_MB);
         return mb * 1024 * 1024;
     }
 
