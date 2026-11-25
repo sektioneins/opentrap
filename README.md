@@ -72,8 +72,10 @@ For everything else, the original project is the place to go:
   traversal probes stay in the history. The proxy refuses to forward a request
   to itself. A cookie set without a `Domain` goes back only to the host that
   set it, not to its subdomains, and the cookie jar shows which cookies are
-  host-only. The CA key and the saved application logins are written readable
-  by their owner only from the start.
+  host-only. A site can no longer set a cookie for another site or for a
+  public suffix such as `co.uk`, and when two cookies share a name the most
+  specific one is sent. The CA key and the saved application logins are
+  written readable by their owner only from the start.
   Stopping and restarting a Sequencer capture no longer leaves the old capture
   running and mixing its tokens into the new one.
 - **Scan engine scope.** The engine's crawl and scan are bound to no more than
