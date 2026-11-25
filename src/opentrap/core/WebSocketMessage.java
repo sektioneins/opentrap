@@ -23,6 +23,12 @@ public final class WebSocketMessage implements Serializable {
     public final Op op;
     public final long time;
     public final boolean edited;
+    /**
+     * The frame's full payload length when the payload holds only its first
+     * part, 0 when it is whole. A primitive, so a frame read from an older
+     * project file has 0.
+     */
+    public final long declaredLength;
 
     // payload is volatile because the offload writer thread nulls it once the
     // bytes are on disk while the event thread reads them to paint the table.
@@ -54,12 +60,23 @@ public final class WebSocketMessage implements Serializable {
         this.op = op;
         this.payload = payload == null ? new byte[0] : payload;
         this.edited = edited;
+        this.declaredLength = 0;
         this.time = System.currentTimeMillis();
     }
 
     /** A frame of the connection whose handshake went to {@code service} with request path {@code path}. */
     public WebSocketMessage(int connectionId, HttpService service, String path, Direction direction, Op op,
                             byte[] payload, boolean edited) {
+        this(connectionId, service, path, direction, op, payload, edited, 0);
+    }
+
+    /**
+     * As above, for a frame whose payload holds only its first part:
+     * {@code declaredLength} is the full length the frame announced, or 0
+     * when the payload is whole.
+     */
+    public WebSocketMessage(int connectionId, HttpService service, String path, Direction direction, Op op,
+                            byte[] payload, boolean edited, long declaredLength) {
         this.connectionId = connectionId;
         this.host = service == null ? "" : service.host();
         this.service = service;
@@ -68,6 +85,7 @@ public final class WebSocketMessage implements Serializable {
         this.op = op;
         this.payload = payload == null ? new byte[0] : payload;
         this.edited = edited;
+        this.declaredLength = declaredLength;
         this.time = System.currentTimeMillis();
     }
 
@@ -81,6 +99,7 @@ public final class WebSocketMessage implements Serializable {
         this.op = src.op;
         this.time = src.time;
         this.edited = src.edited;
+        this.declaredLength = src.declaredLength;
         this.payload = payload;
     }
 
@@ -97,6 +116,15 @@ public final class WebSocketMessage implements Serializable {
     public int length() {
         byte[] p = payload;
         return p != null ? p.length : len;
+    }
+
+    /** Whether the payload holds only the first part of the frame. */
+    public boolean truncated() { return declaredLength > 0; }
+
+    /** The op for the history table: marks an edited frame and a frame kept only in part. */
+    public String opLabel() {
+        String l = op + (edited ? " (edited)" : "");
+        return truncated() ? l + " (first " + length() + " of " + declaredLength + " bytes)" : l;
     }
 
     /** Text frames decode as UTF-8; anything else is shown as hex. */

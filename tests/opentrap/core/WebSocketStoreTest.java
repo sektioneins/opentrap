@@ -200,5 +200,33 @@ public final class WebSocketStoreTest {
                 reopened.close();
             } catch (Exception ex) { throw new RuntimeException(ex); }
         });
+
+        Harness.test("a truncated frame says how much of it was kept", () -> {
+            HttpService svc = new HttpService("example.test", 443, true);
+            WebSocketMessage cut = new WebSocketMessage(1, svc, "/ws", WebSocketMessage.Direction.S2C,
+                    WebSocketMessage.Op.BINARY, new byte[1024], false, 5000);
+            Expect.isTrue(cut.truncated(), "the frame is marked truncated");
+            Expect.equal(cut.opLabel(), "BINARY (first 1024 of 5000 bytes)", "the label names the kept part");
+            WebSocketMessage whole = new WebSocketMessage(1, svc, "/ws", WebSocketMessage.Direction.C2S,
+                    WebSocketMessage.Op.TEXT, new byte[] {'h', 'i'}, true);
+            Expect.isFalse(whole.truncated(), "a whole frame is not truncated");
+            Expect.equal(whole.opLabel(), "TEXT (edited)", "an edited whole frame");
+        });
+
+        Harness.test("a truncated frame keeps its mark through a project store", () -> {
+            try {
+                Path f = tempDir("ws-trunc-").resolve("frames.store");
+                ProjectStore target = new ProjectStore(f, 8L * 1024 * 1024);
+                byte[] payload = new byte[1024];
+                for (int i = 0; i < payload.length; i++) payload[i] = (byte) i;
+                WebSocketMessage cut = new WebSocketMessage(1, new HttpService("example.test", 443, true), "/ws",
+                        WebSocketMessage.Direction.S2C, WebSocketMessage.Op.BINARY, payload, false, 5000);
+                byte[] index = cut.writtenTo(target).indexBytes();
+                WebSocketMessage back = WebSocketMessage.fromIndex(index, target);
+                Expect.equal(back.declaredLength, 5000L, "the declared length survives");
+                Expect.isTrue(Arrays.equals(back.payload(), payload), "the kept part reloads byte-exact");
+                target.close();
+            } catch (Exception ex) { throw new RuntimeException(ex); }
+        });
     }
 }
