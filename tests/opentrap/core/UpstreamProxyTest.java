@@ -167,9 +167,16 @@ public final class UpstreamProxyTest {
                     for (HttpMode mode : List.of(HttpMode.HTTP_2, HttpMode.AUTO)) {
                         HttpClient.Result r = send(new HttpService("127.0.0.1", target.getLocalPort(), true), mode);
                         Expect.isFalse(r.ok(), mode + " is refused");
-                        Expect.equal(r.error, mode + " cannot go through the SOCKS upstream proxy set for 127.0.0.1;"
-                                + " choose HTTP/1, or make the rule an HTTP proxy", mode + " error");
+                        String expected = mode == HttpMode.HTTP_2
+                                ? "HTTP/2 cannot go through the SOCKS upstream proxy set for 127.0.0.1;"
+                                    + " choose HTTP/1, or make the rule an HTTP proxy"
+                                : "auto cannot go through the SOCKS upstream proxy set for 127.0.0.1;"
+                                    + " choose HTTP/1, or make the rule an HTTP proxy";
+                        Expect.equal(r.error, expected, mode + " error");
                     }
+                    HttpClient.Result h3 = send(new HttpService("127.0.0.1", target.getLocalPort(), true), HttpMode.HTTP_3);
+                    Expect.equal(h3.error, "HTTP/3 cannot go through the upstream proxy set for 127.0.0.1;"
+                            + " choose HTTP/1, or remove the rule", "HTTP/3 does not advise HTTP/2 under SOCKS");
                 } finally {
                     HttpClient.setProxyProvider(null);
                 }

@@ -145,8 +145,8 @@ public class HttpClient {
      * scanning through the ZAP engine). If the override cannot be reached the
      * connection falls back to the upstream rule that covers the target, and to
      * direct only when no rule does, so the scan engine being down never breaks
-     * the user's traffic and never sends it around the user's proxy. The guard, when not null, is asked with the address the
-     * base socket connects to before it connects.
+     * the user's traffic and never sends it around the user's proxy. The guard, when not null, is asked
+     * with the address the base socket connects to before it connects.
      */
     private static Socket connect(HttpService svc, int ct, int rt, UpstreamProxy override, ConnectGuard guard) throws Exception {
         if (override != null) {

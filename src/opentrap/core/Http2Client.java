@@ -146,7 +146,9 @@ public final class Http2Client {
             UpstreamProxy up = HttpClient.upstreamFor(svc);
             if (up != null && opt.mode == HttpMode.HTTP_3) {
                 r.error = "HTTP/3 cannot go through the upstream proxy set for " + svc.host()
-                        + "; choose HTTP/1 or HTTP/2, or remove the rule";
+                        + (up.type == UpstreamProxy.Type.SOCKS
+                                ? "; choose HTTP/1, or remove the rule"
+                                : "; choose HTTP/1 or HTTP/2, or remove the rule");
                 r.millis = System.currentTimeMillis() - t0;
                 return r;
             }
