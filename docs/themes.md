@@ -170,7 +170,7 @@ A key you do not set comes from the base, derived from its constants. Set a key 
 
 ## Contrast
 
-When you add a theme, OpenTRAP checks the colour pairs that text and marks are drawn with, for example `TEXT` on `BG`, `TEXT` on `CARD`, `LINK` on `BG`, and `TEXT` on `POSITION_MARK`, and every badge, pill and coloured row fill (the accent, the warning and error icons, the severity and Decoder colours) with the better of `TEXT_ON_BADGE` and `TEXT_ON_BADGE_DARK`. Text pairs and badges need 4.5 to 1; secondary text on the page and on a selection, and the severity colours on the page, need 3 to 1. A colour with an alpha is measured as it is painted: over the page, and text over the colour it sits on. The summary lists the pairs your theme changes and that fall short; it does not block the theme. A weakness the base already has is not blamed on you.
+When you add a theme, OpenTRAP checks the colour pairs that text and marks are drawn with, for example `TEXT` on `BG`, `TEXT` on `CARD`, `LINK` on `BG`, and `TEXT` on `POSITION_MARK`, and every badge, pill and coloured row fill (the accent, the warning and error icons, the severity and Decoder colours, and `TOGGLE_OFF` under the dashboard's waiting phase numbers) with the better of `TEXT_ON_BADGE` and `TEXT_ON_BADGE_DARK`. Text pairs and badges need 4.5 to 1; secondary text on the page and on a selection, and the severity colours on the page, need 3 to 1. A colour with an alpha is measured as it is painted: over the page, and text over the colour it sits on. The summary lists the pairs your theme changes and that fall short; it does not block the theme. A weakness the base already has is not blamed on you.
 
 ## Where themes go and Add from file
 
