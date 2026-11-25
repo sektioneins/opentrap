@@ -55,5 +55,15 @@ public final class ThemeHtmlTest {
                 Expect.isFalse(fg.equals(light[0]), "differs from the light link colour");
             });
         });
+
+        Harness.test("an HTML pane's page colours stay out of HTML labels and buttons", () -> withTheme("dark", () -> {
+            javax.swing.text.html.StyleSheet own = Theme.htmlKit().getStyleSheet();
+            Expect.equal(own.getBackground(own.getRule("body")), Theme.BG, "the pane's page background");
+            // Swing's HTML labels and buttons copy the shared default sheet the
+            // first time one is built, so a page background set there paints a
+            // block behind every HTML label's text.
+            javax.swing.text.html.StyleSheet shared = new javax.swing.text.html.HTMLEditorKit().getStyleSheet();
+            Expect.isFalse(Theme.BG.equals(shared.getBackground(shared.getRule("body"))), "the shared sheet's page background");
+        }));
     }
 }

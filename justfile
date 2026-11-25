@@ -752,6 +752,8 @@ _classes: _check-jdk _check-libs
     echo "Copying resources..."
     mkdir -p build/opentrap/ui/icons
     cp src/opentrap/ui/icons/*.png build/opentrap/ui/icons/
+    mkdir -p build/opentrap/ui/themes
+    cp src/opentrap/ui/themes/*.theme build/opentrap/ui/themes/
     echo "Unpacking the vendored jars..."
     (cd build && for j in ../lib/*.jar; do "$JAVA_HOME/bin/jar" xf "$j"; done)
     rm -f build/META-INF/*.SF build/META-INF/*.DSA build/META-INF/*.RSA

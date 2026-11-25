@@ -1,0 +1,34 @@
+format = 1
+name = Phosphor
+base = dark
+appearance = dark
+author = OpenTRAP-S1
+description = Green on near-black, like an old terminal screen: soft green text, a bright green accent, sharp corners, with red and amber kept for errors and warnings.
+
+@page = #050805
+@surface = #0D150E
+@text = #86D493
+@muted = #54905E
+@border = #1F3A24
+@accent = #33FF66
+@control = #4FB3E0
+@link = #5CF2D0
+@ok = #33FF66
+@warn = #FFB000
+@error = #FF5555
+@radius = 2
+
+CONTROL_TINT = mix(@accent, @page, 14%)
+ACCENT_LIGHT = mix(@accent, @page, 22%)
+CODE_NAME = #5CF2D0
+CODE_START = #FF8A80
+CODE_KEY = #FFB000
+CODE_STRING = #B6F26B
+CODE_NUMBER = #4FD8F0
+DECODE_BASE64 = #E6E64D
+DECODE_HEX = #33FF66
+DECODE_OCTAL = #2EE6D6
+DECODE_BINARY = #9AD66A
+DECODE_COMPRESSED = #C8A0E8
+HIGHLIGHT = #4A3A00
+DIFF_ADDED = darker(@ok, 76%)

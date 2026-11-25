@@ -1,0 +1,20 @@
+format = 1
+name = S1 Dark
+base = dark
+appearance = dark
+author = OpenTRAP-S1
+description = The OpenTRAP-S1 logo colours on a dark page: deep navy backgrounds, pale periwinkle text and a gold accent.
+
+@page = #0A1238
+@surface = #121C4D
+@text = #EEF1FB
+@muted = #A4AED6
+@border = #2A3770
+@accent = #ECB92C
+@control = #8F9DE8
+@link = #B3C0F5
+@ok = #5CC46E
+@warn = #ECB92C
+@error = #E05A5A
+
+CONTROL_TINT = mix(@control, @page, 18%)

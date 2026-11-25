@@ -19,7 +19,7 @@ public final class LayoutIcons {
         for (int i = 0; i < 3; i++) {
             final int mode = i;
             JToggleButton b = new JToggleButton(icon(mode, Theme.ICON), i == 0);
-            b.setSelectedIcon(icon(mode, Color.WHITE));
+            b.setSelectedIcon(icon(mode, Theme.TEXT_ON_CONTROL));
             b.setToolTipText(mode == 0 ? "Side by side" : mode == 1 ? "Stacked" : "One at a time");
             b.setFocusable(false);
             b.setBorder(BorderFactory.createEmptyBorder(3, 5, 3, 5));

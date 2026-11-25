@@ -614,7 +614,7 @@ public class SuiteFrame extends JFrame {
 
     // ---- unread badges: a dot after a tool's name when something was sent to it while it was not showing ----
 
-    private static final String DOT = " \u2022";
+    private static final String DOT = opentrap.ui.theme.FlatTabbedPaneUI.UNREAD_DOT;
     private static String plainTitle(String t) { return t.endsWith(DOT) ? t.substring(0, t.length() - DOT.length()) : t; }
     private int indexOfTool(String name) {
         for (int i = 0; i < tabs.getTabCount(); i++) if (plainTitle(tabs.getTitleAt(i)).equals(name)) return i;

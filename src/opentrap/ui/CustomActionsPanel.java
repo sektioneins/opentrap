@@ -26,7 +26,7 @@ public final class CustomActionsPanel extends JPanel {
         JPanel col = new JPanel();
         col.setLayout(new BoxLayout(col, BoxLayout.Y_AXIS));
         col.setOpaque(false);
-        JLabel icon = new JLabel(Glyphs.bolt(64, new Color(0x5C, 0x9A, 0xCF)));
+        JLabel icon = new JLabel(Glyphs.bolt(64, Theme.EMPTY_ICON));
         JLabel h = new JLabel("No custom actions");
         h.setFont(Fonts.ui(Font.BOLD, 16));
         JTextArea t = Ui.note("Try our sample scripts to see how they work. You can also load scripts from your library or create your own.");

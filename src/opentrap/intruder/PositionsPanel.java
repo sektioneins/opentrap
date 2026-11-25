@@ -72,7 +72,7 @@ public class PositionsPanel extends JPanel {
                 + "assigned to payload positions");
         attackCombo.addActionListener(e -> fire());
         attackCombo.setPreferredSize(new Dimension(190, attackCombo.getPreferredSize().height));
-        start.setIcon(opentrap.ui.Glyphs.play(12, Color.WHITE));
+        start.setIcon(opentrap.ui.Glyphs.play(12, opentrap.ui.Theme.TEXT_ON_ACCENT));
         start.setIconTextGap(6);
         JButton attackHelp = Ui.helpButton("Intruder",
                 "Choose an attack type, mark the payload positions in the request below, "
@@ -268,7 +268,7 @@ public class PositionsPanel extends JPanel {
     }
 
     private static final javax.swing.text.DefaultHighlighter.DefaultHighlightPainter MARKER_PAINT =
-            new javax.swing.text.DefaultHighlighter.DefaultHighlightPainter(new Color(0xFF, 0xE2, 0xB3));
+            new javax.swing.text.DefaultHighlighter.DefaultHighlightPainter(opentrap.ui.Theme.POSITION_MARK);
     private static final javax.swing.text.DefaultHighlighter.DefaultHighlightPainter SEARCH_PAINT =
             new javax.swing.text.DefaultHighlighter.DefaultHighlightPainter(opentrap.ui.Theme.CONTROL_TINT);
 

@@ -17,7 +17,7 @@ final class ToolIcons {
         Graphics2D g = img.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g.setColor(Theme.MUTED);
-        g.setStroke(new BasicStroke(1.4f));
+        g.setStroke(new BasicStroke(Theme.stroke(1.4f)));
         d.paint(g);
         g.dispose();
         return new ImageIcon(img);

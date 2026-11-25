@@ -29,6 +29,9 @@ public class FlatTabbedPaneUI extends BasicTabbedPaneUI {
     private java.awt.event.MouseMotionListener hoverMotion;
     private java.awt.event.MouseListener hoverExit;
 
+    /** Appended to a tab title to mark unread content; painted as an accent dot, not as text. */
+    public static final String UNREAD_DOT = " \u2022";
+
     public static ComponentUI createUI(JComponent c) { return new FlatTabbedPaneUI(); }
 
     @Override protected void installDefaults() {
@@ -79,20 +82,22 @@ public class FlatTabbedPaneUI extends BasicTabbedPaneUI {
 
     @Override protected void paintTabBackground(Graphics g, int p, int i, int x, int y, int w, int h, boolean sel) {
         Color custom = tabPane.getBackgroundAt(i);
-        if (custom != null && !custom.equals(tabPane.getBackground())) {
-            // A tool asking for attention flashes its tab with the accent.
+        boolean flash = custom != null && !custom.equals(tabPane.getBackground());
+        // A tool asking for attention flashes its tab with the accent; a pill
+        // theme marks the selected tab with the same shape.
+        if (flash || (sel && Theme.TAB_MARKER == Theme.TabMarker.PILL)) {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g2.setColor(Theme.ACCENT_LIGHT);
-            g2.fillRoundRect(x + 2, y + 3, w - 4, h - 6, 8, 8);
+            g2.fillRoundRect(x + 2, y + 3, w - 4, h - 6, Theme.TAB_HOVER_RADIUS, Theme.TAB_HOVER_RADIUS);
             g2.dispose();
         }
     }
 
     @Override protected void paintTabBorder(Graphics g, int p, int i, int x, int y, int w, int h, boolean sel) {
-        if (sel) {
+        if (sel && Theme.TAB_MARKER == Theme.TabMarker.UNDERLINE) {
             g.setColor(Theme.ACCENT);
-            g.fillRect(x + 8, y + h - 2, w - 16, 2);
+            g.fillRect(x + 8, y + h - Theme.TAB_UNDERLINE, w - 16, Theme.TAB_UNDERLINE);
         }
     }
 
@@ -107,9 +112,30 @@ public class FlatTabbedPaneUI extends BasicTabbedPaneUI {
         else if (sel) fg = Theme.TAB_TEXT_ON;
         else if (fg == null || fg instanceof javax.swing.plaf.UIResource) fg = Theme.TAB_TEXT;
         g2.setColor(fg);
-        int tw = fm.stringWidth(shown);
-        g2.drawString(shown, r.x + (r.width - tw) / 2, r.y + fm.getAscent());
+        boolean unread = shown.endsWith(UNREAD_DOT);
+        String text = unread ? shown.substring(0, shown.length() - UNREAD_DOT.length()) : shown;
+        int x = r.x + (r.width - labelWidth(fm, shown)) / 2;
+        int baseline = r.y + fm.getAscent();
+        g2.drawString(text, x, baseline);
+        if (unread) {
+            // The unread mark is drawn, not typed: a bullet glyph is small and
+            // takes the text colour, where the mark should catch the eye in the
+            // same accent as the selected tab's underline.
+            int d = dotSize(fm);
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setColor(Theme.ACCENT);
+            g2.fillOval(x + fm.stringWidth(text) + dotGap(fm), baseline - Math.round(fm.getAscent() * 0.36f) - d / 2, d, d);
+        }
         g2.dispose();
+    }
+
+    private static int dotSize(FontMetrics fm) { return Math.max(6, Math.round(fm.getAscent() * 0.6f)); }
+    private static int dotGap(FontMetrics fm) { return Math.max(3, Math.round(fm.getAscent() * 0.3f)); }
+
+    /** The painted width of a shown title, with the unread mark as a dot. */
+    private static int labelWidth(FontMetrics fm, String shown) {
+        if (!shown.endsWith(UNREAD_DOT)) return fm.stringWidth(shown);
+        return fm.stringWidth(shown.substring(0, shown.length() - UNREAD_DOT.length())) + dotGap(fm) + dotSize(fm);
     }
 
     @Override protected void paintContentBorder(Graphics g, int p, int sel) {
@@ -125,12 +151,13 @@ public class FlatTabbedPaneUI extends BasicTabbedPaneUI {
     @Override protected void paintFocusIndicator(Graphics g, int p, Rectangle[] rects, int i, Rectangle ir, Rectangle tr, boolean sel) {}
 
     @Override protected int calculateTabWidth(int p, int i, FontMetrics fm) {
-        // Measure the capitalised title so the label is never clipped.
+        // Measure the title as painted, capitalised and with any unread dot,
+        // so the label is never clipped.
         String t = tabPane.getTitleAt(i);
         int base = super.calculateTabWidth(p, i, fm);
         if (t != null && !t.isEmpty()) {
             String shown = Character.toUpperCase(t.charAt(0)) + t.substring(1);
-            base += Math.max(0, fm.stringWidth(shown) - fm.stringWidth(t));
+            base += Math.max(0, labelWidth(fm, shown) - fm.stringWidth(t));
         }
         return base;
     }

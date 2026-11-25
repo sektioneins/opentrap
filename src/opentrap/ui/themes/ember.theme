@@ -1,0 +1,19 @@
+format = 1
+name = Ember
+base = dark
+appearance = dark
+author = OpenTRAP-S1
+description = Warm charcoal with amber glow and square corners. A sharp, high-energy dark theme.
+
+@page = #1F1B18
+@surface = #29231F
+@text = #EFE3D6
+@muted = #A89888
+@border = #4A3F37
+@accent = #F2A33A
+@control = #D9733C
+@link = #F0B866
+@ok = #8BC769
+@warn = #F2A33A
+@error = #E5604D
+@radius = 2

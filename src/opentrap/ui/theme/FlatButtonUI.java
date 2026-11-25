@@ -34,6 +34,7 @@ public class FlatButtonUI extends BasicButtonUI {
         boolean primary = Boolean.TRUE.equals(b.getClientProperty(Theme.PRIMARY))
                 || (b instanceof JToggleButton && m.isSelected());
         boolean custom = b.isBackgroundSet() && !(b.getBackground() instanceof UIResource);
+        boolean outline = primary && !custom && Theme.PRIMARY_BUTTON == Theme.PrimaryButton.OUTLINE;
 
         if (b.isContentAreaFilled()) {
             Color fill;
@@ -48,6 +49,17 @@ public class FlatButtonUI extends BasicButtonUI {
             }
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            if (outline && m.isEnabled()) {
+                // No fill: a line in the accent, growing inward as it widens.
+                float lw = Theme.LINE_WIDTH, d = lw - 1;
+                g2.setColor(Theme.ACCENT);
+                g2.setStroke(new BasicStroke(lw));
+                g2.draw(new RoundRectangle2D.Float(0.5f + d, 0.5f + d, c.getWidth() - 1 - 2 * d,
+                        c.getHeight() - 1 - 2 * d, Theme.RADIUS * 2, Theme.RADIUS * 2));
+                g2.dispose();
+                super.paint(g, c);
+                return;
+            }
             g2.setColor(fill);
             g2.fill(new RoundRectangle2D.Float(0, 0, c.getWidth(), c.getHeight(), Theme.RADIUS * 2, Theme.RADIUS * 2));
             if (!primary && !custom) {
@@ -64,7 +76,10 @@ public class FlatButtonUI extends BasicButtonUI {
         ButtonModel m = b.getModel();
         boolean primary = Boolean.TRUE.equals(b.getClientProperty(Theme.PRIMARY))
                 || (b instanceof JToggleButton && m.isSelected());
-        Color fg = !m.isEnabled() ? Theme.MUTED : primary ? Color.WHITE : b.getForeground();
+        boolean outline = primary && Theme.PRIMARY_BUTTON == Theme.PrimaryButton.OUTLINE
+                && !(b.isBackgroundSet() && !(b.getBackground() instanceof UIResource));
+        Color fg = !m.isEnabled() ? Theme.MUTED
+                : outline ? Theme.TEXT : primary ? Theme.TEXT_ON_ACCENT : b.getForeground();
         Graphics2D g2 = (Graphics2D) g.create();
         g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         FontMetrics fm = g2.getFontMetrics(b.getFont());

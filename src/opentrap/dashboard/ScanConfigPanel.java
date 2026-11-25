@@ -505,7 +505,7 @@ public final class ScanConfigPanel extends JPanel {
         @Override public Component getListCellRendererComponent(JList<? extends Preset> list, Preset v, int i, boolean sel, boolean focus) {
             title.setText(v == null ? "" : v.name());
             desc.setText(v == null ? "" : v.description());
-            icon.setIcon(Glyphs.bolt(16, sel ? Color.WHITE : Ui.ACCENT));
+            icon.setIcon(Glyphs.bolt(16, sel ? Theme.TEXT_ON_SELECTION : Ui.ACCENT));
             setBackground(sel ? Ui.SELECTION : Theme.BG);
             setOpaque(true);
             title.setForeground(Theme.TEXT);

@@ -48,6 +48,7 @@ public final class RunTests {
         new opentrap.decoder.DecoderTransformsTest().run();
         new opentrap.decoder.DecoderFocusTest().run();
         new opentrap.ui.MessageEditorJsonTest().run();
+        new opentrap.ui.MessageEditorSearchTest().run();
         new opentrap.core.HttpMessageTitleTest().run();
         new opentrap.csrf.CsrfPocTest().run();
         new opentrap.sequencer.SequencerStatsTest().run();
@@ -115,9 +116,19 @@ public final class RunTests {
         new opentrap.dashboard.PhaseHtmlTest().run();
         new opentrap.dashboard.DashboardContextTest().run();
         new opentrap.ui.QuitRequestTest().run();
+        new opentrap.ui.theme.ThemeFileTest().run();
+        new opentrap.ui.theme.ThemeResolverTest().run();
+        new opentrap.ui.theme.ContrastTest().run();
+        new opentrap.ui.ThemeColourScanTest().run();
+
+        // These two call Theme.configure and restore the light theme; they go
+        // just before the suite that installs the full theme.
+        new opentrap.ui.ThemeSnapshotTest().run();
+        new opentrap.ui.ThemeStyleTest().run();
 
         // Last: it installs the full theme, which changes UI defaults for the
         // rest of the JVM.
+        new opentrap.ui.ThemeCatalogTest().run();
         new opentrap.ui.ThemeHtmlTest().run();
 
         System.exit(Harness.report());

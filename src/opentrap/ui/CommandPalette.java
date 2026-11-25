@@ -51,7 +51,7 @@ public final class CommandPalette {
             @Override public Component getListCellRendererComponent(JList<?> l, Object v, int i, boolean sel, boolean f) {
                 super.getListCellRendererComponent(l, "", i, sel, f);
                 Entry en = (Entry) v;
-                setIcon(en.settings() ? Glyphs.gear(16, sel ? Color.WHITE : Theme.ICON) : Glyphs.arrow(16, sel ? Color.WHITE : Theme.ICON, 0));
+                setIcon(en.settings() ? Glyphs.gear(16, sel ? Theme.TEXT_ON_SELECTION : Theme.ICON) : Glyphs.arrow(16, sel ? Theme.TEXT_ON_SELECTION : Theme.ICON, 0));
                 setIconTextGap(10);
                 setText(rowHtml(en.text(), en.hotkey(), sel));
                 setBorder(Ui.pad(2, 10, 2, 10));
@@ -114,7 +114,7 @@ public final class CommandPalette {
 
     /** The HTML of one palette row; the action name and hotkey are escaped. */
     static String rowHtml(String text, String hotkey, boolean selected) {
-        String muted = selected ? "#FFFFFF" : Theme.css(Theme.MUTED);
+        String muted = selected ? Theme.css(Theme.TEXT_ON_SELECTION) : Theme.css(Theme.MUTED);
         int gt = text.indexOf(" > ");
         String html = gt < 0 ? Advisory.esc(text)
                 : Advisory.esc(text.substring(0, gt)) + " <span style='color:" + muted + "'>&gt; "

@@ -362,7 +362,7 @@ public final class ProjectStartupDialog extends JDialog {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 g2.setColor(Theme.MUTED);
-                g2.setStroke(new BasicStroke(1.4f));
+                g2.setStroke(new BasicStroke(Theme.stroke(1.4f)));
                 g2.drawOval(2, 2, 19, 19);
                 g2.setFont(Ui.BOLD);
                 FontMetrics fm = g2.getFontMetrics();

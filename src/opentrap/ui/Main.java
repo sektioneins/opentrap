@@ -147,6 +147,12 @@ public class Main {
             frame.toFront();
             frame.requestFocus();
             Debug.log("main window is visible");
+            // A theme that could not be loaded was replaced by a built-in one;
+            // say so once, now that there is a window to own the dialog.
+            String themeNotice = Theme.startupNotice();
+            if (themeNotice != null) {
+                JOptionPane.showMessageDialog(frame, themeNotice, "Theme", JOptionPane.WARNING_MESSAGE);
+            }
 
             // A project path on the command line (as a .otrap file association
             // passes when one is double-clicked) opens or creates that project

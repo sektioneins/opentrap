@@ -1,9 +1,12 @@
 package opentrap.ui.theme;
 
+import opentrap.ui.Theme;
+
 import javax.swing.*;
 import javax.swing.border.AbstractBorder;
 import javax.swing.plaf.UIResource;
 import java.awt.*;
+import java.awt.geom.RoundRectangle2D;
 
 /**
  * A one-pixel rounded outline with inner padding. When a focus colour is given
@@ -29,8 +32,10 @@ public class RoundedBorder extends AbstractBorder implements UIResource {
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         boolean focused = focus != null && c instanceof JComponent jc && hasFocusWithin(jc);
         g2.setColor(focused ? focus : line);
-        g2.setStroke(new BasicStroke(1f));
-        g2.drawRoundRect(x, y, w - 1, h - 1, radius, radius);
+        // A wider line grows inward, so the outer edge and the insets stay put.
+        float lw = Theme.LINE_WIDTH, d = lw - 1;
+        g2.setStroke(new BasicStroke(lw));
+        g2.draw(new RoundRectangle2D.Float(x + d, y + d, w - 1 - 2 * d, h - 1 - 2 * d, radius, radius));
         g2.dispose();
     }
 

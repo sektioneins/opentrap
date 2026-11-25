@@ -27,7 +27,7 @@ public class ComparerTool implements ToolModule {
     private static final int PREVIEW_CHARS = 120;
 
     /** Text colour for the row the other list has already taken. */
-    private static final Color TAKEN = new Color(0xA8, 0xAE, 0xB8);
+    private static final Color TAKEN = opentrap.ui.Theme.COMPARE_TAKEN;
 
     /** One loaded blob, numbered in the order it arrived. */
     record Item(int id, byte[] data) {}

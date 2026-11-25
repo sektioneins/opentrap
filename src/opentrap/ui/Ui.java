@@ -19,16 +19,16 @@ public final class Ui {
     public static final Color ACCENT      = Theme.ACCENT;
     public static final Color PANEL_BG    = Theme.SURFACE;
     public static final Color GRID        = Theme.BORDER;
-    public static final Color ERROR_RED   = new Color(0xCC, 0x00, 0x00);
+    public static final Color ERROR_RED   = Theme.ERROR;
     public static final Color ZEBRA       = Theme.ACCENT_FAINT;
     public static final Color SELECTION   = Theme.ACCENT_LIGHT;
 
     // Severity palette, shared by the dashboard badges and the issue tree so a
     // finding's colour means the same thing everywhere.
-    public static final Color SEV_HIGH   = new Color(0xD5, 0x1F, 0x3D);
-    public static final Color SEV_MEDIUM = new Color(0xE8, 0x82, 0x0C);
-    public static final Color SEV_LOW    = new Color(0x5C, 0x9A, 0xCF);
-    public static final Color SEV_INFO   = new Color(0x88, 0x88, 0x88);
+    public static final Color SEV_HIGH   = Theme.SEVERITY_HIGH;
+    public static final Color SEV_MEDIUM = Theme.SEVERITY_MEDIUM;
+    public static final Color SEV_LOW    = Theme.SEVERITY_LOW;
+    public static final Color SEV_INFO   = Theme.SEVERITY_INFO;
 
     public static Color severityColor(opentrap.core.Issue.Severity s) {
         if (s == null) return SEV_INFO;
@@ -87,7 +87,7 @@ public final class Ui {
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 g2.setColor(col);
                 g2.fillOval(x + 1, y + 1, 13, 13);
-                g2.setColor(Color.WHITE);
+                g2.setColor(Theme.onBadge(col));
                 g2.setFont(new Font("Dialog", Font.BOLD, 11));
                 FontMetrics fm = g2.getFontMetrics();
                 g2.drawString(glyph, x + 1 + (13 - fm.stringWidth(glyph)) / 2f,
@@ -485,7 +485,8 @@ public final class Ui {
         t.getTableHeader().setToolTipText("click column to sort ascending (SHIFT-click = descending)");
         t.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         t.setGridColor(GRID);
-        t.setShowVerticalLines(false);
+        t.setShowHorizontalLines(Theme.TABLE_GRID != Theme.TableGrid.NONE);
+        t.setShowVerticalLines(Theme.TABLE_GRID == Theme.TableGrid.BOTH);
         t.setIntercellSpacing(new Dimension(0, 0));
         t.setSelectionBackground(SELECTION);
         t.setSelectionForeground(Theme.TEXT);
@@ -860,7 +861,7 @@ public final class Ui {
                     g2.fillRoundRect(0, 0, w, h, arc, arc);
                     if (!first) g2.fillRect(0, 0, arc, h);
                     if (!last)  g2.fillRect(w - arc, 0, arc, h);
-                    g2.setColor(isSelected() ? Color.WHITE : Theme.TEXT);
+                    g2.setColor(isSelected() ? Theme.TEXT_ON_CONTROL : Theme.TEXT);
                     g2.setFont(getFont());
                     FontMetrics fm = g2.getFontMetrics();
                     g2.drawString(getText(), (w - fm.stringWidth(getText())) / 2f,
@@ -904,7 +905,7 @@ public final class Ui {
                     g2.setColor(Theme.BORDER);
                     g2.drawRoundRect(0, 0, w - 1, h - 1, arc, arc);
                 }
-                g2.setColor(isSelected() ? Color.WHITE : Theme.TAB_TEXT);
+                g2.setColor(isSelected() ? Theme.TEXT_ON_CONTROL : Theme.TAB_TEXT);
                 g2.setFont(getFont());
                 FontMetrics fm = g2.getFontMetrics();
                 g2.drawString(getText(), (w - fm.stringWidth(getText())) / 2f,

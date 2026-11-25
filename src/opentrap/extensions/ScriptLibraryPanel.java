@@ -97,7 +97,7 @@ public final class ScriptLibraryPanel extends JPanel {
 
         // Left column: toolbar, filter bar, table.
         JButton neu = Ui.primaryButton("New", "create a script");
-        neu.setIcon(Glyphs.plusRing(14, Color.WHITE));
+        neu.setIcon(Glyphs.plusRing(14, Theme.TEXT_ON_ACCENT));
         JButton importB = Ui.button("Import", "import a script file");
         edit = Glyphs.button(Glyphs.pencil(), "Edit", this::editSelected);
         duplicate = Glyphs.button(Glyphs.copy(), "Duplicate", this::duplicateSelected);
@@ -177,7 +177,7 @@ public final class ScriptLibraryPanel extends JPanel {
         JButton learn = Ui.button("Learn more");
         learn.addActionListener(e -> opentrap.ui.Upstream.open(this));
         JButton neu = Ui.primaryButton("New script", "create a script");
-        neu.setIcon(Glyphs.plusRing(14, Color.WHITE));
+        neu.setIcon(Glyphs.plusRing(14, Theme.TEXT_ON_ACCENT));
         neu.addActionListener(e -> newScript());
         JPanel btns = Ui.row(learn, neu);
         btns.setAlignmentX(Component.CENTER_ALIGNMENT);

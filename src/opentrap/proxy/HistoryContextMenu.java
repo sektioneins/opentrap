@@ -187,13 +187,13 @@ public class HistoryContextMenu {
             if (v != null) { first.setNotes(v); refresh(); }
         });
         JMenu highlight = sub("Highlight");
-        for (String[] c : new String[][]{{"", "none"}, {"#ff6b6b", "red"}, {"#ffa94d", "orange"}, {"#ffe066", "yellow"}, {"#8ce99a", "green"},
-                {"#66d9e8", "cyan"}, {"#74c0fc", "blue"}, {"#faa2c1", "pink"}, {"#e599f7", "magenta"}, {"#ced4da", "grey"}}) {
+        for (String c : new String[]{"none", "red", "orange", "yellow", "green", "cyan", "blue", "pink", "magenta", "grey"}) {
             JMenuItem mi = new JMenuItem(first.service().host());
             mi.setFont(Ui.PLAIN);
-            if (!c[0].isEmpty()) { mi.setOpaque(true); mi.setBackground(Color.decode(c[0])); }
+            Color swatch = Theme.highlight(c);
+            if (swatch != null) { mi.setOpaque(true); mi.setBackground(swatch); }
             else mi.setBorder(BorderFactory.createDashedBorder(Theme.BORDER));
-            mi.addActionListener(e -> { for (LogEntry en : sel) en.setHighlight(c[1].equals("none") ? "" : c[1]); refresh(); });
+            mi.addActionListener(e -> { for (LogEntry en : sel) en.setHighlight(c.equals("none") ? "" : c); refresh(); });
             highlight.add(mi);
         }
         menu.add(highlight);

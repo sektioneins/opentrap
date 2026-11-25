@@ -15,6 +15,15 @@ public final class PhaseHtmlTest {
             Expect.isFalse(h.contains("<b>"), "no live tag");
         });
 
+        Harness.test("a phase badge's number takes the on-colour that reads on its fill", () -> {
+            String done = opentrap.ui.Theme.css(opentrap.ui.Theme.onBadge(opentrap.ui.Ui.SEV_LOW));
+            String waiting = opentrap.ui.Theme.css(opentrap.ui.Theme.onBadge(opentrap.ui.Theme.TOGGLE_OFF));
+            String h = DashboardTool.phaseHtml("1 2");
+            Expect.isTrue(h.contains("color:" + done + ";"), "a finished phase: " + h);
+            Expect.isTrue(h.contains("color:" + waiting + ";"), "the running phase: " + h);
+            Expect.isFalse(h.contains("color:white"), "no fixed white: " + h);
+        });
+
         Harness.test("the phase renderer still renders its badges as HTML with the guard installed", () -> {
             opentrap.ui.theme.HtmlGuard.install();
             javax.swing.JTable t = new javax.swing.JTable(1, 1);

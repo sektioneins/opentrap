@@ -798,7 +798,7 @@ public class DashboardTool implements ToolModule {
         Graphics2D g = img.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g.setColor(Theme.MUTED);
-        g.setStroke(new BasicStroke(1.4f));
+        g.setStroke(new BasicStroke(Theme.stroke(1.4f)));
         g.drawLine(5, 2, 5, 16);
         g.drawPolygon(new int[]{5, 15, 5}, new int[]{3, 7, 11}, 3);
         g.dispose();
@@ -828,7 +828,7 @@ public class DashboardTool implements ToolModule {
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             int w = getWidth(), h = getHeight(), cx = w / 2, cy = h / 2;
             g2.setColor(Theme.ICON);
-            g2.setStroke(new BasicStroke(1.4f));
+            g2.setStroke(new BasicStroke(Theme.stroke(1.4f)));
             g2.drawOval(2, 2, w - 5, h - 5);
             switch (kind) {
                 case "play" -> g2.fillPolygon(new int[]{cx - 3, cx - 3, cx + 5},
@@ -836,14 +836,14 @@ public class DashboardTool implements ToolModule {
                 case "pause" -> { g2.fillRect(cx - 4, cy - 4, 2, 9); g2.fillRect(cx + 2, cy - 4, 2, 9); }
                 case "gear" -> {
                     // A cog: eight short, thick teeth on a ring with a solid hub.
-                    g2.setStroke(new BasicStroke(2.2f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER));
+                    g2.setStroke(new BasicStroke(Theme.stroke(2.2f), BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER));
                     for (int a = 0; a < 360; a += 45) {
                         double r = Math.toRadians(a);
                         g2.draw(new java.awt.geom.Line2D.Double(
                                 cx + 5.0 * Math.cos(r), cy + 5.0 * Math.sin(r),
                                 cx + 7.5 * Math.cos(r), cy + 7.5 * Math.sin(r)));
                     }
-                    g2.setStroke(new BasicStroke(1.6f));
+                    g2.setStroke(new BasicStroke(Theme.stroke(1.6f)));
                     g2.draw(new java.awt.geom.Ellipse2D.Double(cx - 5, cy - 5, 10, 10));
                     g2.fill(new java.awt.geom.Ellipse2D.Double(cx - 2, cy - 2, 4, 4));
                 }
@@ -1089,7 +1089,7 @@ public class DashboardTool implements ToolModule {
         Graphics2D g = img.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g.setColor(Theme.MUTED);
-        g.setStroke(new BasicStroke(1.3f));
+        g.setStroke(new BasicStroke(Theme.stroke(1.3f)));
         g.drawPolygon(new int[]{1, 13, 8, 6}, new int[]{2, 2, 8, 13}, 4);
         g.dispose();
         return new javax.swing.ImageIcon(img);
@@ -1103,7 +1103,7 @@ public class DashboardTool implements ToolModule {
         Graphics2D g = img.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g.setColor(Theme.MUTED);
-        g.setStroke(new BasicStroke(1.4f));
+        g.setStroke(new BasicStroke(Theme.stroke(1.4f)));
         g.drawOval(2, 2, 7, 7);
         g.drawLine(9, 9, 13, 13);
         g.dispose();
@@ -1125,7 +1125,7 @@ public class DashboardTool implements ToolModule {
         Graphics2D g = img.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g.setColor(Theme.MUTED);
-        g.setStroke(new BasicStroke(1.3f));
+        g.setStroke(new BasicStroke(Theme.stroke(1.3f)));
         switch (kind) {
             case "folder" -> {
                 g.drawLine(2, 5, 6, 5); g.drawLine(6, 5, 7, 4);
@@ -1516,8 +1516,10 @@ public class DashboardTool implements ToolModule {
         StringBuilder html = new StringBuilder("<html>");
         for (int i = 0; i < nums.length; i++) {
             boolean on = done || i < nums.length - 1;
-            html.append("<span style='background:").append(Theme.css(on ? Ui.SEV_LOW : Theme.TOGGLE_OFF))
-                .append(";color:white;padding:1px 5px;margin-right:3px;border-radius:3px'>")
+            Color fill = on ? Ui.SEV_LOW : Theme.TOGGLE_OFF;
+            html.append("<span style='background:").append(Theme.css(fill))
+                .append(";color:").append(Theme.css(Theme.onBadge(fill)))
+                .append(";padding:1px 5px;margin-right:3px;border-radius:3px'>")
                 .append(opentrap.ui.Advisory.esc(nums[i])).append("</span> ");
         }
         return html + "</html>";
@@ -1922,7 +1924,7 @@ public class DashboardTool implements ToolModule {
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             int w = getWidth(), h = getHeight();
             g2.setColor(Theme.ICON);
-            g2.setStroke(new BasicStroke(1.4f));
+            g2.setStroke(new BasicStroke(Theme.stroke(1.4f)));
             g2.drawOval(1, 1, w - 3, h - 3);
             int cx = w / 2, cy = h / 2;
             if (running) {
@@ -2009,7 +2011,7 @@ public class DashboardTool implements ToolModule {
                     }
                     case FINISHED -> {
                         g2.setColor(Theme.OK);
-                        g2.setStroke(new BasicStroke(2f));
+                        g2.setStroke(new BasicStroke(Theme.stroke(2f)));
                         g2.drawPolyline(new int[]{1, 5, 11}, new int[]{6, 11, 1}, 3);
                     }
                 }
@@ -2051,13 +2053,13 @@ public class DashboardTool implements ToolModule {
             g2.fillRoundRect(0, 1, w - 1, h - 3, h - 2, h - 2);
             int knob = h - 8;
             int x = on ? w - knob - 4 : 4;
-            g2.setColor(Color.WHITE);
+            g2.setColor(Theme.TEXT_ON_CONTROL);
             g2.fillOval(x, 4, knob, knob);
             g2.dispose();
         }
     }
 
-    /** A capsule-shaped, coloured issue-count pill with white text. */
+    /** A capsule-shaped, coloured issue-count pill with white or dark text. */
     private static JComponent pill(int count, Color bg) {
         final String text = Integer.toString(count);
         JComponent c = new JComponent() {
@@ -2067,7 +2069,7 @@ public class DashboardTool implements ToolModule {
                 int w = getWidth(), h = getHeight();
                 g2.setColor(bg);
                 g2.fillRoundRect(0, 0, w - 1, h - 1, h, h);   // radius = height: a capsule
-                g2.setColor(Color.WHITE);
+                g2.setColor(Theme.onBadge(bg));
                 g2.setFont(Fonts.ui(Font.BOLD, 11));
                 FontMetrics fm = g2.getFontMetrics();
                 int tw = fm.stringWidth(text);

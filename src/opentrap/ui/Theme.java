@@ -9,9 +9,12 @@ import javax.swing.plaf.FontUIResource;
 import javax.swing.plaf.metal.DefaultMetalTheme;
 import javax.swing.plaf.metal.MetalLookAndFeel;
 import java.awt.*;
+import java.lang.reflect.Field;
+import java.nio.file.Path;
+import java.util.Map;
 
 /**
- * The suite's visual theme: a flat interface, light or dark, with one orange accent.
+ * The suite's visual theme: a flat interface in the active theme's palette (see the theme files).
  *
  * <p>Everything here is plain Swing. The cross-platform look and feel is the
  * base, so the interface is identical on every desktop, and the parts of it
@@ -23,74 +26,168 @@ public final class Theme {
     private Theme() {}
 
     // ---- palette ----
-    // Not final: the dark variant is chosen at install() time (before any UI is
-    // built, so the Ui constants that copy these capture the right values). A
-    // theme change relaunches the app, exactly as a scale change does.
+    // Not final: the theme is chosen at install() time (before any UI is built,
+    // so the Ui constants that copy these capture the right values). A theme
+    // change relaunches the app, exactly as a scale change does. The values come
+    // from the theme files in the jar (see configure); every static non-final
+    // Color, int or enum field here is a key a theme file can set.
     /** Page background. */
-    public static Color BG         = new Color(0xFF, 0xFF, 0xFF);
+    public static Color BG;
     /** Raised surfaces: toolbars, table headers, cards, the status bar. */
-    public static Color SURFACE    = new Color(0xEE, 0xEE, 0xEE);
+    public static Color SURFACE;
     /** Hover and pressed state of surfaces and secondary buttons. */
-    public static Color SURFACE_2  = new Color(0xE4, 0xE4, 0xE4);
-    public static Color SURFACE_3  = new Color(0xD8, 0xD8, 0xD8);
+    public static Color SURFACE_2;
+    public static Color SURFACE_3;
     /** Hairlines and outlines. */
-    public static Color BORDER     = new Color(0xD4, 0xD4, 0xD4);
-    public static Color TEXT       = new Color(0x1A, 0x1A, 0x1A);
-    public static Color MUTED      = new Color(0x6B, 0x6B, 0x6B);
+    public static Color BORDER;
+    public static Color TEXT;
+    public static Color MUTED;
     /** Link text: underlined labels that open something. */
-    public static Color LINK       = new Color(0x1A, 0x5F, 0xB4);
+    public static Color LINK;
     /** The accent: orange, used on primary buttons and the active tab. */
-    public static Color ACCENT       = new Color(0xDB, 0x61, 0x2F);
-    public static Color ACCENT_DARK  = new Color(0xC0, 0x4E, 0x20);
+    public static Color ACCENT;
+    public static Color ACCENT_DARK;
     /** Row selection: a light blue selection that stays legible against the orange accent. */
-    public static Color ACCENT_LIGHT = new Color(0xCA, 0xDA, 0xF0);
+    public static Color ACCENT_LIGHT;
     /**
      * The colour of switched-on controls: check marks, radio dots, toggles,
      * filter chips, selection bars. Sampled from the reference frames, where it
      * is by far the most common saturated blue.
      */
-    public static Color CONTROL      = new Color(0x26, 0x63, 0x9C);
+    public static Color CONTROL;
     /** The tint behind a selected card or list row, sampled from the same frames. */
-    public static Color CONTROL_TINT = new Color(0xEA, 0xEF, 0xF5);
+    public static Color CONTROL_TINT;
     /** The fill of an unselected segment in a segmented control. */
-    public static Color SEGMENT_OFF  = new Color(0xDF, 0xDF, 0xDF);
+    public static Color SEGMENT_OFF;
     /**
      * Tab titles. The reference keeps an unselected tab near-black rather than
      * greying it out: the selected tab is marked by its underline, not by the
      * others fading. Both values are sampled from the reference frames.
      */
-    public static Color TAB_TEXT     = new Color(0x2B, 0x2B, 0x2B);
-    public static Color TAB_TEXT_ON  = new Color(0x00, 0x00, 0x00);
-    public static Color ACCENT_FAINT = new Color(0xF7, 0xF7, 0xF7);
+    public static Color TAB_TEXT;
+    public static Color TAB_TEXT_ON;
+    public static Color ACCENT_FAINT;
 
     // ---- the rest of the palette: everything a tool used to hard-code ----
     /** Cards and other raised panels that sit on the page. */
-    public static Color CARD        = new Color(0xFF, 0xFF, 0xFF);
+    public static Color CARD;
     /** Table headers. */
-    public static Color HEADER      = new Color(0xF2, 0xF2, 0xF2);
+    public static Color HEADER;
     /** Strokes of small drawn icons (play, pause, dots, section glyphs). */
-    public static Color ICON        = new Color(0x55, 0x55, 0x55);
+    public static Color ICON;
     /** The track of a switched-off toggle. */
-    public static Color TOGGLE_OFF  = new Color(0xB8, 0xBC, 0xC2);
-    public static Color SCROLL_THUMB       = new Color(0xC9, 0xCF, 0xD6);
-    public static Color SCROLL_THUMB_HOVER = new Color(0xB4, 0xBB, 0xC4);
+    public static Color TOGGLE_OFF;
+    public static Color SCROLL_THUMB;
+    public static Color SCROLL_THUMB_HOVER;
     /** Success: a finished task, a running service. */
-    public static Color OK          = new Color(0x3A, 0x9A, 0x4B);
+    public static Color OK;
     /** The search-match highlight in message views. */
-    public static Color HIGHLIGHT   = new Color(0xFF, 0xF1, 0x76);
+    public static Color HIGHLIGHT;
     /** Message syntax colouring: header names and markup tags, the start line, JSON keys, strings, numbers. */
-    public static Color CODE_NAME   = new Color(0x33, 0x33, 0x8D);
-    public static Color CODE_START  = new Color(0x8A, 0x1F, 0x1F);
-    public static Color CODE_KEY    = new Color(0x9A, 0x4A, 0x0A);
-    public static Color CODE_STRING = new Color(0x1A, 0x7F, 0x37);
-    public static Color CODE_NUMBER = new Color(0x0B, 0x72, 0x85);
+    public static Color CODE_NAME;
+    public static Color CODE_START;
+    public static Color CODE_KEY;
+    public static Color CODE_STRING;
+    public static Color CODE_NUMBER;
     /** Hex view: the offset column and the text column. */
-    public static Color HEX_OFFSET  = new Color(0x88, 0x88, 0x88);
-    public static Color HEX_ASCII   = new Color(0x33, 0x55, 0x88);
+    public static Color HEX_OFFSET;
+    public static Color HEX_ASCII;
     /** Comparer: backgrounds of deleted, added and modified runs. */
-    public static Color DIFF_DELETED  = new Color(0xF7, 0xC9, 0xC9);
-    public static Color DIFF_ADDED    = new Color(0xCB, 0xE8, 0xCB);
-    public static Color DIFF_MODIFIED = new Color(0xC7, 0xDC, 0xF5);
+    public static Color DIFF_DELETED;
+    public static Color DIFF_ADDED;
+    public static Color DIFF_MODIFIED;
+
+    // ---- shared UI: severity, text on fills, site map, empty states ----
+    /** Errors: failed requests, invalid input. */
+    public static Color ERROR;
+    /** The warning icon of a dialog. */
+    public static Color WARN;
+    /** The error icon of a dialog. */
+    public static Color DIALOG_ERROR;
+    /** Issue severity in tables and badges. */
+    public static Color SEVERITY_HIGH;
+    public static Color SEVERITY_MEDIUM;
+    public static Color SEVERITY_LOW;
+    public static Color SEVERITY_INFO;
+    /** Issue severity in the advisory text; kept apart from SEVERITY_*, which differs today. */
+    public static Color ADVISORY_HIGH;
+    public static Color ADVISORY_MEDIUM;
+    public static Color ADVISORY_LOW;
+    public static Color ADVISORY_INFO;
+    /** Text and icons on an ACCENT or ACCENT_DARK fill. */
+    public static Color TEXT_ON_ACCENT;
+    /** Text and icons on a CONTROL fill. */
+    public static Color TEXT_ON_CONTROL;
+    /** Text and icons on a selected list row (ACCENT_LIGHT). */
+    public static Color TEXT_ON_SELECTION;
+    /** The glyph on a round severity or dialog badge. */
+    public static Color TEXT_ON_BADGE;
+    /** The dark text and glyph on a badge or pill fill that white does not read on. */
+    public static Color TEXT_ON_BADGE_DARK;
+    /** Site map: the open padlock of a plain-text host. */
+    public static Color SITE_INSECURE;
+    /** Site map: the folder body. */
+    public static Color SITE_FOLDER;
+    /** Site map: the folder front. */
+    public static Color SITE_FOLDER_LIGHT;
+    /** Site map: the keyhole drawn over a padlock (alpha derived at the call site). */
+    public static Color SITE_OVERLAY;
+    /** Site map: the sheet of a request icon. */
+    public static Color SITE_PAGE;
+    /** The icon of an empty-state panel. */
+    public static Color EMPTY_ICON;
+
+    // ---- tools: decoder, discover, proxy, history, comparer, intruder ----
+    /** Decoder: the colour of the URL transform in the dropdowns and on its stage. */
+    public static Color DECODE_URL;
+    /** Decoder: HTML entities. */
+    public static Color DECODE_HTML;
+    /** Decoder: Base64. */
+    public static Color DECODE_BASE64;
+    /** Decoder: ASCII hex. The plain hex transform uses CONTROL. */
+    public static Color DECODE_HEX;
+    /** Decoder: octal. */
+    public static Color DECODE_OCTAL;
+    /** Decoder: binary. */
+    public static Color DECODE_BINARY;
+    /** Decoder: gzip, deflate and brotli. */
+    public static Color DECODE_COMPRESSED;
+    /** Discover: the hero band's gradient, top left. */
+    public static Color HERO_TOP;
+    /** Discover: the hero band's gradient, bottom right. */
+    public static Color HERO_BOTTOM;
+    /** Discover: the diagonal line across the hero band (alpha derived at the call site). */
+    public static Color HERO_GLOW;
+    /** Discover: the hero headline. */
+    public static Color HERO_TEXT;
+    /** Discover: the hero paragraph. */
+    public static Color HERO_BODY;
+    /** Discover: the hero's small print. */
+    public static Color HERO_MUTED;
+    /** Proxy: the idle intercept illustration's beam lines. */
+    public static Color INTERCEPT_BEAM;
+    /** Proxy: the illustration's signal head and pole. */
+    public static Color INTERCEPT_BODY;
+    /** Proxy: the illustration's lighter face. */
+    public static Color INTERCEPT_FACE;
+    /** Proxy: the illustration's unlit lamps. */
+    public static Color INTERCEPT_LAMP_OFF;
+    /** Proxy: the illustration's lit lamp. */
+    public static Color INTERCEPT_LAMP_ON;
+    /** History highlight swatches, one per stored name (see {@link #highlight}). */
+    public static Color HIGHLIGHT_RED;
+    public static Color HIGHLIGHT_ORANGE;
+    public static Color HIGHLIGHT_YELLOW;
+    public static Color HIGHLIGHT_GREEN;
+    public static Color HIGHLIGHT_CYAN;
+    public static Color HIGHLIGHT_BLUE;
+    public static Color HIGHLIGHT_PINK;
+    public static Color HIGHLIGHT_MAGENTA;
+    public static Color HIGHLIGHT_GREY;
+    /** Comparer: text of a row the other list has already taken. */
+    public static Color COMPARE_TAKEN;
+    /** Intruder: the fill behind a payload position marker. */
+    public static Color POSITION_MARK;
 
     /** Whether the dark palette is active (set by {@link #configure}). */
     public static boolean dark = false;
@@ -104,104 +201,134 @@ public final class Theme {
         catch (Exception e) { return false; }
     }
 
+    /** The history highlight colour for a stored name ({@code red} ... {@code grey}), or null for none or an unknown name. */
+    public static Color highlight(String name) {
+        if (name == null) return null;
+        return switch (name) {
+            case "red" -> HIGHLIGHT_RED;
+            case "orange" -> HIGHLIGHT_ORANGE;
+            case "yellow" -> HIGHLIGHT_YELLOW;
+            case "green" -> HIGHLIGHT_GREEN;
+            case "cyan" -> HIGHLIGHT_CYAN;
+            case "blue" -> HIGHLIGHT_BLUE;
+            case "pink" -> HIGHLIGHT_PINK;
+            case "magenta" -> HIGHLIGHT_MAGENTA;
+            case "grey" -> HIGHLIGHT_GREY;
+            default -> null;
+        };
+    }
+
+    /** The glyph or number colour for a badge, pill or tinted row on {@code fill}: white or the dark one, whichever reads better. */
+    public static Color onBadge(Color fill) { return Contrast.onBadge(fill, TEXT_ON_BADGE, TEXT_ON_BADGE_DARK); }
+
+    /** The colour with its alpha channel set to {@code alpha} (0 to 255). */
+    public static Color alpha(Color c, int alpha) {
+        return new Color(c.getRed(), c.getGreen(), c.getBlue(), alpha);
+    }
+
     /** A colour as CSS hex ({@code #RRGGBB}), for the HTML that follows the theme. */
     public static String css(Color c) {
         return String.format("#%02X%02X%02X", c.getRed(), c.getGreen(), c.getBlue());
     }
 
-    /** Point the palette at the light or dark colours. Call before install(). */
+    /** Point the palette at the built-in light or dark theme. Call before install(). */
     public static void configure(boolean darkMode) {
-        dark = darkMode;
-        if (darkMode) {
-            // Neutral dark greys, cards a step lighter than the page, and the
-            // same orange accent as the light theme, so the brand reads the
-            // same in both.
-            BG           = new Color(0x25, 0x25, 0x25);
-            SURFACE      = new Color(0x2C, 0x2C, 0x2C);
-            SURFACE_2    = new Color(0x3A, 0x3A, 0x3A);
-            SURFACE_3    = new Color(0x4A, 0x4A, 0x4A);
-            BORDER       = new Color(0x40, 0x40, 0x40);
-            TEXT         = new Color(0xDE, 0xDE, 0xDE);
-            MUTED        = new Color(0x9C, 0x9C, 0x9C);
-            LINK         = new Color(0x6C, 0xA6, 0xF0);
-            ACCENT       = new Color(0xDB, 0x61, 0x2F);
-            ACCENT_DARK  = new Color(0xC0, 0x4E, 0x20);
-            ACCENT_LIGHT = new Color(0x2F, 0x3E, 0x55);
-            ACCENT_FAINT = new Color(0x2B, 0x2B, 0x2B);
-            CARD         = new Color(0x30, 0x30, 0x30);
-            HEADER       = new Color(0x3A, 0x3A, 0x3A);
-            ICON         = new Color(0xB4, 0xB4, 0xB4);
-            TOGGLE_OFF   = new Color(0x55, 0x5A, 0x62);
-            SCROLL_THUMB       = new Color(0x4E, 0x54, 0x5C);
-            SCROLL_THUMB_HOVER = new Color(0x62, 0x69, 0x72);
-            OK           = new Color(0x5C, 0xC4, 0x6E);
-            HIGHLIGHT    = new Color(0x7A, 0x60, 0x00);
-            CODE_NAME    = new Color(0x8F, 0xA8, 0xFF);
-            CODE_START   = new Color(0xFF, 0x8A, 0x80);
-            CODE_KEY     = new Color(0xE8, 0x95, 0x4A);
-            CODE_STRING  = new Color(0xE0, 0xC0, 0x6E);
-            CODE_NUMBER  = new Color(0x7F, 0xB8, 0xE8);
-            HEX_OFFSET   = new Color(0x7A, 0x7A, 0x7A);
-            HEX_ASCII    = new Color(0x8F, 0xB0, 0xE0);
-            DIFF_DELETED  = new Color(0x6B, 0x2B, 0x2B);
-            DIFF_ADDED    = new Color(0x2B, 0x5B, 0x2B);
-            DIFF_MODIFIED = new Color(0x2B, 0x45, 0x66);
-            CONTROL       = new Color(0x55, 0x93, 0xD0);
-            CONTROL_TINT  = new Color(0x1E, 0x2A, 0x36);
-            SEGMENT_OFF   = new Color(0x3A, 0x3A, 0x3A);
-            TAB_TEXT      = new Color(0xCF, 0xCF, 0xCF);
-            TAB_TEXT_ON   = new Color(0xFF, 0xFF, 0xFF);
-        } else {
-            BG           = new Color(0xFF, 0xFF, 0xFF);
-            SURFACE      = new Color(0xEE, 0xEE, 0xEE);
-            SURFACE_2    = new Color(0xE4, 0xE4, 0xE4);
-            SURFACE_3    = new Color(0xD8, 0xD8, 0xD8);
-            BORDER       = new Color(0xD4, 0xD4, 0xD4);
-            TEXT         = new Color(0x1A, 0x1A, 0x1A);
-            MUTED        = new Color(0x6B, 0x6B, 0x6B);
-            LINK         = new Color(0x1A, 0x5F, 0xB4);
-            ACCENT       = new Color(0xDB, 0x61, 0x2F);
-            ACCENT_DARK  = new Color(0xC0, 0x4E, 0x20);
-            ACCENT_LIGHT = new Color(0xCA, 0xDA, 0xF0);
-            ACCENT_FAINT = new Color(0xF7, 0xF7, 0xF7);
-            CARD         = new Color(0xFF, 0xFF, 0xFF);
-            HEADER       = new Color(0xF2, 0xF2, 0xF2);
-            ICON         = new Color(0x55, 0x55, 0x55);
-            TOGGLE_OFF   = new Color(0xB8, 0xBC, 0xC2);
-            SCROLL_THUMB       = new Color(0xC9, 0xCF, 0xD6);
-            SCROLL_THUMB_HOVER = new Color(0xB4, 0xBB, 0xC4);
-            OK           = new Color(0x3A, 0x9A, 0x4B);
-            HIGHLIGHT    = new Color(0xFF, 0xF1, 0x76);
-            CODE_NAME    = new Color(0x33, 0x33, 0x8D);
-            CODE_START   = new Color(0x8A, 0x1F, 0x1F);
-            CODE_KEY     = new Color(0x9A, 0x4A, 0x0A);
-            CODE_STRING  = new Color(0x1A, 0x7F, 0x37);
-            CODE_NUMBER  = new Color(0x0B, 0x72, 0x85);
-            HEX_OFFSET   = new Color(0x88, 0x88, 0x88);
-            HEX_ASCII    = new Color(0x33, 0x55, 0x88);
-            DIFF_DELETED  = new Color(0xF7, 0xC9, 0xC9);
-            DIFF_ADDED    = new Color(0xCB, 0xE8, 0xCB);
-            DIFF_MODIFIED = new Color(0xC7, 0xDC, 0xF5);
-            CONTROL       = new Color(0x26, 0x63, 0x9C);
-            CONTROL_TINT  = new Color(0xEA, 0xEF, 0xF5);
-            SEGMENT_OFF   = new Color(0xDF, 0xDF, 0xDF);
-            TAB_TEXT      = new Color(0x2B, 0x2B, 0x2B);
-            TAB_TEXT_ON   = new Color(0x00, 0x00, 0x00);
+        try {
+            ThemeFile base = ThemeKeys.builtIn(darkMode ? "dark" : "light");
+            configure(ThemeResolver.resolve(base, null, ThemeKeys.spec()));
+        } catch (ThemeException e) {
+            throw new IllegalStateException("built-in theme is broken: " + e.getMessage(), e);
         }
+    }
+
+    /** Write every resolved value into the field of the same name. */
+    public static void configure(ThemeResolver.Resolved r) {
+        for (Map.Entry<String, Object> e : r.values().entrySet()) {
+            try {
+                Field f = Theme.class.getField(e.getKey());
+                Object v = e.getValue();
+                if (v instanceof String word) v = enumConstant(f.getType(), word);
+                f.set(null, v);
+            } catch (ReflectiveOperationException ex) {
+                throw new IllegalStateException("no theme key " + e.getKey(), ex);
+            }
+        }
+        dark = "dark".equals(r.appearance());
+    }
+
+    private static Object enumConstant(Class<?> type, String word) {
+        for (Object c : type.getEnumConstants()) {
+            if (((Enum<?>) c).name().equalsIgnoreCase(word)) return c;
+        }
+        throw new IllegalStateException("no " + type.getSimpleName() + " " + word);
     }
 
     public static final Font FONT      = Fonts.ui(Font.PLAIN, 12);
     public static final Font FONT_BOLD = Fonts.ui(Font.BOLD, 12);
 
     /** Corner radius shared by buttons, fields and cards. */
-    public static final int RADIUS = 6;
+    public static int RADIUS;
+    /** Corner radius of cards (see {@link #cardBorder()}). */
+    public static int CARD_RADIUS;
+    /** Corner arc of the shape behind a flashing or pill-marked tab. */
+    public static int TAB_HOVER_RADIUS;
+    /** Width of the outline on fields, cards and outlined buttons, in pixels. */
+    public static int LINE_WIDTH;
+    /** Stroke weight of the line icons, in percent of the drawn weight. */
+    public static int ICON_STROKE;
+    /** Height of the selected tab's underline. */
+    public static int TAB_UNDERLINE;
+
+    /** How the selected tab is marked. */
+    public enum TabMarker { UNDERLINE, PILL }
+    /** How a primary button is drawn. */
+    public enum PrimaryButton { FILLED, OUTLINE }
+    /** Which lines a table draws between its cells. */
+    public enum TableGrid { NONE, HORIZONTAL, BOTH }
+    /** Whether trees draw their connecting lines. */
+    public enum TreeLines { OFF, ON }
+
+    public static TabMarker TAB_MARKER;
+    public static PrimaryButton PRIMARY_BUTTON;
+    public static TableGrid TABLE_GRID;
+    public static TreeLines TREE_LINES;
+
+    /** A stroke width scaled by the theme's icon stroke percentage. */
+    public static float stroke(float width) {
+        return width * ICON_STROKE / 100f;
+    }
 
     /** Client property that marks a button as the primary action of its panel. */
     public static final String PRIMARY = "opentrap.primary";
 
+    static { configure(false); }
+
+    private static String activeId = "light";
+    private static String startupNotice;
+
+    /** The id of the theme that is active: {@code light}, {@code dark} or a user theme. */
+    public static String activeId() { return activeId; }
+
+    /** The warning to show when the chosen theme could not be loaded, or null. */
+    public static String startupNotice() { return startupNotice; }
+
     /** Install the theme. Call once, before any component is created. */
     public static void install() {
-        configure(darkPreferred());
+        install(Path.of(System.getProperty("user.home"), ".opentrap", "themes"));
+    }
+
+    /**
+     * Install the theme the startup rule picks (see {@link ThemeCatalog#pick}),
+     * looking in {@code userThemes} for user themes. A built-in theme never
+     * reads the folder.
+     */
+    public static void install(Path userThemes) {
+        ThemeCatalog.Choice choice = ThemeCatalog.pick(new ThemeCatalog(userThemes),
+            System.getProperty("opentrap.theme"),
+            java.util.prefs.Preferences.userRoot().node("opentrap.v1"));
+        activeId = choice.id();
+        startupNotice = choice.notice();
+        configure(choice.resolved());
         MetalLookAndFeel.setCurrentTheme(new Palette());
         try { UIManager.setLookAndFeel(new MetalLookAndFeel()); } catch (Exception _) {}
 
@@ -334,7 +461,8 @@ public final class Theme {
         d.put("Tree.collapsedIcon", Glyphs.chevron(12, MUTED, 0));
         d.put("Tree.leftChildIndent", 10);
         d.put("Tree.rightChildIndent", 12);
-        d.put("Tree.paintLines", Boolean.FALSE);
+        d.put("Tree.paintLines", TREE_LINES == TreeLines.ON);
+        d.put("Tree.hash", BORDER);
         d.put("Tree.lineTypeDashed", Boolean.FALSE);
         d.put("List.selectionBackground", sel);
         d.put("List.selectionForeground", text);
@@ -396,22 +524,25 @@ public final class Theme {
      * feel says, which the dark theme cannot carry; every HTML pane (the
      * response render, advisories, issue definitions) takes this kit. A page
      * that brings its own styles still overrides these, as a render should.
+     * The sheet belongs to this kit alone: {@code HTMLEditorKit.setStyleSheet}
+     * would replace the app-wide default, which Swing's HTML labels and
+     * buttons copy, and paint the page background behind their text.
      */
     public static javax.swing.text.html.HTMLEditorKit htmlKit() {
-        javax.swing.text.html.HTMLEditorKit kit = new javax.swing.text.html.HTMLEditorKit();
         javax.swing.text.html.StyleSheet ss = new javax.swing.text.html.StyleSheet();
-        ss.addStyleSheet(kit.getStyleSheet());
+        ss.addStyleSheet(new javax.swing.text.html.HTMLEditorKit().getStyleSheet());
         ss.addRule(String.format("body { color: #%06X; background-color: #%06X; font-family: %s; }",
                 TEXT.getRGB() & 0xFFFFFF, BG.getRGB() & 0xFFFFFF, Fonts.css(Fonts.uiFamily())));
         ss.addRule(String.format("a { color: #%06X; }", ACCENT.getRGB() & 0xFFFFFF));
         ss.addRule(String.format("pre, code { color: #%06X; }", TEXT.getRGB() & 0xFFFFFF));
-        kit.setStyleSheet(ss);
-        return kit;
+        return new javax.swing.text.html.HTMLEditorKit() {
+            @Override public javax.swing.text.html.StyleSheet getStyleSheet() { return ss; }
+        };
     }
 
     /** A rounded hairline border for cards and grouped content. */
     public static Border cardBorder() {
-        return new RoundedBorder(BORDER, null, RADIUS + 2, new Insets(10, 12, 10, 12));
+        return new RoundedBorder(BORDER, null, CARD_RADIUS, new Insets(10, 12, 10, 12));
     }
 
     /** Mark a button as the panel's primary action: filled with the accent. */

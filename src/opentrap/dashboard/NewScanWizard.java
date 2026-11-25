@@ -180,8 +180,8 @@ public class NewScanWizard extends JDialog {
             boolean on = k == step;
             rail[k].setSelected(on);
             rail[k].setBackground(on ? Ui.ACCENT : Theme.SURFACE);
-            rail[k].setForeground(on ? Color.WHITE : Theme.TEXT);
-            rail[k].setIcon(railIcon(icons[k], on ? Color.WHITE : Theme.MUTED));
+            rail[k].setForeground(on ? Theme.TEXT_ON_ACCENT : Theme.TEXT);
+            rail[k].setIcon(railIcon(icons[k], on ? Theme.TEXT_ON_ACCENT : Theme.MUTED));
         }
         cards.show(content, cardFor(step));
         updateButtons();
@@ -410,7 +410,7 @@ public class NewScanWizard extends JDialog {
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
         g.setColor(col);
-        g.setStroke(new BasicStroke(1.8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.setStroke(new BasicStroke(Theme.stroke(1.8f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
         switch (kind) {
             case "type" -> {
                 java.awt.geom.Path2D.Float horn = new java.awt.geom.Path2D.Float();
