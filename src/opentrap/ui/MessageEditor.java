@@ -637,17 +637,15 @@ public class MessageEditor extends JPanel {
         try {
             String body = message.bodyText();
             if (body == null) body = "";
-            // A huge body would make the sanitising regexes below run for a long
-            // time on the event thread; do not attempt to render it inline.
+            // Parsing and laying out a huge page takes long on the event thread;
+            // do not attempt to render it inline. The pane's kit, not this
+            // method, keeps the page from loading anything it names (VULN-017).
             if (body.length() > MAX_DECORATE_CHARS) {
                 renderPane.setText("<html><body><i>Response too large to render inline "
                         + "(" + (body.length() / 1024) + " KB). Use the Raw view.</i></body></html>");
                 renderPane.setCaretPosition(0);
                 return;
             }
-            body = body.replaceAll("(?is)<script.*?</script>", "")
-                       .replaceAll("(?i)<link[^>]*>", "")
-                       .replaceAll("(?i)src\\s*=\\s*\"https?://[^\"]*\"", "");
             // Reset the document before each render. Reusing the previous
             // HTMLDocument makes JEditorPane keep showing the earlier page (or
             // nothing at all) on the next setText, which is why most responses

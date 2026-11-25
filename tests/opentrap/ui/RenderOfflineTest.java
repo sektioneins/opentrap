@@ -80,7 +80,8 @@ public final class RenderOfflineTest {
                         "<frameset rows=\"*\"><frame src=\"" + h + "/12\"></frameset>",
                         "<input type=\"image\" src=\"" + h + "/13\">",
                         "<object data=\"" + h + "/14\" classid=\"javax.swing.JButton\"></object>",
-                        "<iframe src=\"" + h + "/15\"></iframe>");
+                        "<iframe src=\"" + h + "/15\"></iframe>",
+                        "<div style=\"background:url(" + h + "/16)\">x</div>");
                 for (String page : pages) render(Theme.htmlKit(), page);
                 Expect.equal(srv.firstLineAfterMark(), "MARK", "first line the server saw");
             }
@@ -174,18 +175,44 @@ public final class RenderOfflineTest {
 
         Harness.test("an image in a response shown in Render is not fetched", () -> {
             try (Loopback srv = new Loopback()) {
-                String body = "<img src='" + srv.base + "/a'>";
-                HttpMessage response = new HttpMessage(Bytes.bytes("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n"
-                        + "Content-Length: " + body.length() + "\r\n\r\n" + body));
-                MessageEditor ed = onEdt(() -> {
-                    MessageEditor e = new MessageEditor(new SuiteContext(), MessageEditor.RESPONSE, false);
-                    e.setMessage(new HttpService("a.test", 80, false), response);
-                    return e;
-                });
+                MessageEditor ed = responseEditor("<img src='" + srv.base + "/a'>");
                 JEditorPane p = showRender(ed);
                 Expect.equal(placeholders(p), List.of("[image: " + srv.base + "/a]"), "placeholders");
                 Expect.equal(srv.firstLineAfterMark(), "MARK", "first line the server saw");
             }
+        });
+
+        Harness.test("a response of 300 KB of unclosed <link, <script or src= renders within a second", () -> {
+            for (String unit : List.of("<link", "<script", "src=\"http://")) {
+                MessageEditor ed = responseEditor(unit.repeat(300 * 1024 / unit.length()));
+                long start = System.nanoTime();
+                showRender(ed);
+                long ms = (System.nanoTime() - start) / 1_000_000;
+                Expect.isTrue(ms < 1000, "a render of " + unit + " under 1000 ms, took " + ms + " ms");
+            }
+        });
+
+        Harness.test("a script's text does not show in Render", () -> {
+            MessageEditor ed = responseEditor("<p>a</p><script>var hiddenScriptText = 1;</script><p>b</p>");
+            JEditorPane p = showRender(ed);
+            String text = onEdt(() -> {
+                try {
+                    return p.getDocument().getText(0, p.getDocument().getLength());
+                } catch (javax.swing.text.BadLocationException e) { throw new RuntimeException(e); }
+            });
+            Expect.isTrue(text.contains("a") && text.contains("b"), "the page text, was <" + text + ">");
+            Expect.isFalse(text.contains("hiddenScriptText"), "script text in <" + text + ">");
+        });
+    }
+
+    /** An editor holding a text/html response with the body; the Render tab is not selected yet. */
+    static MessageEditor responseEditor(String body) {
+        HttpMessage response = new HttpMessage(Bytes.bytes("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n"
+                + "Content-Length: " + body.length() + "\r\n\r\n" + body));
+        return onEdt(() -> {
+            MessageEditor e = new MessageEditor(new SuiteContext(), MessageEditor.RESPONSE, false);
+            e.setMessage(new HttpService("a.test", 80, false), response);
+            return e;
         });
     }
 
