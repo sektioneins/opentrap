@@ -19,3 +19,5 @@ description = Warm paper tones with ink-brown text, a forest green accent and so
 @radius = 10
 
 SEVERITY_LOW = #3A74AA
+HERO_ACCENT = #6FBF95
+TOGGLE_OFF = mix(@muted, @page, 45%)

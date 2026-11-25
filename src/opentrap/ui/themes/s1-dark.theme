@@ -18,3 +18,4 @@ description = The OpenTRAP-S1 logo colours on a dark page: deep navy backgrounds
 @error = #E05A5A
 
 CONTROL_TINT = mix(@control, @page, 18%)
+TOGGLE_OFF = mix(@muted, @page, 39%)

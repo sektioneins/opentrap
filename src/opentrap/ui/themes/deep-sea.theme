@@ -16,3 +16,4 @@ description = Blue-green depths with a coral accent. A cool, calm dark theme for
 @ok = #5CCB8E
 @warn = #F0A030
 @error = #E05555
+TOGGLE_OFF = mix(@muted, @page, 41%)

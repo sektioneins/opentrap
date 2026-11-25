@@ -155,7 +155,7 @@ public final class StorePanel extends JPanel {
             @Override public Component getTableCellRendererComponent(JTable t, Object v, boolean sel, boolean f,
                                                                      int r, int c) {
                 super.getTableCellRendererComponent(t, v, sel, f, r, c);
-                if (!sel) setForeground(Theme.ACCENT);
+                if (!sel) setForeground(Theme.ACCENT_TEXT);
                 return this;
             }
         });

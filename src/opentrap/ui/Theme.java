@@ -47,6 +47,8 @@ public final class Theme {
     /** The accent: orange, used on primary buttons and the active tab. */
     public static Color ACCENT;
     public static Color ACCENT_DARK;
+    /** The accent as text on the page, cards, surfaces and a selection: accent links, a selected vertical tab, queued state. */
+    public static Color ACCENT_TEXT;
     /** Row selection: a light blue selection that stays legible against the orange accent. */
     public static Color ACCENT_LIGHT;
     /**
@@ -160,6 +162,8 @@ public final class Theme {
     public static Color HERO_GLOW;
     /** Discover: the hero headline. */
     public static Color HERO_TEXT;
+    /** Discover: the accented word of the hero headline. */
+    public static Color HERO_ACCENT;
     /** Discover: the hero paragraph. */
     public static Color HERO_BODY;
     /** Discover: the hero's small print. */
@@ -533,7 +537,7 @@ public final class Theme {
         ss.addStyleSheet(new javax.swing.text.html.HTMLEditorKit().getStyleSheet());
         ss.addRule(String.format("body { color: #%06X; background-color: #%06X; font-family: %s; }",
                 TEXT.getRGB() & 0xFFFFFF, BG.getRGB() & 0xFFFFFF, Fonts.css(Fonts.uiFamily())));
-        ss.addRule(String.format("a { color: #%06X; }", ACCENT.getRGB() & 0xFFFFFF));
+        ss.addRule(String.format("a { color: #%06X; }", LINK.getRGB() & 0xFFFFFF));
         ss.addRule(String.format("pre, code { color: #%06X; }", TEXT.getRGB() & 0xFFFFFF));
         return new javax.swing.text.html.HTMLEditorKit() {
             @Override public javax.swing.text.html.StyleSheet getStyleSheet() { return ss; }

@@ -54,9 +54,9 @@ public final class Export {
         b.append("<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\">\n");
         b.append("<title>OpenTRAP report</title>\n<style>\n");
         b.append("body{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;margin:32px;color:#1c2733;}\n");
-        b.append("h1{color:#DB612F;} h2{margin:0 0 4px;} .meta{color:#667;} hr{border:0;border-top:1px solid #dde3ea;margin:24px 0;}\n");
+        b.append("h1{color:#BC5328;} h2{margin:0 0 4px;} .meta{color:#667;} hr{border:0;border-top:1px solid #dde3ea;margin:24px 0;}\n");
         b.append(".sev{display:inline-block;padding:1px 8px;border-radius:10px;color:#fff;font-size:12px;font-weight:600;}\n");
-        b.append(".High{background:#E0474C;}.Medium{background:#7E57C2;}.Low{background:#4477CC;}.Information{background:#888;}\n");
+        b.append(".High{background:#C4383D;}.Medium{background:#7E57C2;}.Low{background:#3B68B5;}.Information{background:#666;}\n");
         b.append("pre{background:#f5f7fa;border:1px solid #dde3ea;padding:10px;overflow:auto;white-space:pre-wrap;word-break:break-all;}\n");
         b.append("</style></head><body>\n");
         b.append("<h1>OpenTRAP findings</h1>\n");

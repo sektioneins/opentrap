@@ -177,5 +177,39 @@ public final class ContrastTest {
             Expect.equal(Contrast.changed(theme, base).size(), 1, "TEXT changed and still fails");
             Expect.equal(Contrast.changed(theme, base).get(0).pair().fg(), "TEXT", "the changed pair");
         });
+
+        Harness.test("text is drawn in the checked text colours, never in the accent or severity fills", () -> {
+            // ACCENT and SEVERITY_HIGH are fills, checked only against their on-colours;
+            // text in them went unchecked and fell under 4.5 to 1 in the dark themes.
+            java.util.regex.Pattern fill = java.util.regex.Pattern.compile(
+                "setForeground\\((?:opentrap\\.ui\\.)?(?:Ui|Theme)\\.(?:ACCENT|SEV_HIGH|SEVERITY_HIGH)\\)"
+                + "|css\\((?:opentrap\\.ui\\.)?Theme\\.ACCENT\\)|Theme\\.ACCENT\\.getRGB\\(");
+            java.util.TreeMap<String, Integer> found = new java.util.TreeMap<>();
+            try (var files = java.nio.file.Files.walk(java.nio.file.Path.of("src"))) {
+                for (java.nio.file.Path f : (Iterable<java.nio.file.Path>) files.filter(x -> x.toString().endsWith(".java"))::iterator) {
+                    var m = fill.matcher(java.nio.file.Files.readString(f));
+                    int n = 0;
+                    while (m.find()) n++;
+                    if (n > 0) found.put(java.nio.file.Path.of("src").relativize(f).toString().replace('\\', '/'), n);
+                }
+            } catch (java.io.IOException e) { throw new RuntimeException(e); }
+            Expect.equal(found.toString(), "{}", "text in a fill colour");
+        });
+
+        Harness.test("the proxy's certificate page puts its white button text on a fill that reaches 4.5 to 1", () -> {
+            String src;
+            try {
+                src = java.nio.file.Files.readString(java.nio.file.Path.of("src", "opentrap", "proxy", "ProxyServer.java"));
+            } catch (java.io.IOException e) { throw new RuntimeException(e); }
+            var m = java.util.regex.Pattern.compile("background:#([0-9A-Fa-f]{6});color:#fff").matcher(src);
+            int n = 0;
+            while (m.find()) {
+                n++;
+                Color bg = new Color(Integer.parseInt(m.group(1), 16));
+                Expect.isTrue(Contrast.ratio(Color.WHITE, bg) >= 4.5, "white on #" + m.group(1) + " is "
+                    + String.format(java.util.Locale.ROOT, "%.2f", Contrast.ratio(Color.WHITE, bg)));
+            }
+            Expect.equal(n, 1, "the download button");
+        });
     }
 }

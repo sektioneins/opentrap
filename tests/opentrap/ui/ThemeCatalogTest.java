@@ -5,6 +5,7 @@ import opentrap.testkit.Harness;
 import opentrap.testkit.MemoryPreferences;
 import opentrap.ui.theme.ThemeCatalog;
 import opentrap.ui.theme.ThemeException;
+import opentrap.ui.theme.ThemeKeys;
 import opentrap.ui.theme.ThemeResolver;
 
 import java.io.IOException;
@@ -269,6 +270,20 @@ public final class ThemeCatalogTest {
                     id + " header has no dash or markup");
             }
             Expect.isTrue(onLight && onDark, "a shipped theme sits on each base");
+        });
+
+        Harness.test("every shipped theme gives a switched-off toggle a colour of its own, not its base's grey", () -> {
+            ThemeCatalog c = new ThemeCatalog(Path.of("/dev/null/themes"));
+            for (String id : ThemeCatalog.SHIPPED) {
+                if (id.equals("light") || id.equals("dark")) continue;
+                try {
+                    String base = ThemeKeys.builtIn(id).base();
+                    Expect.isFalse(c.resolve(id).values().get("TOGGLE_OFF").equals(c.resolve(base).values().get("TOGGLE_OFF")),
+                        id + " TOGGLE_OFF differs from " + base);
+                } catch (ThemeException | IOException e) {
+                    throw new AssertionError(id + " does not load: " + e.getMessage(), e);
+                }
+            }
         });
 
         Harness.test("installing the theme sets the active id, and a fallback sets the startup notice", () -> inFolder(dir -> {

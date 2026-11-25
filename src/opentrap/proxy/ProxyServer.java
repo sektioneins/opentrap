@@ -591,7 +591,7 @@ public class ProxyServer {
             } else {
                 String body = "<!doctype html><html><head><title>OpenTRAP</title>"
                         + "<style>body{font:14px system-ui;margin:3em auto;max-width:34em;color:#222}"
-                        + "a.btn{display:inline-block;padding:.6em 1.1em;background:#DB612F;color:#fff;"
+                        + "a.btn{display:inline-block;padding:.6em 1.1em;background:#BC5328;color:#fff;"
                         + "text-decoration:none;border-radius:4px}</style></head><body>"
                         + "<h1>OpenTRAP proxy</h1>"
                         + "<p>The proxy is running on port " + cfg.port + ".</p>"

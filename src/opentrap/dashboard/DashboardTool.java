@@ -618,7 +618,7 @@ public class DashboardTool implements ToolModule {
     private static JLabel accentLink(String text, Runnable onClick) {
         JLabel l = new JLabel(text);
         l.setFont(Ui.PLAIN);
-        l.setForeground(Ui.ACCENT);
+        l.setForeground(Theme.ACCENT_TEXT);
         l.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         l.addMouseListener(new java.awt.event.MouseAdapter() {
             @Override public void mousePressed(java.awt.event.MouseEvent e) {

@@ -105,7 +105,9 @@ For everything else, the original project is the place to go:
   what it sets, what it leaves to its base theme and which colour pairs read
   poorly, and remove it again. Seven more ship: High Contrast, Linen, Deep Sea,
   Ember, S1 Light, S1 Dark and Phosphor. Every shipped theme passes the
-  contrast checks, and High Contrast reaches 7 to 1 for text. Linen is the
+  contrast checks, which also cover links and accent text, the advisory's
+  severity, syntax colours under a search match and the Discover headline,
+  and High Contrast reaches 7 to 1 for text. Linen is the
   default until you choose another. Badge glyphs and numbers take white or
   black, whichever reads on their fill. The file format is described in
   [docs/themes.md](docs/themes.md). A change that is saved but not yet applied
@@ -124,8 +126,10 @@ For everything else, the original project is the place to go:
   still raises its findings after it is switched off and on again, search
   highlights in the message editor sit on the text they found instead of
   drifting right line by line, a tool with unread results shows a larger dot
-  in the accent colour on its tab, and the test suite runs in about 3 seconds
-  instead of 24.
+  in the accent colour on its tab, as do the Event log and All issues links in
+  the status bar, the HTML report and the proxy's certificate page use the
+  fork's accent and badge colours that read at 4.5 to 1, and the test suite
+  runs in about 3 seconds instead of 24.
 
 ## Licence
 

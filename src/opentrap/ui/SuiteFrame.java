@@ -153,10 +153,14 @@ public class SuiteFrame extends JFrame {
         p.add(east, BorderLayout.EAST);
 
         // Live counters for the status bar.
-        ctx.addAlertListener(a -> SwingUtilities.invokeLater(() ->
-                eventLogLabel.setText("Event log (" + ctx.alerts().size() + ")" + ("Event log".equals(bottomShowing) ? "" : DOT))));
-        ctx.addIssueListener(i -> SwingUtilities.invokeLater(() ->
-                issuesLabel.setText("All issues (" + ctx.issues().size() + ")" + ("All issues".equals(bottomShowing) ? "" : DOT))));
+        ctx.addAlertListener(a -> SwingUtilities.invokeLater(() -> {
+            eventLogLabel.setText("Event log (" + ctx.alerts().size() + ")");
+            markUnread(eventLogLabel, !"Event log".equals(bottomShowing));
+        }));
+        ctx.addIssueListener(i -> SwingUtilities.invokeLater(() -> {
+            issuesLabel.setText("All issues (" + ctx.issues().size() + ")");
+            markUnread(issuesLabel, !"All issues".equals(bottomShowing));
+        }));
         return p;
     }
 
@@ -179,12 +183,18 @@ public class SuiteFrame extends JFrame {
             centreSplit.setDividerSize(5);
             centreSplit.setDividerLocation(Math.max(200, centreSplit.getHeight() - 320));
             bottomShowing = name;
-            if ("Event log".equals(name)) eventLogLabel.setText(plainTitle(eventLogLabel.getText()));
-            else issuesLabel.setText(plainTitle(issuesLabel.getText()));
+            markUnread("Event log".equals(name) ? eventLogLabel : issuesLabel, false);
         }
         bottomDock.revalidate();
         centreSplit.revalidate();
         repaint();
+    }
+
+    /** Show or clear the unread dot after a status-bar link, the same dot an unread tab gets. */
+    static void markUnread(JButton b, boolean unread) {
+        b.setHorizontalTextPosition(SwingConstants.LEADING);
+        b.setIconTextGap(0);
+        b.setIcon(unread ? new opentrap.ui.theme.UnreadDot(b.getFontMetrics(b.getFont())) : null);
     }
 
     /** Make a button read as a flat clickable link in the status bar. */

@@ -117,25 +117,16 @@ public class FlatTabbedPaneUI extends BasicTabbedPaneUI {
         int x = r.x + (r.width - labelWidth(fm, shown)) / 2;
         int baseline = r.y + fm.getAscent();
         g2.drawString(text, x, baseline);
-        if (unread) {
-            // The unread mark is drawn, not typed: a bullet glyph is small and
-            // takes the text colour, where the mark should catch the eye in the
-            // same accent as the selected tab's underline.
-            int d = dotSize(fm);
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g2.setColor(Theme.ACCENT);
-            g2.fillOval(x + fm.stringWidth(text) + dotGap(fm), baseline - Math.round(fm.getAscent() * 0.36f) - d / 2, d, d);
-        }
+        // The unread mark is drawn, not typed: a bullet glyph is small and
+        // takes the text colour, where the mark should catch the eye.
+        if (unread) UnreadDot.paint(g2, fm, x + fm.stringWidth(text), baseline);
         g2.dispose();
     }
-
-    private static int dotSize(FontMetrics fm) { return Math.max(6, Math.round(fm.getAscent() * 0.6f)); }
-    private static int dotGap(FontMetrics fm) { return Math.max(3, Math.round(fm.getAscent() * 0.3f)); }
 
     /** The painted width of a shown title, with the unread mark as a dot. */
     private static int labelWidth(FontMetrics fm, String shown) {
         if (!shown.endsWith(UNREAD_DOT)) return fm.stringWidth(shown);
-        return fm.stringWidth(shown.substring(0, shown.length() - UNREAD_DOT.length())) + dotGap(fm) + dotSize(fm);
+        return fm.stringWidth(shown.substring(0, shown.length() - UNREAD_DOT.length())) + UnreadDot.width(fm);
     }
 
     @Override protected void paintContentBorder(Graphics g, int p, int sel) {

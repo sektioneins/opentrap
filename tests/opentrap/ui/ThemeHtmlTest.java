@@ -65,5 +65,10 @@ public final class ThemeHtmlTest {
             javax.swing.text.html.StyleSheet shared = new javax.swing.text.html.HTMLEditorKit().getStyleSheet();
             Expect.isFalse(Theme.BG.equals(shared.getBackground(shared.getRule("body"))), "the shared sheet's page background");
         }));
+
+        Harness.test("an HTML pane's links take the theme's link colour, not the accent", () -> withTheme("dark", () -> {
+            javax.swing.text.html.StyleSheet own = Theme.htmlKit().getStyleSheet();
+            Expect.equal(own.getForeground(own.getRule("a")), Theme.LINK, "the link colour");
+        }));
     }
 }

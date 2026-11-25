@@ -70,5 +70,26 @@ public final class ExportTest {
             Expect.isTrue(har.contains("\"entries\""), "has entries");
             Expect.isTrue(har.contains("\"status\":200"), "response status recorded");
         });
+
+        Harness.test("the HTML report's severity badges and heading read on their fills", () -> {
+            String html = Export.issuesHtml(List.of(sample()));
+            for (String sev : List.of("High", "Medium", "Low", "Information")) {
+                var m = java.util.regex.Pattern.compile("\\." + sev + "\\{background:#([0-9A-Fa-f]{3,6});").matcher(html);
+                Expect.isTrue(m.find(), sev + " badge colour");
+                java.awt.Color fill = css(m.group(1));
+                double r = opentrap.ui.theme.Contrast.ratio(java.awt.Color.WHITE, fill);
+                Expect.isTrue(r >= 4.5, sev + ": white on #" + m.group(1) + " is " + String.format(java.util.Locale.ROOT, "%.2f", r));
+            }
+            var h1 = java.util.regex.Pattern.compile("h1\\{color:#([0-9A-Fa-f]{6});").matcher(html);
+            Expect.isTrue(h1.find(), "heading colour");
+            // Large text would pass at 3 to 1; the fork's accent reaches 4.77, so hold it to 4.5.
+            Expect.isTrue(opentrap.ui.theme.Contrast.ratio(css(h1.group(1)), java.awt.Color.WHITE) >= 4.5, "heading on white");
+        });
+    }
+
+    /** A CSS hex colour, three or six digits. */
+    private static java.awt.Color css(String hex) {
+        if (hex.length() == 3) hex = "" + hex.charAt(0) + hex.charAt(0) + hex.charAt(1) + hex.charAt(1) + hex.charAt(2) + hex.charAt(2);
+        return new java.awt.Color(Integer.parseInt(hex, 16));
     }
 }

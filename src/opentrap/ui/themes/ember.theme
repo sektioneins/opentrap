@@ -17,3 +17,4 @@ description = Warm charcoal with amber glow and square corners. A sharp, high-en
 @warn = #F2A33A
 @error = #E5604D
 @radius = 2
+TOGGLE_OFF = mix(@muted, @page, 45%)
