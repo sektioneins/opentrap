@@ -476,9 +476,10 @@ public class RepeaterTool implements ToolModule {
                         ctx.store().add(entry);
                         ctx.siteMapChanged(entry);
                     });
-                } catch (Exception e) {
+                } catch (Exception | Error e) {
                     // Without this the Go button stays disabled and the tab
                     // reads "waiting" forever; nothing else would report it.
+                    // An Error (out of memory, a missing class) counts too.
                     Debug.error("repeater request failed", e);
                     SwingUtilities.invokeLater(() -> {
                         go.setEnabled(true);

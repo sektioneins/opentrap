@@ -85,6 +85,7 @@ public final class ProjectSettingsPanel extends JPanel {
         unpack.setFont(Ui.PLAIN);
         unpack.addChangeListener(e -> s.setInt(ProjectOptions.UNPACK_MB, (Integer) unpack.getValue()));
         JPanel unpackRow = Ui.form("largest response body unpacked (MB):", unpack);
+        // The 256 MB below is Unpack.SHARED_BYTES (package-private in opentrap.core); change both together.
         JTextArea unpackNote = Ui.note(
                 "A gzip, deflate or brotli response that decodes to more than this stays compressed. "
                 + "The browser still gets it, but match and replace, response rewriting and the "

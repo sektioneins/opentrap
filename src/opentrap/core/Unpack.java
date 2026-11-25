@@ -27,7 +27,10 @@ import java.util.zip.InflaterInputStream;
 final class Unpack {
     private Unpack() {}
 
-    /** How many decoded bytes all responses decoding at the same time may hold together. */
+    /**
+     * How many decoded bytes all responses decoding at the same time may hold
+     * together. ProjectSettingsPanel states it as text; change both together.
+     */
     static final long SHARED_BYTES = 256L << 20;
     static final Budget SHARED = new Budget(SHARED_BYTES);
 

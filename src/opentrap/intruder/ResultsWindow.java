@@ -19,10 +19,13 @@ import java.util.List;
  */
 public class ResultsWindow extends JFrame {
 
-    /** One row of attack output. */
+    /**
+     * One row of attack output. {@code unpackNote} says why the response body
+     * was left compressed, or is empty; when set, grep searched the compressed bytes.
+     */
     public record Result(int number, String payload, HttpService svc, HttpMessage request,
                          HttpMessage response, int status, int length, long millis,
-                         String error, boolean[] grepHits) {}
+                         String error, boolean[] grepHits, String unpackNote) {}
 
     private final int fixedColumns;
     private final DefaultTableModel model;
@@ -236,5 +239,7 @@ public class ResultsWindow extends JFrame {
         reqEditor.setMessage(r.svc(), r.request());
         if (r.response() != null) respEditor.setMessage(r.svc(), r.response(), r.request());
         else respEditor.setMessage(r.svc(), new HttpMessage(new byte[0]));
+        String note = r.unpackNote();
+        respEditor.setNote(note == null || note.isEmpty() ? null : note);
     }
 }

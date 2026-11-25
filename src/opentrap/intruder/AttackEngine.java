@@ -138,7 +138,7 @@ public class AttackEngine {
         boolean[] hits = grepHits(resp);
 
         window.addResult(new ResultsWindow.Result(number, combo.label(), svc, req, resp,
-                status, length, ms, error, hits));
+                status, length, ms, error, hits, r.unpackNote));
         record(req, resp, r.remoteIp, ms, error, r.unpackNote);
     }
 
