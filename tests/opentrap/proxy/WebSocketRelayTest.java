@@ -277,7 +277,7 @@ public final class WebSocketRelayTest {
             r.finish();
         });
 
-        Harness.test("a peer that ends mid-frame ends the relay and records nothing", () -> {
+        Harness.test("a peer that ends mid-frame leaves the broken frame unrecorded", () -> {
             Relay r = new Relay(null);
             r.server.push(WebSocketFrame.encodeHeader(true, 2, 5000, null));
             r.server.push(pattern(100));

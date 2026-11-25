@@ -89,11 +89,11 @@ public final class WebSocketConnection {
 
     /**
      * Relay frames from {@code in} until it ends or a close frame passes. The cap
-     * decides between holding a frame and streaming it: the header comes first, and
-     * only a frame whose declared length fits the cap is read whole, because a
-     * header alone must not size a buffer. A larger frame is passed on as it
-     * arrives, with its first part recorded, and skips match and replace and
-     * interception, which both need the whole payload.
+     * bounds how much of one frame a relay holds whole, for match and replace,
+     * interception and the record: the header comes first, and only a frame whose
+     * declared length fits the cap is read whole. A larger frame is passed on in
+     * chunks as it arrives, with its first part recorded, and skips match and
+     * replace and interception, which both need the whole payload.
      */
     private void pump(InputStream in, Direction dir) {
         try {

@@ -8,8 +8,8 @@ import java.util.Set;
  * <p>Only the keys in {@link #KEYS} travel with the project: they live in
  * memory and in the project file and never reach the preferences store. The
  * memory caps {@link #AUDIT_MEMORY_MB} and {@link #WS_MEMORY_MB} and the frame
- * cap {@link #WS_FRAME_MB} are user keys because they size this machine's memory; this class only names them and
- * their defaults in one place.
+ * cap {@link #WS_FRAME_MB} are user keys because they size this machine's
+ * memory; this class only names them and their defaults in one place.
  *
  * <p>The defaults follow the shape of a scan: the crawl's pages and everything
  * done by hand are kept in full, the audit's own probe traffic is kept as

@@ -70,8 +70,7 @@ public final class ProjectSettingsPanel extends JPanel {
                 + "recording is off: past it the oldest frames are dropped as new ones arrive. "
                 + "0 keeps everything.");
         JSpinner wsFrame = new JSpinner(new SpinnerNumberModel(
-                Math.clamp(s.getInt(ProjectOptions.WS_FRAME_MB, ProjectOptions.DEFAULT_WS_FRAME_MB),
-                        1, ProjectOptions.MAX_WS_FRAME_MB),
+                ProjectOptions.wsFrameBytes(s) >> 20,
                 1, ProjectOptions.MAX_WS_FRAME_MB, 1));
         wsFrame.setFont(Ui.PLAIN);
         wsFrame.addChangeListener(e -> s.setInt(ProjectOptions.WS_FRAME_MB, (Integer) wsFrame.getValue()));
