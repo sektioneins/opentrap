@@ -88,7 +88,8 @@ For everything else, the original project is the place to go:
   A WebSocket frame larger than a set size (16 MB by default, in the project
   settings) is streamed through instead of held whole, so a server can no
   longer make the proxy allocate gigabytes with a frame header; the history
-  keeps the frame's first part and marks it.
+  keeps the frame's first part and marks it. Such a frame also skips match and
+  replace and interception.
 - **Scan engine scope.** The engine's crawl and scan are bound to no more than
   the URLs the app's scope covers. An advanced host, port or file pattern can no
   longer reach into the path or the userinfo, a prefix with a non-default port no
