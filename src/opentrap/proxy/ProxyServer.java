@@ -102,6 +102,8 @@ public class ProxyServer {
                 }
             });
     private final Map<String, byte[]> pendingShowByUrl = new ConcurrentHashMap<>();
+    /** Listener ports that raised the refusal alert since they last started: one alert per start. */
+    private final Set<Integer> refusalAlerted = ConcurrentHashMap.newKeySet();
 
     /**
      * Park a captured response for viewing in a proxied browser and return the
@@ -164,6 +166,7 @@ public class ProxyServer {
                     : new ServerSocket(cfg.port, 100, InetAddress.getByName(cfg.bindHost()));
             ss.setReuseAddress(true);
             sockets.put(cfg.port, ss);
+            refusalAlerted.remove(cfg.port);
             cfg.running = true;
             Thread t = new Thread(() -> acceptLoop(cfg, ss), "proxy-accept-" + cfg.port);
             t.setDaemon(true);
@@ -561,6 +564,10 @@ public class ProxyServer {
 
         /** Answer a request without an absolute URL on a listener that does not accept one. */
         private boolean refuseNonProxyRequest(OutputStream out) {
+            if (refusalAlerted.add(cfg.port)) {
+                ctx.alert("proxy", "listener on port " + cfg.port + " refused a request that is not a proxy request; "
+                        + "turn on \"Support invisible proxying\" in its settings to accept such requests");
+            }
             writeError(out, "400 Bad Request", "This listener accepts proxy requests only, and this request has no "
                     + "absolute URL. Turn on \"Support invisible proxying\" for the listener on port " + cfg.port
                     + " to accept requests from clients that are not set up to use a proxy.");

@@ -122,6 +122,12 @@ public final class InvisibleProxyTest {
         public void close() throws Exception { socket.close(); }
     }
 
+    /** The alerts a refusal on this port raised, oldest first. */
+    private static java.util.List<opentrap.core.Alert> refusalAlerts(SuiteContext ctx, int port) {
+        String text = "listener on port " + port + " refused a request that is not a proxy request";
+        return ctx.alerts().stream().filter(a -> a.message.contains(text)).toList();
+    }
+
     /** Trusts every certificate: the proxy presents one made by its own CA. */
     private static SSLContext trustAll() throws Exception {
         TrustManager tm = new X509ExtendedTrustManager() {
@@ -308,6 +314,34 @@ public final class InvisibleProxyTest {
                         Expect.isTrue(reply.endsWith("ok"), "reply: " + reply);
                         Expect.equal(b.requestLine(), "GET /x HTTP/1.1", "backend request line");
                         Expect.equal(logged.get(), 1, "exchanges logged");
+                    } finally {
+                        srv.stop(l);
+                    }
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            });
+
+            Harness.test("with invisible proxying off the first refused request after a listener starts raises one alert", () -> {
+                try {
+                    int port = freePort();
+                    ProxyListener l = new ProxyListener(port);
+                    srv.listeners().add(l);
+                    srv.start(l);
+                    try {
+                        exchange(port, "GET /a HTTP/1.1\r\nHost: example.invalid\r\n\r\n");
+                        exchange(port, "GET /b HTTP/1.1\r\nHost: example.invalid\r\n\r\n");
+                        var first = refusalAlerts(ctx, port);
+                        Expect.equal(first.size(), 1, "alerts after two refusals");
+                        Expect.equal(first.get(0).repeats, 1, "repeats");
+                        Expect.equal(first.get(0).tool, "proxy", "tool");
+                    } finally {
+                        srv.stop(l);
+                    }
+                    srv.start(l);
+                    try {
+                        exchange(port, "GET /c HTTP/1.1\r\nHost: example.invalid\r\n\r\n");
+                        Expect.equal(refusalAlerts(ctx, port).size(), 2, "alerts after a restart");
                     } finally {
                         srv.stop(l);
                     }
