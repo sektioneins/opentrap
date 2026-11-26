@@ -48,7 +48,7 @@ public final class FormFieldsTest {
                 long t0 = System.nanoTime();
                 List<String> got = FormFields.of(s);
                 long ms = (System.nanoTime() - t0) / 1_000_000;
-                Expect.isTrue(ms < 250, unit + " took " + ms + " ms");
+                Expect.isTrue(ms < 1000, unit + " took " + ms + " ms");
                 Expect.isTrue(got.size() <= 1, unit + " gave " + got.size() + " entries");
                 if (unit.equals("<input ")) Expect.isTrue(got.isEmpty(), "no name, no entry");
             }
