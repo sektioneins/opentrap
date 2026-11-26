@@ -76,11 +76,11 @@ For everything else, the original project is the place to go:
   Host header, as a client that is not set up for a proxy sends it, only when
   "Support invisible proxying" is on for that listener or it redirects to a
   fixed host; otherwise it answers 400, so a web page or another machine
-  cannot relay through it. A cookie set without a `Domain` goes back only to the host that
-  set it, not to its subdomains, and the cookie jar shows which cookies are
-  host-only. A site can no longer set a cookie for another site or for a
-  public suffix such as `co.uk`, and when two cookies share a name the most
-  specific one is sent. The CA key and the saved application logins are
+  cannot relay through it. A cookie set without a `Domain` goes back only to the
+  host that set it, not to its subdomains, and the cookie jar shows which
+  cookies are host-only. A site can no longer set a cookie for another site or
+  for a public suffix such as `co.uk`, and when two cookies share a name the
+  most specific one is sent. The CA key and the saved application logins are
   written readable by their owner only from the start.
   Repeater and Intruder send over HTTP/2 and auto through the upstream proxy
   rules as they do over HTTP/1, a SOCKS rule refuses those modes instead of

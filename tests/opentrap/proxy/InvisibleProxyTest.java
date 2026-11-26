@@ -65,7 +65,11 @@ public final class InvisibleProxyTest {
         }
     }
 
-    /** A loopback server that answers one request with "ok" and reports the request line. */
+    /**
+     * A loopback server. With {@code answer} it answers one request with "ok"
+     * and reports the request line; without it, it only binds and never
+     * accepts, so a connection from the proxy waits in the backlog.
+     */
     private static final class Backend implements AutoCloseable {
         final ServerSocket socket;
         final CompletableFuture<String> requestLine = new CompletableFuture<>();
@@ -166,6 +170,11 @@ public final class InvisibleProxyTest {
                         Expect.isTrue(reply.contains("Support invisible proxying"), "names the setting: " + reply);
                         Expect.isTrue(reply.contains("port " + port), "names the port: " + reply);
                         Expect.isFalse(b.hasConnectionWaiting(), "the backend was contacted");
+                        String post = exchange(port, "POST /x HTTP/1.1\r\nHost: 127.0.0.1:" + b.port()
+                                + "\r\nContent-Length: 5\r\n\r\nhello");
+                        Expect.isTrue(post.startsWith("HTTP/1.1 400 Bad Request"), "post: " + post);
+                        Expect.isTrue(post.contains("Support invisible proxying"), "post names the setting: " + post);
+                        Expect.isFalse(b.hasConnectionWaiting(), "the backend was contacted by the POST");
                         String noHost = exchange(port, "GET /x HTTP/1.0\r\n\r\n");
                         Expect.isTrue(noHost.startsWith("HTTP/1.1 400 Bad Request"), "no Host: " + noHost);
                         Expect.equal(logged.get(), 0, "exchanges logged");
@@ -209,6 +218,9 @@ public final class InvisibleProxyTest {
                         String page = exchange(port, "GET / HTTP/1.1\r\nHost: 127.0.0.1:" + port + "\r\n\r\n");
                         Expect.isTrue(page.startsWith("HTTP/1.1 200"), "page: " + page);
                         Expect.isTrue(page.contains("OpenTRAP"), "page names the proxy: " + page);
+                        String named = exchange(port, "GET / HTTP/1.1\r\nHost: opentrap\r\n\r\n");
+                        Expect.isTrue(named.startsWith("HTTP/1.1 200"), "named: " + named);
+                        Expect.isTrue(named.contains("OpenTRAP"), "named page: " + named);
                         String der = exchange(port, "GET /cert/der HTTP/1.1\r\nHost: localhost:" + port + "\r\n\r\n");
                         Expect.isTrue(der.contains("Content-Type: application/x-x509-ca-cert"), "der: " + der);
                         Expect.equal(logged.get(), 0, "exchanges logged");
