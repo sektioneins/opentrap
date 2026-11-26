@@ -333,7 +333,11 @@ public final class Store {
         Source src = o.catalogue.source(e.sourceId())
                 .orElseThrow(() -> new IOException("No source " + e.sourceId() + " for " + e.id()));
         switch (src.type()) {
-            case ZAP_FEED, FEED_URL -> fetcher.download(e, dir, progress, cancelled);
+            case ZAP_FEED, FEED_URL -> {
+                // an entry read under an older, wider prefix must not be fetched after the prefix narrowed
+                if (!src.admits(e.location())) throw new IOException(e.id() + ": download is outside " + src.prefix());
+                fetcher.download(e, dir, progress, cancelled);
+            }
             case LOCAL_FOLDER -> copy(e, dir, progress);
             case BUNDLED -> link(e, dir);
         }

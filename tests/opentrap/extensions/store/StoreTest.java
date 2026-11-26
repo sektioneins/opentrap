@@ -207,6 +207,25 @@ public final class StoreTest {
             Expect.equal(s.pendingCount(), 1, "only the first is queued");
         }));
 
+        Harness.test("a download outside its source's current prefix is refused before it is fetched", () -> inTemp((root, engine, folder) -> {
+            SourceList sources = SourceList.load(root, "2.17");
+            sources.add(new Source("src-2", "Feed", SourceType.FEED_URL, "https://host.example/feed.xml",
+                    "https://host.example/addons/", true));
+            sources.save();
+            Store s = store(root, engine);
+            // an entry read while the prefix was wider, as a card held while the user narrows it
+            Entry old = new Entry(Kind.ZAP_ADDON, "src-2", "foo", "Foo", "", "", Version.parse("1.0.0"), Status.RELEASE,
+                    "", "", "", 10L, "foo-release-1.0.0.zap", "https://host.example/other/foo-release-1.0.0.zap",
+                    "ab".repeat(32), List.of());
+            Throwable failure = null;
+            try { s.install(List.of(old), (d, t) -> {}, () -> false); } catch (IOException ex) { failure = ex; }
+            Expect.notNull(failure, "the install is refused");
+            Expect.isTrue(failure.getMessage().contains("foo: download is outside https://host.example/addons/"),
+                    "it names the id and the prefix: " + failure.getMessage());
+            Expect.equal(names(root.resolve("2.17/staged")), List.of(), "nothing is staged");
+            Expect.equal(s.pendingCount(), 0, "nothing is queued");
+        }));
+
         Harness.test("a bundled add-on is installed again as a link to the engine's file", () -> inTemp((root, engine, folder) -> {
             Path foo = ZapFixtures.zap(engine.resolve("plugin"), "foo", "1.0.0", "release");
             Store s = store(root, engine);
