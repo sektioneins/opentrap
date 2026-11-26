@@ -398,7 +398,7 @@ public class ProxyServer {
             HttpService svc = known;
             if (svc == null) {
                 String t = request.requestTarget();
-                if (t.startsWith("http://") || t.startsWith("https://")) {
+                if (t.regionMatches(true, 0, "http://", 0, 7) || t.regionMatches(true, 0, "https://", 0, 8)) {
                     svc = HttpService.parse(t);
                     // An absolute-form target becomes origin-form upstream.
                     try {

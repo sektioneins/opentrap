@@ -211,6 +211,23 @@ public final class InvisibleProxyTest {
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
+                // The scheme of an absolute URL is case-insensitive.
+                try (Backend b = new Backend(true, false)) {
+                    int port = freePort();
+                    ProxyListener l = new ProxyListener(port);
+                    srv.listeners().add(l);
+                    srv.start(l);
+                    try {
+                        String reply = exchange(port, "GET HTTP://127.0.0.1:" + b.port()
+                                + "/y HTTP/1.1\r\nHost: 127.0.0.1:" + b.port() + "\r\n\r\n");
+                        Expect.isTrue(reply.endsWith("ok"), "upper-case scheme reply: " + reply);
+                        Expect.equal(b.requestLine(), "GET /y HTTP/1.1", "upper-case scheme backend request line");
+                    } finally {
+                        srv.stop(l);
+                    }
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
             });
 
             Harness.test("with invisible proxying off the listener's own page is still served to a browser that opens it directly", () -> {
@@ -328,7 +345,7 @@ public final class InvisibleProxyTest {
                     ProxyListener l = new ProxyListener(port);
                     srv.listeners().add(l);
                     srv.start(l);
-                    try {
+                                    try {
                         exchange(port, "GET /a HTTP/1.1\r\nHost: example.invalid\r\n\r\n");
                         exchange(port, "GET /b HTTP/1.1\r\nHost: example.invalid\r\n\r\n");
                         var first = refusalAlerts(ctx, port);
