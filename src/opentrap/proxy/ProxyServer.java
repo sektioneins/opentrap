@@ -406,6 +406,16 @@ public class ProxyServer {
                     } catch (Exception _) {}
                 } else {
                     String hostHeader = request.header("Host");
+                    if (!cfg.invisible && (cfg.redirectHost == null || cfg.redirectHost.isBlank())) {
+                        // A request without an absolute URL comes from a client that is
+                        // not using the proxy. Forwarding it would let any page or LAN
+                        // client relay through the tester's proxy and into the history.
+                        // The listener's own page stays reachable for a browser that
+                        // opens it directly.
+                        HttpService named = hostHeader == null ? null : parseHostHeader(hostHeader, secure);
+                        if (named != null && isLocalRequest(request, named)) return serveLocal(request, out);
+                        return refuseNonProxyRequest(out);
+                    }
                     if (hostHeader == null) { writeError(out, "no Host header in request"); return false; }
                     svc = parseHostHeader(hostHeader, secure);
                 }
@@ -419,12 +429,7 @@ public class ProxyServer {
 
             // Serve our own CA so the user can install it without a side
             // channel, and the "show in browser" sentinel.
-            if (isLocalRequest(request, svc)) {
-                String p = request.path();
-                if (p.startsWith("/show/")) serveShow(out, p);
-                else serveCertificate(out, p);
-                return false;
-            }
+            if (isLocalRequest(request, svc)) return serveLocal(request, out);
 
             // A response staged for viewing: answer this one hit from the store
             // (consuming the one-shot) so the browser renders exactly what was
@@ -546,6 +551,22 @@ public class ProxyServer {
             return conn == null || !conn.toLowerCase(Locale.ROOT).contains("close");
         }
 
+        /** Answer a request for the listener's own page; the connection closes. */
+        private boolean serveLocal(HttpMessage request, OutputStream out) throws Exception {
+            String p = request.path();
+            if (p.startsWith("/show/")) serveShow(out, p);
+            else serveCertificate(out, p);
+            return false;
+        }
+
+        /** Answer a request without an absolute URL on a listener that does not accept one. */
+        private boolean refuseNonProxyRequest(OutputStream out) {
+            writeError(out, "400 Bad Request", "This listener accepts proxy requests only, and this request has no "
+                    + "absolute URL. Turn on \"Support invisible proxying\" for the listener on port " + cfg.port
+                    + " to accept requests from clients that are not set up to use a proxy.");
+            return false;
+        }
+
         private boolean isLocalRequest(HttpMessage req, HttpService svc) {
             String h = svc.host();
             return h.equals("opentrap") || h.equals("opentrap.proxy")
@@ -612,11 +633,15 @@ public class ProxyServer {
         }
 
         private void writeError(OutputStream out, String message) {
+            writeError(out, "502 Bad Gateway", message);
+        }
+
+        private void writeError(OutputStream out, String status, String message) {
             try {
                 String body = "<html><body><h2>OpenTRAP proxy error</h2><p>"
                         + message.replace("<", "&lt;") + "</p></body></html>";
                 byte[] b = Bytes.bytes(body);
-                out.write(Bytes.bytes("HTTP/1.1 502 Bad Gateway\r\nContent-Type: text/html\r\n"
+                out.write(Bytes.bytes("HTTP/1.1 " + status + "\r\nContent-Type: text/html\r\n"
                         + "Content-Length: " + b.length + "\r\nConnection: close\r\n\r\n"));
                 out.write(b);
                 out.flush();

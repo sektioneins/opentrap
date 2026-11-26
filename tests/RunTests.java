@@ -69,6 +69,7 @@ public final class RunTests {
         new opentrap.proxy.LoopGuardTest().run();
         new opentrap.proxy.EmbeddedBrowserLookupTest().run();
         new opentrap.proxy.ProxyLoopTest().run();
+        new opentrap.proxy.InvisibleProxyTest().run();
         new opentrap.engine.ScanConfigStoreTest().run();
         new opentrap.engine.EngineShutdownTest().run();
         new opentrap.engine.EngineRestartTest().run();
