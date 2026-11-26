@@ -81,6 +81,51 @@ public final class ZapFeedTest {
                 rejectedAs(ZapFixtures.addon("spider", "1", "release", "https://example.com/x.zap", "SHA-256:" + HASH),
                         "foreign host"));
 
+        Harness.test("a download that leaves the prefix through dot segments or escapes is left out and named", () -> {
+            for (String url : new String[] {
+                    "https://github.com/zaproxy/../someone/repo/releases/download/v1/x.zap",
+                    "https://github.com/zaproxy/%2e%2e/someone/x.zap",
+                    "https://github.com/zaproxy/%2E%2e/someone/x.zap",
+                    "https://github.com/zaproxy/./zap-extensions/x.zap",
+                    "https://github.com/zaproxy/..",
+                    "https://github.com/zaproxy/a%2F..%2Fb/x.zap",
+                    "https://github.com/zaproxy/..%5Csomeone/x.zap",
+                    "https://github.com/zaproxy/..\\someone/x.zap"}) {
+                rejectedAs(ZapFixtures.addon("spider", "1", "release", url, "SHA-256:" + HASH), url);
+            }
+        });
+
+        Harness.test("a download beside the prefix's last folder is left out", () -> {
+            rejectedAs(ZapFixtures.addon("spider", "1", "release", "https://github.com/zaproxy-other/x.zap",
+                    "SHA-256:" + HASH), "beside the folder");
+            Source bare = new Source("mine", "Mine", SourceType.FEED_URL, "https://host.example/feed.xml",
+                    "https://host.example/addons", true);
+            for (String url : new String[] {"https://host.example/addons-other/x.zap", "https://host.example/addons"}) {
+                Listing l = listing0(ZapFixtures.feed(
+                        ZapFixtures.addon("spider", "1", "release", url, "SHA-256:" + HASH)), bare);
+                Expect.equal(l.entries().size(), 0, url + ": no entry");
+                Expect.equal(l.rejected().size(), 1, url + ": one rejected line");
+            }
+            Listing ok = listing0(ZapFixtures.feed(ZapFixtures.addon("spider", "1", "release",
+                    "https://host.example/addons/x.zap", "SHA-256:" + HASH)), bare);
+            Expect.equal(ok.entries().size(), 1, "inside the folder lists");
+            Expect.equal(ok.rejected().size(), 0, "nothing rejected");
+        });
+
+        Harness.test("a download on another host, port or with a user name is left out", () -> {
+            for (String url : new String[] {"https://github.com.evil.example/zaproxy/x.zap",
+                    "https://github.com:8443/zaproxy/x.zap", "https://evil@github.com/zaproxy/x.zap"}) {
+                rejectedAs(ZapFixtures.addon("spider", "1", "release", url, "SHA-256:" + HASH), url);
+            }
+            for (String url : new String[] {"https://GitHub.com/zaproxy/zap-extensions/x.zap",
+                    "https://github.com:443/zaproxy/zap-extensions/x.zap"}) {
+                Listing l = listing(ZapFixtures.feed(
+                        ZapFixtures.addon("spider", "1", "release", url, "SHA-256:" + HASH)));
+                Expect.equal(l.entries().size(), 1, url + ": listed");
+                Expect.equal(l.rejected().size(), 0, url + ": nothing rejected");
+            }
+        });
+
         Harness.test("a plain HTTP download is left out and named", () ->
                 rejectedAs(ZapFixtures.addon("spider", "1", "release", "http://github.com/zaproxy/x.zap",
                         "SHA-256:" + HASH), "http"));

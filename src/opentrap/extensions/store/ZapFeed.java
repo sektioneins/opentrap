@@ -66,7 +66,7 @@ public final class ZapFeed {
             throw new IllegalArgumentException("file name does not match the add-on id");
         }
         String url = text(b, "url");
-        if (src.prefix().isEmpty() || !url.startsWith("https://") || !url.startsWith(src.prefix())) {
+        if (!src.admits(url)) {
             throw new IllegalArgumentException("download is outside " + src.prefix());
         }
         var hash = HASH.matcher(text(b, "hash"));
