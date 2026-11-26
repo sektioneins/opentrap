@@ -1,9 +1,16 @@
 package opentrap.sequencer;
 
 import opentrap.core.Bytes;
+import opentrap.core.HttpMessage;
 import opentrap.testkit.Expect;
 import opentrap.testkit.Harness;
 
+import javax.swing.JComboBox;
+import javax.swing.JRadioButton;
+import javax.swing.SwingUtilities;
+import java.awt.Component;
+import java.awt.Container;
+import java.util.ArrayList;
 import java.util.List;
 
 /** Tests the input-field scanner behind the Sequencer's form-field choice. */
@@ -65,5 +72,72 @@ public final class FormFieldsTest {
             byte[] body = Bytes.bytes(" ".repeat(FormFields.SCAN_LIMIT - 20) + "<input name=a><input name=b>");
             Expect.equal(FormFields.of(body), List.of("a="), "fields");
         });
+
+        Harness.test("a response full of unclosed input tags is selected within a second", () -> {
+            onEdt(() -> {
+                SequencerTool tool = new SequencerTool();
+                Container tab = (Container) tool.tabs()[0].component();
+                long t0 = System.nanoTime();
+                tool.receive(null, request(), response("<input ".repeat(20_000)));
+                long ms = (System.nanoTime() - t0) / 1_000_000;
+                Expect.isTrue(ms < 1000, "receive took " + ms + " ms");
+                JComboBox<?> forms = formList(tab);
+                Expect.equal(forms.getItemCount(), 0, "form fields");
+                Expect.isFalse(forms.isEnabled(), "list enabled");
+                Expect.isFalse(formRadio(tab).isEnabled(), "radio enabled");
+            });
+        });
+
+        Harness.test("a later request replaces the form fields of the one before", () -> {
+            onEdt(() -> {
+                SequencerTool tool = new SequencerTool();
+                Container tab = (Container) tool.tabs()[0].component();
+                tool.receive(null, request(), response("<input ".repeat(20_000)));
+                tool.receive(null, request(), response(
+                        "<form><input type=\"hidden\" name=\"csrf\" value=\"abc\"><input name=q></form>"));
+                JComboBox<?> forms = formList(tab);
+                Expect.equal(forms.getItemCount(), 2, "form fields");
+                Expect.equal(forms.getItemAt(0), "csrf=abc", "first");
+                Expect.equal(forms.getItemAt(1), "q=", "second");
+                Expect.isTrue(forms.isEnabled(), "list enabled");
+                Expect.isTrue(formRadio(tab).isEnabled(), "radio enabled");
+                tool.receive(null, request(), response("<p>none</p>"));
+                Expect.equal(forms.getItemCount(), 0, "form fields after");
+                Expect.isFalse(forms.isEnabled(), "list enabled after");
+                Expect.isFalse(formRadio(tab).isEnabled(), "radio enabled after");
+            });
+        });
+    }
+
+    private static void onEdt(Runnable r) {
+        try { SwingUtilities.invokeAndWait(r); } catch (Exception e) { throw new RuntimeException(e); }
+    }
+
+    private static <T extends Component> List<T> all(Container c, Class<T> type, List<T> out) {
+        for (Component child : c.getComponents()) {
+            if (type.isInstance(child)) out.add(type.cast(child));
+            if (child instanceof Container k) all(k, type, out);
+        }
+        return out;
+    }
+
+    /** The form list of the live capture tab: the second combo box, after the cookie list. */
+    private static JComboBox<?> formList(Container tab) {
+        return all(tab, JComboBox.class, new ArrayList<>()).get(1);
+    }
+
+    private static JRadioButton formRadio(Container tab) {
+        for (JRadioButton b : all(tab, JRadioButton.class, new ArrayList<>())) {
+            if ("Form field:".equals(b.getText())) return b;
+        }
+        throw new AssertionError("no Form field radio button");
+    }
+
+    private static HttpMessage request() {
+        return new HttpMessage(Bytes.bytes("GET / HTTP/1.1\r\nHost: t\r\n\r\n"));
+    }
+
+    private static HttpMessage response(String body) {
+        return new HttpMessage(Bytes.bytes("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n" + body));
     }
 }
