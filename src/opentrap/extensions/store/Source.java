@@ -53,11 +53,15 @@ public record Source(String id, String name, SourceType type, String location, S
 
     private static int port(URI u) { return u.getPort() == -1 ? 443 : u.getPort(); }
 
-    /** True when no segment of the raw path is {@code .} or {@code ..} and it holds no escaped dot or slash. */
+    /**
+     * True when no segment of the raw path is {@code .} or {@code ..} and it holds no escaped dot
+     * or slash, and no {@code ;}, since servers that strip path parameters read {@code ..;} as {@code ..}.
+     */
     public static boolean plainPath(String rawPath) {
         if (rawPath == null || rawPath.isEmpty()) return true;
         String lower = rawPath.toLowerCase(Locale.ROOT);
-        if (lower.contains("%2e") || lower.contains("%2f") || lower.contains("%5c")) return false;
+        if (lower.contains("%2e") || lower.contains("%2f") || lower.contains("%5c")
+                || lower.contains("%3b") || rawPath.indexOf(';') >= 0) return false;
         for (String segment : rawPath.split("/", -1)) {
             if (segment.equals(".") || segment.equals("..")) return false;
         }
