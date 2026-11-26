@@ -21,8 +21,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Sequencer: collects a sample of session tokens (by manual load or by live
@@ -443,7 +441,7 @@ public class SequencerTool implements ToolModule {
     }
 
     /** "send to sequencer" lands here: list the request and select it. */
-    private void receive(HttpService svc, HttpMessage req, HttpMessage resp) {
+    void receive(HttpService svc, HttpMessage req, HttpMessage resp) {
         requestModel.add(new Received(svc, req, resp));
         int last = requestTable.convertRowIndexToView(requestModel.getRowCount() - 1);
         requestTable.setRowSelectionInterval(last, last);
@@ -462,12 +460,7 @@ public class SequencerTool implements ToolModule {
                     if (!nv.isEmpty()) cookies.add(nv.trim());
                 }
             }
-            Matcher m = INPUT_PATTERN.matcher(resp.bodyText());
-            while (m.find()) {
-                String nm = m.group(1);
-                String val = m.group(2) == null ? "" : m.group(2);
-                forms.add(nm + "=" + val);
-            }
+            forms.addAll(FormFields.of(resp.body()));
         }
         cookieCombo.setModel(new DefaultComboBoxModel<>(cookies.toArray(new String[0])));
         formCombo.setModel(new DefaultComboBoxModel<>(forms.toArray(new String[0])));
@@ -479,10 +472,6 @@ public class SequencerTool implements ToolModule {
         rForm.setEnabled(hasForms);
         formCombo.setEnabled(hasForms);
     }
-
-    private static final Pattern INPUT_PATTERN = Pattern.compile(
-        "<input[^>]*\\bname\\s*=\\s*[\"']?([^\"'>\\s]+)[\"']?[^>]*?(?:\\bvalue\\s*=\\s*[\"']?([^\"'>]*)[\"']?)?",
-        Pattern.CASE_INSENSITIVE);
 
     private void toggleCapture() {
         if (run != null && !run.stopped()) {

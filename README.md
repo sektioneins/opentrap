@@ -85,6 +85,9 @@ For everything else, the original project is the place to go:
   host, as HTTP/1 sends do.
   Stopping and restarting a Sequencer capture no longer leaves the old capture
   running and mixing its tokens into the new one.
+  A response full of broken input tags no longer freezes the window when the
+  request is selected for live capture, and the form field list shows each
+  field's value.
   A WebSocket frame larger than a set size (16 MB by default, in the project
   settings) is streamed through instead of held whole, so a server can no
   longer make the proxy allocate gigabytes with a frame header; the history
