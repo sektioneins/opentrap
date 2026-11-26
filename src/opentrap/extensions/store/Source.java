@@ -2,7 +2,6 @@ package opentrap.extensions.store;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.Locale;
 
 /**
  * A place add-ons are listed from. {@code prefix} is a scheme, host, port and
@@ -54,16 +53,17 @@ public record Source(String id, String name, SourceType type, String location, S
     private static int port(URI u) { return u.getPort() == -1 ? 443 : u.getPort(); }
 
     /**
-     * True when no segment of the raw path is {@code .} or {@code ..} and it holds no escaped dot
-     * or slash, and no {@code ;}, since servers that strip path parameters read {@code ..;} as {@code ..}.
+     * True when the raw path holds no {@code %}, no {@code ;} and no segment made only of dots. A
+     * server's percent decoding cannot be known ({@code %2e}, {@code %252e} and overlong UTF-8
+     * such as {@code %c0%ae} all become a dot somewhere), and ZAP's and GitHub's release URLs
+     * have no escapes at all. Servers that strip path parameters read {@code ..;} as {@code ..}.
+     * Windows trims trailing dots, so {@code ...} can act as {@code ..}.
      */
     public static boolean plainPath(String rawPath) {
         if (rawPath == null || rawPath.isEmpty()) return true;
-        String lower = rawPath.toLowerCase(Locale.ROOT);
-        if (lower.contains("%2e") || lower.contains("%2f") || lower.contains("%5c")
-                || lower.contains("%3b") || rawPath.indexOf(';') >= 0) return false;
+        if (rawPath.indexOf('%') >= 0 || rawPath.indexOf(';') >= 0) return false;
         for (String segment : rawPath.split("/", -1)) {
-            if (segment.equals(".") || segment.equals("..")) return false;
+            if (!segment.isEmpty() && segment.chars().allMatch(c -> c == '.')) return false;
         }
         return true;
     }

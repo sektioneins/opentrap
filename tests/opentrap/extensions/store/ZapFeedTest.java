@@ -101,7 +101,11 @@ public final class ZapFeedTest {
                     "https://github.com/zaproxy/..%5Csomeone/x.zap",
                     "https://github.com/zaproxy/..\\someone/x.zap",
                     "https://github.com/zaproxy/..;/someone/x.zap",
-                    "https://github.com/zaproxy/..%3B/someone/x.zap"}) {
+                    "https://github.com/zaproxy/..%3B/someone/x.zap",
+                    "https://github.com/zaproxy/%252e%252e/someone/x.zap",
+                    "https://github.com/zaproxy/%c0%ae%c0%ae/someone/x.zap",
+                    "https://github.com/zaproxy/.../someone/x.zap",
+                    "https://github.com/zaproxy/..%20/someone/x.zap"}) {
                 rejectedOutside(ZapFixtures.addon("spider", "1", "release", url, "SHA-256:" + HASH), SRC, url);
             }
         });
