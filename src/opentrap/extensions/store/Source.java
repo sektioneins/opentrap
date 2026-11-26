@@ -1,7 +1,11 @@
 package opentrap.extensions.store;
 
+import java.io.ByteArrayOutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.StandardCharsets;
 
 /**
  * A place add-ons are listed from. {@code prefix} is a scheme, host, port and
@@ -53,18 +57,48 @@ public record Source(String id, String name, SourceType type, String location, S
     private static int port(URI u) { return u.getPort() == -1 ? 443 : u.getPort(); }
 
     /**
-     * True when the raw path holds no {@code %}, no {@code ;} and no segment made only of dots. A
-     * server's percent decoding cannot be known ({@code %2e}, {@code %252e} and overlong UTF-8
-     * such as {@code %c0%ae} all become a dot somewhere), and ZAP's and GitHub's release URLs
-     * have no escapes at all. Servers that strip path parameters read {@code ..;} as {@code ..}.
-     * Windows trims trailing dots, so {@code ...} can act as {@code ..}.
+     * True when every segment of the raw path, decoded, is strict UTF-8 that holds no {@code /},
+     * {@code \}, {@code ;}, {@code %} or control character and is not made only of dots and
+     * spaces. So {@code %20} or {@code %C3%A4} pass, while {@code %2e%2e}, an escaped slash,
+     * {@code %252e} (a server that decodes twice) and overlong UTF-8 such as {@code %c0%ae} are
+     * refused. Servers that strip path parameters read {@code ..;} as {@code ..}, and Windows
+     * trims trailing dots and spaces, so {@code ...} and {@code ..%20} can act as {@code ..}.
      */
     public static boolean plainPath(String rawPath) {
         if (rawPath == null || rawPath.isEmpty()) return true;
-        if (rawPath.indexOf('%') >= 0 || rawPath.indexOf(';') >= 0) return false;
         for (String segment : rawPath.split("/", -1)) {
-            if (!segment.isEmpty() && segment.chars().allMatch(c -> c == '.')) return false;
+            String s = decode(segment);
+            if (s == null) return false;
+            boolean dots = !s.isEmpty();
+            for (int i = 0; i < s.length(); i++) {
+                char c = s.charAt(i);
+                if (c == '/' || c == '\\' || c == ';' || c == '%' || c < 0x20 || c == 0x7f) return false;
+                if (c != '.' && c != ' ') dots = false;
+            }
+            if (dots) return false;
         }
         return true;
+    }
+
+    /** A raw path segment with its escapes decoded as strict UTF-8, or null when it is not. */
+    private static String decode(String segment) {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        int i = 0;
+        while (i < segment.length()) {
+            int escape = segment.indexOf('%', i);
+            if (escape < 0) escape = segment.length();
+            bytes.writeBytes(segment.substring(i, escape).getBytes(StandardCharsets.UTF_8));
+            if (escape == segment.length()) break;
+            if (escape + 2 >= segment.length()) return null;
+            int hi = Character.digit(segment.charAt(escape + 1), 16), lo = Character.digit(segment.charAt(escape + 2), 16);
+            if (hi < 0 || lo < 0) return null;
+            bytes.write(hi * 16 + lo);
+            i = escape + 3;
+        }
+        try {
+            return StandardCharsets.UTF_8.newDecoder().decode(ByteBuffer.wrap(bytes.toByteArray())).toString();
+        } catch (CharacterCodingException e) {
+            return null;
+        }
     }
 }
