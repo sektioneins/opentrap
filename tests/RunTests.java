@@ -56,6 +56,7 @@ public final class RunTests {
         new opentrap.csrf.CsrfPocTest().run();
         new opentrap.sequencer.SequencerStatsTest().run();
         new opentrap.sequencer.CaptureRunTest().run();
+        new opentrap.sequencer.FormFieldsTest().run();
         new opentrap.organizer.OrganizerTest().run();
         new opentrap.engine.EngineMappingTest().run();
         new opentrap.proxy.ProxyDefaultsTest().run();
