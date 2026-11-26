@@ -828,6 +828,22 @@ public final class StoreUiTest {
                     "https://cdn.example").prefix(), "https://cdn.example/", "a prefix without a path ends at the host");
         });
 
+        Harness.test("a download prefix with a path is stored as a folder", () -> {
+            Expect.equal(SourcesPanel.fromForm("x", SourceType.FEED_URL, "https://a.example/f.xml",
+                    "https://cdn.example/addons").prefix(), "https://cdn.example/addons/", "a folder name gets a slash");
+            Expect.equal(SourcesPanel.fromForm("x", SourceType.FEED_URL, "https://a.example/f.xml",
+                    "https://cdn.example/addons/").prefix(), "https://cdn.example/addons/", "a slash is kept as it is");
+        });
+
+        Harness.test("a source form refuses a download prefix with dot segments or escapes", () -> {
+            refused(() -> SourcesPanel.fromForm("x", SourceType.FEED_URL, "https://a.example/f.xml",
+                    "https://cdn.example/addons/../other/"), "a dot-dot segment");
+            refused(() -> SourcesPanel.fromForm("x", SourceType.FEED_URL, "https://a.example/f.xml",
+                    "https://cdn.example/%2e%2e/"), "an escaped dot-dot segment");
+            refused(() -> SourcesPanel.fromForm("x", SourceType.FEED_URL, "https://a.example/f.xml",
+                    "https://cdn.example/a%2fb/"), "an escaped slash");
+        });
+
         Harness.test("a source form refuses an empty name, a missing folder and a prefix that is not HTTPS", () -> {
             refused(() -> SourcesPanel.fromForm(" ", SourceType.FEED_URL, "https://a.example/f.xml", ""), "no name");
             refused(() -> SourcesPanel.fromForm("x", SourceType.FEED_URL, "https://a.example/f.xml",

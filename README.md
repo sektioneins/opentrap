@@ -109,8 +109,10 @@ For everything else, the original project is the place to go:
   add-ons from ZAP's own feed, from feeds you add and from local folders of
   `.zap` files, and Installed enables, disables and removes them, the add-ons
   that ship with the engine included. Store shows for each add-on whether it
-  is installed, disabled or has a change queued. A download must match its feed's sha256
-  and download prefix, and adding a source asks first. Descriptions and change notes are shown as plain
+  is installed, disabled or has a change queued. A download must match its
+  feed's sha256 and lie in its download prefix's folder, compared as a URL, so
+  dot segments or a longer folder name cannot leave it, and adding a source
+  asks first. Descriptions and change notes are shown as plain
   text, as the source escaped them, and a feed full of broken tags no longer slows a refresh or the search. Changes wait for Restart
   engine, a real engine restart that keeps the session, the live audit and your
   rule edits, and stops only the crawls and audits running on the engine.
