@@ -105,8 +105,23 @@ public final class ZapFeedTest {
                     "https://github.com/zaproxy/%252e%252e/someone/x.zap",
                     "https://github.com/zaproxy/%c0%ae%c0%ae/someone/x.zap",
                     "https://github.com/zaproxy/.../someone/x.zap",
-                    "https://github.com/zaproxy/..%20/someone/x.zap"}) {
+                    "https://github.com/zaproxy/..%20/someone/x.zap",
+                    "https://github.com/zaproxy/%e0%80%ae%e0%80%ae/someone/x.zap",
+                    "https://github.com/zaproxy/..%00/someone/x.zap",
+                    "https://github.com/zaproxy/a%zz/x.zap"}) {
                 rejectedOutside(ZapFixtures.addon("spider", "1", "release", url, "SHA-256:" + HASH), SRC, url);
+            }
+        });
+
+        Harness.test("a download with an escaped space or letter in its path lists", () -> {
+            for (String url : new String[] {
+                    "https://github.com/zaproxy/zap-extensions/releases/download/my%20tag/x.zap",
+                    "https://github.com/zaproxy/zap-%C3%A4/x.zap",
+                    "https://github.com/zaproxy/zap-%41/x.zap"}) {
+                Listing l = listing(ZapFixtures.feed(
+                        ZapFixtures.addon("spider", "1", "release", url, "SHA-256:" + HASH)));
+                Expect.equal(l.entries().size(), 1, url + ": listed");
+                Expect.equal(l.rejected().size(), 0, url + ": nothing rejected");
             }
         });
 

@@ -835,6 +835,10 @@ public final class StoreUiTest {
                     "https://cdn.example/addons/").prefix(), "https://cdn.example/addons/", "a slash is kept as it is");
         });
 
+        Harness.test("a download prefix with an escaped space is kept", () ->
+                Expect.equal(SourcesPanel.fromForm("x", SourceType.FEED_URL, "https://a.example/f.xml",
+                        "https://cdn.example/my%20addons").prefix(), "https://cdn.example/my%20addons/", "escape kept"));
+
         Harness.test("a source form refuses a download prefix with dot segments or escapes", () -> {
             refused(() -> SourcesPanel.fromForm("x", SourceType.FEED_URL, "https://a.example/f.xml",
                     "https://cdn.example/addons/../other/"), "a dot-dot segment");
