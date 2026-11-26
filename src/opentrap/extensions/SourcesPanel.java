@@ -176,12 +176,17 @@ public final class SourcesPanel extends JPanel {
         throw new IllegalArgumentException("Only a feed URL or a local folder can be added as a source.");
     }
 
-    /** A prefix that ends at a path, so {@code https://host} cannot also match {@code https://host.other/}. */
+    /**
+     * A prefix stored as a folder: it ends in a slash, so {@code https://host} cannot also match
+     * {@code https://host.other/} and {@code .../addons} cannot match {@code .../addons-evil/}. That is the rule
+     * {@link Source#admits} applies. A path with dot segments or escapes has no single meaning and is refused.
+     */
     private static String downloadPrefix(String pre) {
         String why = "The download prefix must be an HTTPS URL with a host, such as https://example.com/downloads/.";
         URI u = https(pre, why);
         if (u.getRawQuery() != null || u.getRawFragment() != null) throw new IllegalArgumentException(why);
-        return u.getRawPath() == null || u.getRawPath().isEmpty() ? pre + "/" : pre;
+        if (!Source.plainPath(u.getRawPath())) throw new IllegalArgumentException(why);
+        return pre.endsWith("/") ? pre : pre + "/";
     }
 
     /** {@code s} as an HTTPS URL with a host and no user name in it. */
