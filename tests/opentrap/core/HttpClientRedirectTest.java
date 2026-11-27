@@ -12,6 +12,8 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -148,6 +150,56 @@ public final class HttpClientRedirectTest {
             } catch (Exception e) { throw new RuntimeException(e); }
         });
 
+        Harness.test("session handling learns each followed redirect from the hop that answered it and the last response once", () -> {
+            try (ServerSocket b = new ServerSocket(0, 1, LOOPBACK);
+                 ServerSocket a = new ServerSocket(0, 1, LOOPBACK)) {
+                serve(b, "HTTP/1.1 302 Found\r\nLocation: /two\r\nContent-Length: 0\r\n\r\n",
+                        "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok");
+                serveOnce(a, "HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1:" + b.getLocalPort()
+                        + "/\r\nContent-Length: 0\r\n\r\n");
+                List<String> log = new ArrayList<>();
+                HttpClient.Options o = new HttpClient.Options();
+                o.followRedirects = true;
+                o.session = logging(log, a.getLocalPort(), false);
+                HttpClient.Result r = sendGet(a, o);
+                Expect.isTrue(r.ok(), "response: " + r.error);
+                Expect.equal(log, List.of("before A /", "redirect A 302", "before B /",
+                        "redirect B 302", "before B /two", "after B 200"), "hook calls");
+            } catch (Exception e) { throw new RuntimeException(e); }
+        });
+
+        Harness.test("a redirect the policy refuses reaches session handling only as the last response", () -> {
+            try (ServerSocket b = new ServerSocket(0, 1, LOOPBACK);
+                 ServerSocket a = new ServerSocket(0, 1, LOOPBACK)) {
+                serveOnce(a, "HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1:" + b.getLocalPort()
+                        + "/\r\nContent-Length: 0\r\n\r\n");
+                List<String> log = new ArrayList<>();
+                HttpClient.Options o = new HttpClient.Options();
+                o.followRedirects = true;
+                o.redirectPolicy = HttpClient.RedirectPolicy.sameOrigin();
+                o.session = logging(log, a.getLocalPort(), false);
+                HttpClient.Result r = sendGet(a, o);
+                Expect.isTrue(r.ok(), "response: " + r.error);
+                Expect.equal(log, List.of("before A /", "after A 302"), "hook calls");
+            } catch (Exception e) { throw new RuntimeException(e); }
+        });
+
+        Harness.test("a failing onRedirect does not stop the redirect", () -> {
+            try (ServerSocket b = new ServerSocket(0, 1, LOOPBACK);
+                 ServerSocket a = new ServerSocket(0, 1, LOOPBACK)) {
+                serveOnce(b, "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok");
+                serveOnce(a, "HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1:" + b.getLocalPort()
+                        + "/\r\nContent-Length: 0\r\n\r\n");
+                HttpClient.Options o = new HttpClient.Options();
+                o.followRedirects = true;
+                o.session = logging(new ArrayList<>(), a.getLocalPort(), true);
+                HttpClient.Result r = sendGet(a, o);
+                Expect.isTrue(r.ok(), "response: " + r.error);
+                Expect.equal(r.response.statusCode(), 200, "followed to B");
+                Expect.equal(r.redirectsFollowed, 1, "one redirect");
+            } catch (Exception e) { throw new RuntimeException(e); }
+        });
+
         Harness.test("the on-site policy refuses another host, port or scheme and allows the same origin", () -> {
             HttpClient.RedirectPolicy p = HttpClient.RedirectPolicy.sameOrigin();
             Expect.isNull(p.refusal(A, A, post()), "same origin");
@@ -238,29 +290,59 @@ public final class HttpClientRedirectTest {
 
     /** Answer one connection with a fixed response; completes with the request as received. */
     private static CompletableFuture<String> serveOnce(ServerSocket server, String response) {
-        CompletableFuture<String> got = new CompletableFuture<>();
+        return serve(server, response).thenApply(l -> l.get(0));
+    }
+
+    /** Answer one connection per response, in turn; completes with the requests as received. */
+    private static CompletableFuture<List<String>> serve(ServerSocket server, String... responses) {
+        CompletableFuture<List<String>> got = new CompletableFuture<>();
         Thread.ofVirtual().start(() -> {
-            try (Socket s = server.accept()) {
-                s.setSoTimeout(5000);
-                InputStream in = s.getInputStream();
-                ByteArrayOutputStream buf = new ByteArrayOutputStream();
-                int b, state = 0;
-                while (state < 4 && (b = in.read()) >= 0) {
-                    buf.write(b);
-                    if ((state == 0 || state == 2) && b == 13) state++;
-                    else if ((state == 1 || state == 3) && b == 10) state++;
-                    else state = 0;
+            List<String> seen = new ArrayList<>();
+            try {
+                for (String response : responses) {
+                    try (Socket s = server.accept()) {
+                        s.setSoTimeout(5000);
+                        InputStream in = s.getInputStream();
+                        ByteArrayOutputStream buf = new ByteArrayOutputStream();
+                        int b, state = 0;
+                        while (state < 4 && (b = in.read()) >= 0) {
+                            buf.write(b);
+                            if ((state == 0 || state == 2) && b == 13) state++;
+                            else if ((state == 1 || state == 3) && b == 10) state++;
+                            else state = 0;
+                        }
+                        HttpMessage req = new HttpMessage(buf.toByteArray());
+                        String cl = req.header("Content-Length");
+                        int n = cl == null ? 0 : Integer.parseInt(cl.trim());
+                        for (int i = 0; i < n && (b = in.read()) >= 0; i++) buf.write(b);
+                        OutputStream out = s.getOutputStream();
+                        out.write(response.getBytes(StandardCharsets.ISO_8859_1));
+                        out.flush();
+                        seen.add(buf.toString(StandardCharsets.ISO_8859_1));
+                    }
                 }
-                HttpMessage req = new HttpMessage(buf.toByteArray());
-                String cl = req.header("Content-Length");
-                int n = cl == null ? 0 : Integer.parseInt(cl.trim());
-                for (int i = 0; i < n && (b = in.read()) >= 0; i++) buf.write(b);
-                OutputStream out = s.getOutputStream();
-                out.write(response.getBytes(StandardCharsets.ISO_8859_1));
-                out.flush();
-                got.complete(buf.toString(StandardCharsets.ISO_8859_1));
+                got.complete(seen);
             } catch (Exception e) { got.completeExceptionally(e); }
         });
         return got;
+    }
+
+    /** A hook that appends what it is called with to a log, and can fail in onRedirect. */
+    private static SessionHook logging(List<String> log, int portA, boolean failOnRedirect) {
+        return new SessionHook() {
+            public void beforeSend(String tool, HttpService svc, HttpMessage req) {
+                log.add("before " + name(svc) + " " + req.path());
+            }
+            @Override
+            public void onRedirect(String tool, HttpService svc, HttpMessage req, HttpMessage resp) {
+                log.add("redirect " + name(svc) + " " + resp.statusCode());
+                if (failOnRedirect) throw new IllegalStateException("boom");
+            }
+            public boolean afterResponse(String tool, HttpService svc, HttpMessage req, HttpMessage resp) {
+                log.add("after " + name(svc) + " " + resp.statusCode());
+                return false;
+            }
+            private String name(HttpService svc) { return svc.port() == portA ? "A" : "B"; }
+        };
     }
 }
