@@ -168,6 +168,50 @@ public final class HttpClientRedirectTest {
             } catch (Exception e) { throw new RuntimeException(e); }
         });
 
+        Harness.test("session handling sends the cookie a redirect set on the next hop in place of the stale one", () -> {
+            try (ServerSocket a = new ServerSocket(0, 1, LOOPBACK)) {
+                CompletableFuture<List<String>> seen = serve(a,
+                        "HTTP/1.1 302 Found\r\nSet-Cookie: sid=new\r\nLocation: /home\r\nContent-Length: 0\r\n\r\n",
+                        "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok");
+                opentrap.session.SessionManager sm = new opentrap.session.SessionManager(null);
+                sm.rules().add(new opentrap.session.SessionRule());
+                HttpClient.Options o = new HttpClient.Options();
+                o.followRedirects = true;
+                o.session = sm;
+                o.sessionTool = "repeater";
+                HttpService svcA = new HttpService("127.0.0.1", a.getLocalPort(), false);
+                HttpClient.Result r = new HttpClient().send(svcA, new HttpMessage(Bytes.bytes(
+                        "GET / HTTP/1.1\r\nHost: 127.0.0.1:" + a.getLocalPort() + "\r\nCookie: sid=old\r\n\r\n")), o);
+                Expect.isTrue(r.ok(), "response: " + r.error);
+                String second = seen.get(5, TimeUnit.SECONDS).get(1);
+                Expect.isTrue(second.contains("\r\nCookie: sid=new\r\n"), "new cookie: " + second);
+                Expect.isFalse(second.contains("sid=old"), "no stale cookie: " + second);
+            } catch (Exception e) { throw new RuntimeException(e); }
+        });
+
+        Harness.test("session handling stores a redirect target's cookie under the target's host", () -> {
+            try (ServerSocket b = new ServerSocket(0, 1, LOOPBACK);
+                 ServerSocket a = new ServerSocket(0, 1, LOOPBACK)) {
+                serve(b, "HTTP/1.1 302 Found\r\nSet-Cookie: z=1\r\nLocation: /end\r\nContent-Length: 0\r\n\r\n",
+                        "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok");
+                serveOnce(a, "HTTP/1.1 302 Found\r\nLocation: http://localhost:" + b.getLocalPort()
+                        + "/\r\nContent-Length: 0\r\n\r\n");
+                opentrap.session.SessionManager sm = new opentrap.session.SessionManager(null);
+                sm.rules().add(new opentrap.session.SessionRule());
+                HttpClient.Options o = new HttpClient.Options();
+                o.followRedirects = true;
+                o.session = sm;
+                o.sessionTool = "repeater";
+                HttpClient.Result r = sendGet(a, o);
+                Expect.isTrue(r.ok(), "response: " + r.error);
+                List<opentrap.session.Cookie> all = sm.jar().all();
+                Expect.equal(all.size(), 1, "one cookie: " + all);
+                Expect.equal(all.get(0).name, "z", "name");
+                Expect.equal(all.get(0).domain, "localhost", "domain");
+                Expect.isTrue(all.get(0).hostOnly, "host only");
+            } catch (Exception e) { throw new RuntimeException(e); }
+        });
+
         Harness.test("a redirect the policy refuses reaches session handling only as the last response", () -> {
             try (ServerSocket b = new ServerSocket(0, 1, LOOPBACK);
                  ServerSocket a = new ServerSocket(0, 1, LOOPBACK)) {

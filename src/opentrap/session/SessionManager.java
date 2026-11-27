@@ -84,6 +84,11 @@ public final class SessionManager implements SessionHook {
         return false;
     }
 
+    @Override public void onRedirect(String tool, HttpService svc, HttpMessage req, HttpMessage resp) {
+        if (svc == null || resp == null) return;
+        jar.updateFrom(svc, resp); // a redirect's cookies are learned, rule or not
+    }
+
     /** Run a macro now, logging its traffic so it is visible in the Logger. */
     public Map<String, String> runMacro(Macro m) {
         if (m == null) return Map.of();
