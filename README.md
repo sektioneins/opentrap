@@ -146,9 +146,11 @@ For everything else, the original project is the place to go:
   black, whichever reads on their fill. The file format is described in
   [docs/themes.md](docs/themes.md). A change that is saved but not yet applied
   is undone by choosing the active font or theme again.
-- **Releases named after their commit.** A release and the version in the
-  title bar are the commit's date and short id, such as `20261127-787c007`, so
-  every build says which source it came from.
+- **Releases named after their commit, for x86_64 and arm64 Linux.** A release
+  and the version in the title bar are the commit's date and short id, such as
+  `20261127-787c007`, so every build says which source it came from. Each
+  release has an AppImage for x86_64 and one for aarch64 (arm64), both built on
+  GitHub Actions from that commit.
 - **Working hotkeys.** The palette's Go to shortcuts and the Send to shortcuts
   in the history and message editor work without opening a menu, and the
   Hotkeys settings page lists the suite's real shortcuts and rebinds them.

@@ -1,0 +1,25 @@
+# Install the just pinned in tools/versions for the runner's architecture,
+# checked against its sha256 before it runs. Used by every workflow, after
+# the checkout.
+
+name: Install just
+description: Install the pinned just for this runner's architecture
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        set -euo pipefail
+        . tools/versions
+        case "$(uname -m)" in
+          x86_64) triple=x86_64-unknown-linux-musl sha="$JUST_LINUX_X64_SHA256" ;;
+          aarch64) triple=aarch64-unknown-linux-musl sha="$JUST_LINUX_AARCH64_SHA256" ;;
+          *) echo "::error::no just is pinned for $(uname -m)"; exit 1 ;;
+        esac
+        url="https://github.com/casey/just/releases/download/${JUST_VERSION}/just-${JUST_VERSION}-${triple}.tar.gz"
+        curl -fsSL --proto '=https' --proto-redir '=https' -o "$RUNNER_TEMP/just.tar.gz" "$url"
+        echo "${sha}  $RUNNER_TEMP/just.tar.gz" | sha256sum -c -
+        mkdir -p "$RUNNER_TEMP/just"
+        tar -xzf "$RUNNER_TEMP/just.tar.gz" -C "$RUNNER_TEMP/just" just
+        echo "$RUNNER_TEMP/just" >> "$GITHUB_PATH"

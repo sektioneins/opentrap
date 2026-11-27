@@ -37,18 +37,22 @@ JAVA_RELEASE=27
 
 # Portable JDK used to compile OpenTRAP and build the AppImage runtime.
 # Temurin is built on an old glibc, so the AppImage runs on mainstream Linux.
-# The full release (not just the major) is pinned, plus the tarball's sha256,
-# so every machine fetches the same bytes.
+# The full release (not just the major) is pinned, plus the sha256 of the
+# tarball for each Linux architecture an AppImage is built for, so every
+# machine fetches the same bytes.
 JDK_VERSION=27.0.1.1+4
-JDK_SHA256=005e57ee860978acfeeff1be2b30f770664fe2b941e9b803c61c76992086d107
+JDK_LINUX_X64_SHA256=005e57ee860978acfeeff1be2b30f770664fe2b941e9b803c61c76992086d107
+JDK_LINUX_AARCH64_SHA256=fc6986815165fc9506eb6a01ace00942f5c91c993102355ab01cea3e2de9736d
 
-# appimagetool packs the release AppImage. Pinned by version and hash because
-# the packaging script executes it.
+# appimagetool packs the release AppImage. Pinned by version and hash, per
+# architecture, because the packaging recipe executes it.
 APPIMAGETOOL_VERSION=1.9.1
-APPIMAGETOOL_SHA256=ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0
+APPIMAGETOOL_X64_SHA256=ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0
+APPIMAGETOOL_AARCH64_SHA256=f0837e7448a0c1e4e650a93bb3e85802546e60654ef287576f46c71c126a9158
 
 # just runs every build, test, fetch and packaging recipe (justfile). CI
-# installs this release of the x86_64 Linux build and checks its sha256;
-# locally any just from this version up works.
+# installs this release of the Linux build for the runner's architecture and
+# checks its sha256; locally any just from this version up works.
 JUST_VERSION=1.59.0
 JUST_LINUX_X64_SHA256=409044617b6f06517c1035e55ca38c8c856ff8b650e41bc2aa1ef82d5903a23e
+JUST_LINUX_AARCH64_SHA256=23871b1702bfd550fb5f901778fd4290ecf2ee034a45a889fbe96d89b188086d

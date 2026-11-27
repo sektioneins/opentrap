@@ -12,7 +12,7 @@ lists what the recipes need. A clone has the source but not the large, fetched
 tools (they are gitignored). Fetch them once:
 
 ```
-just jdk         # Linux x64: portable Temurin JDK into jdk/ (required for a portable AppImage)
+just jdk         # Linux x86_64 or aarch64: portable Temurin JDK into jdk/ (required for a portable AppImage)
 just engine      # OWASP ZAP scan engine into engine/
 just browser     # optional, Linux x64: the testing browser into browser/
 ```
@@ -36,91 +36,135 @@ just run        # launch the dev jar (auto HiDPI scale; just run 2 to force)
 just test       # run the test suite
 ```
 
-## Release (the AppImage is the only published artefact)
+## Release (the AppImages are the only published artefacts)
 
-A release is one file on GitHub, `opentrap-x86_64.appimage`, which carries the
-Java runtime and the scan engine. The jar is not published.
+A release is two files on GitHub, `opentrap-x86_64.appimage` and
+`opentrap-aarch64.appimage`, each carrying the Java runtime for its
+architecture and the scan engine. The jar is not published. Both are built by
+the AppImages workflow on GitHub Actions, never on the maintainer's machine, so
+a release can be made from macOS as well as from Linux.
 
 ### Versions
 
-The version is `<date>-<commit>`: the UTC date of the commit and its short id,
-such as `20261127-787c007`. `just release` names the jar
+The version is `<date>-<commit>`: the UTC date of the commit and the first 7
+characters of its id, such as `20261127-787c007`. `just release` names the jar
 `opentrap_<version>.jar` and stamps the version into its manifest, so the app
 shows it in the title bar and the About box, and it becomes the release tag.
-Rebuilding a commit gives it the same version. A tree with uncommitted changes,
-or with untracked files under `src/`, builds as `<date>-<commit>-dirty`, which
-is fine for a local test but cannot be published.
+Rebuilding a commit gives it the same version, on any machine. A tree with
+uncommitted changes, or with untracked files under `src/`, builds as
+`<date>-<commit>-dirty`; that only happens in a local build, which is never
+published.
 
 ### What you need
 
-- A Linux x86_64 machine. `just appimage` and `just publish` exist only there.
-- `just`, `git`, `curl`, `zip` and the GitHub CLI `gh`.
+- `just`, `git` and the GitHub CLI `gh`, on Linux or macOS.
 - `gh auth login` done once, with write access to the repository `origin`
   points at. Check with `gh auth status`.
-- A clean checkout of the commit to release, pushed to `origin`.
+- The commit to release, pushed to `origin`.
+- The workflow file `.github/workflows/appimage.yml` on the repository's
+  default branch: GitHub only starts a manual workflow that is there.
 
 ### Steps
 
 ```
-git status                    # nothing to commit: a dirty tree builds a -dirty version
-git push origin main          # publish refuses a commit that is not on GitHub
-just engine                   # the pinned scan engine; the release build checks it
-just appimage                 # portable JDK, release jar, then dist/opentrap-x86_64.appimage
-./dist/opentrap-x86_64.appimage   # test it by hand, ideally also on an older distribution
-just publish release notes.md # or: just publish prerelease notes.md
+git push origin main             # the workflow builds the pushed commit
+just appimage-ci                 # build both AppImages of HEAD on GitHub, download them
+./dist/<version>/opentrap-x86_64.appimage   # test them by hand, on each architecture
+just publish release notes.md    # or: just publish prerelease notes.md
 ```
 
-The first argument is required and says what kind of release it is. A
-`release` becomes the newest release, the one the permanent link serves. A
-`prerelease` is listed on GitHub as a pre-release and leaves the permanent link
-on the last release, so it suits a build for testers.
+`just appimage-ci` takes the commit as an optional argument (`HEAD` by
+default) and does, in order:
+
+1. If `dist/<version>/` already holds both AppImages, each matching the sha256
+   beside it, it is done.
+2. Otherwise it looks for the workflow's artifacts of that version on GitHub,
+   `appimage-<version>-x86_64` and `appimage-<version>-aarch64`, which are kept
+   for 14 days. It takes them only from a successful manual run of
+   `appimage.yml` on the default branch of this repository, titled with the
+   commit's full id. Any workflow run can upload an artifact of any name,
+   including a pull request's run from a fork, so it ignores, and names, every
+   other run.
+3. If they are not there, it starts the AppImages workflow for the commit
+   (`gh workflow run appimage.yml -f commit=<full id>`), prints the run's link
+   and waits for it to finish.
+4. It downloads both into `dist/<version>/` and checks each against the sha256
+   its build recorded.
+
+`just publish` runs `just appimage-ci` itself, so the AppImages are built when
+nothing was built yet; it also takes the commit as an optional third argument.
+Run `just appimage-ci` first anyway, so you test the files you publish.
+
+The first argument of `just publish` is required and says what kind of release
+it is. A `release` becomes the newest release, the one the permanent links
+serve. A `prerelease` is listed on GitHub as a pre-release and leaves the
+permanent links on the last release, so it suits a build for testers.
 
 `notes.md` is the release text, in Markdown: what changed since the last
 release. Keep it outside the repository or do not commit it.
 
-`just appimage` fetches the portable JDK (`just jdk`) and the pinned
-`appimagetool` itself, and builds the runtime from that JDK (see the glibc
-section below). It warns, and the release falls back to a system ZAP at run
-time, if `engine/` is missing; it refuses an `engine/` that `just engine` did
-not install, or that has changed since.
+### What the workflow does
+
+`.github/workflows/appimage.yml` runs only when started by hand, with the full
+40-character id of a commit. It checks out that commit and builds from it:
+
+1. One job runs `just engine` and passes the engine on to both builds, so they
+   carry the same add-on versions.
+2. Two jobs run `just appimage`, one on `ubuntu-24.04` (x86_64) and one on
+   `ubuntu-24.04-arm` (aarch64). Each fetches the pinned Temurin and the pinned
+   `appimagetool` for its architecture (`tools/versions`), checks that the jar
+   is the commit's own version, and uploads the AppImage with its sha256.
+
+The workflow only reads the repository: it creates no release and no tag.
+Its actions are pinned by commit id, and `just` by version and sha256.
 
 ### What `just publish` does
 
-1. It unpacks the jar from `dist/opentrap-x86_64.appimage` and takes the
-   version from its name. It publishes what was built, even if the checkout has
-   moved on since.
-2. It stops if the version ends in `-dirty`, if the commit is not in the local
-   checkout, or if it is not on GitHub yet.
-3. Before anything goes out, it shows the repository, the kind, the tag and the
-   commit it will be created on, the title, the file it uploads with its size
-   and sha256, and the notes in full. It publishes only when you type `yes`,
-   and it needs a terminal for that: run without one, it stops.
-4. It creates the release on the GitHub repository `origin` points at: the
+1. It computes the version of the commit and makes sure `dist/<version>/`
+   holds both AppImages (`just appimage-ci`, above).
+2. Before anything goes out, it shows the repository, the kind, the tag, the
+   commit with its subject, the title, each file it uploads with its size and
+   sha256, and the notes in full. It publishes only when you type `yes`, and it
+   needs a terminal for that: run without one, it stops.
+3. It creates the release on the GitHub repository `origin` points at: the
    fork in this checkout, upstream in an upstream checkout, with no edits to
-   the recipe. The tag is the version and is created on that commit. The title
-   is the app's name from `opentrap.ui.Main.NAME` and the version, for example
-   `OpenTRAP-S1 20261127-787c007`. A `release` is marked latest; a
+   the recipes. The tag is the version and is created on that commit. The
+   title is the app's name from `opentrap.ui.Main.NAME` and the version, for
+   example `OpenTRAP-S1 20261127-787c007`. A `release` is marked latest; a
    `prerelease` is marked as a pre-release and not latest.
-5. It checks that GitHub's sha256 of the upload matches the local file, and
-   where the permanent link
-   `https://github.com/<owner>/<repo>/releases/latest/download/opentrap-x86_64.appimage`
+4. For each file it checks that GitHub's sha256 of the upload matches the local
+   file, and where its permanent link
+   `https://github.com/<owner>/<repo>/releases/latest/download/opentrap-<arch>.appimage`
    leads: to the new tag for a `release`, still to the previous release for a
    `prerelease`.
 
+### Building an AppImage locally
+
+`just appimage` still builds `dist/opentrap-<arch>.appimage` on a Linux x86_64
+or aarch64 machine, for the machine's own architecture, the same way the
+workflow does. It fetches the portable JDK (`just jdk`) and the pinned
+`appimagetool` itself, and builds the runtime from that JDK (see the glibc
+section below). It warns, and the build falls back to a system ZAP at run time,
+if `engine/` is missing; it refuses an `engine/` that `just engine` did not
+install, or that has changed since. A local build is for testing; `just
+publish` never uploads it.
+
 ### When something goes wrong
 
-- *The AppImage does not hold exactly one jar, or has no release version*:
-  `dist/` holds an AppImage from an older build. Run `just appimage` again.
-- *Built with uncommitted changes*: commit, then run `just appimage` again.
-- *Not on GitHub yet*: push the commit, then run `just publish` again. There is
-  no need to rebuild.
+- *Not on GitHub yet*: push the commit, then run the recipe again.
+- *The workflow run did not show up*, or *the AppImages workflow failed*: open
+  the link it prints. A failed build leaves no artifacts, so the next
+  `just appimage-ci` starts a new run.
+- *A download does not match the sha256 its build recorded*: nothing is
+  written to `dist/<version>/`. Run `just appimage-ci` again; if it keeps
+  failing, look at the run on GitHub.
 - *A release with that tag already exists*: `gh release create` does not
   overwrite. Each commit is released once; to publish again, make a new commit.
   To replace a broken release of the same commit, delete it first:
   `gh release delete <version> --repo <owner>/<repo> --cleanup-tag`.
 - *The verification fails* (`FAIL` with the two sums and the latest link): the
-  release exists but is not what was built, or the permanent link is not where
-  it should be. Look at it on GitHub, delete it as above, and publish again.
+  release exists but is not what was built, or a permanent link is not where it
+  should be. Look at it on GitHub, delete it as above, and publish again.
 - *To turn a pre-release into a release*, run
   `gh release edit <version> --repo <owner>/<repo> --prerelease=false --latest`.
 
@@ -142,7 +186,7 @@ Verify portability after building: every binary in the AppImage should require n
 newer than `GLIBC_2.17`:
 
 ```
-dist/opentrap-x86_64.appimage --appimage-extract >/dev/null
+dist/opentrap-$(uname -m).appimage --appimage-extract >/dev/null
 find squashfs-root -type f \( -name '*.so*' -o -perm -u+x \) \
   -exec sh -c 'readelf -V "$1" 2>/dev/null | grep -oE "GLIBC_[0-9]+\.[0-9]+"' _ {} \; \
   | sort -V | tail -1
@@ -247,9 +291,9 @@ box, and it is the release tag.
 
 ## Known limitations and scope
 
-- **Linux x86_64 only.** The release is a single x86_64 Linux AppImage; there are no
-  Windows, macOS or ARM builds. The code is portable Java, but the packaging, the
-  bundled runtime and the AppImage target are x86_64 Linux.
+- **Linux x86_64 and aarch64 only.** The release is one Linux AppImage per
+  architecture; there are no Windows or macOS builds. The code is portable Java,
+  but the packaging and the bundled runtime are Linux, per architecture.
 - **The AppImage requires glibc 2.17 or newer** (see above), which covers
   mainstream distributions from roughly 2014 onward.
 - **The testing browser is a separate, optional download**, not part of the

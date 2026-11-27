@@ -8,12 +8,13 @@
 #   just run          launch the app (builds first if the jar is missing)
 #   just run 1.5      launch at a fixed interface scale; later arguments go to the app
 #   just release      build the self-contained release jar dist/opentrap_<date>-<commit>.jar
-#   just appimage     Linux x64: pack the release jar into dist/opentrap-x86_64.appimage
-#   just publish release notes.md   Linux: publish the tested AppImage to origin's GitHub repo (or: prerelease)
+#   just appimage     Linux x86_64 or aarch64: pack the release jar into dist/opentrap-<arch>.appimage
+#   just appimage-ci  build the release AppImages (x86_64, aarch64) of HEAD on GitHub Actions into dist/<version>/
+#   just publish release notes.md   publish them to origin's GitHub repo (or: prerelease), after asking
 #   just clean        remove build/, build-tests/, dist/ and AppDir/
 #
 #   just libs         fetch the jars pinned in tools/versions into lib/ (it is committed)
-#   just jdk          Linux x64: fetch the pinned portable JDK into jdk/
+#   just jdk          Linux x86_64 or aarch64: fetch the pinned portable JDK into jdk/
 #   just engine       fetch the pinned OWASP ZAP scan engine, with the latest add-ons, into engine/
 #   just browser      Linux x64: fetch the pinned Chromium and chromedriver into browser/
 #   just addon spiderAjax 23.33.0    add a ZAP add-on to engine/plugin/
@@ -140,15 +141,11 @@ release: _classes
     # names the file and is the jar's Implementation-Version, which the app
     # shows in its title. The testing browser is not embedded.
     #
-    # The version is the commit's UTC date and its short id, such as
-    # 20261127-787c007, so a commit always builds under the same name and the
-    # name says which source it is. A build from a tree with uncommitted
-    # changes, or with untracked sources that would be compiled in, gets
-    # "-dirty" appended, and 'just publish' refuses it.
-    sha="$(git rev-parse --short HEAD 2>/dev/null)" \
-        || { echo "just release needs a git checkout: the version is the commit date and id" >&2; exit 1; }
-    day="$(TZ=UTC git log -1 --format=%cd --date=format-local:%Y%m%d HEAD)"
-    ts="$day-$sha"
+    # The version is the commit's (see _version), so a commit always builds
+    # under the same name and the name says which source it is. A build from
+    # a tree with uncommitted changes, or with untracked sources that would be
+    # compiled in, gets "-dirty" appended, and 'just publish' refuses it.
+    ts="$({{ just }} _version HEAD)"
     if [ -n "$(git status --porcelain --untracked-files=no)$(git ls-files --others --exclude-standard -- src)" ]; then
         ts="$ts-dirty"
     fi
@@ -191,7 +188,15 @@ release: _classes
 appimage:
     #!/usr/bin/env bash
     set -euo pipefail
-    [ "$(uname -m)" = x86_64 ] || { echo "The AppImage is built for x86_64 only; this machine is $(uname -m)." >&2; exit 1; }
+    # An AppImage holds native code (the Java runtime and the jpackage
+    # launcher), so it is built for the machine's own architecture, under
+    # the name AppImage uses for it: x86_64 or aarch64.
+    arch="$(uname -m)"
+    case "$arch" in
+        x86_64) ait_sha="$APPIMAGETOOL_X64_SHA256" ;;
+        aarch64) ait_sha="$APPIMAGETOOL_AARCH64_SHA256" ;;
+        *) echo "The AppImage is built for x86_64 and aarch64 only; this machine is $arch." >&2; exit 1 ;;
+    esac
     # The runtime inside must come from the pinned portable JDK (old glibc),
     # or the app only starts on machines as new as the build host. Use it for
     # the release build too, and for jpackage.
@@ -204,13 +209,13 @@ appimage:
     # appimagetool runs as part of this build, so it is fetched pinned to the
     # version and sha256 in tools/versions and cached per version under
     # ~/.cache/opentrap. An unverified download is never run.
-    ait="$HOME/.cache/opentrap/appimagetool-x86_64-${APPIMAGETOOL_VERSION}.AppImage"
+    ait="$HOME/.cache/opentrap/appimagetool-${arch}-${APPIMAGETOOL_VERSION}.AppImage"
     if [ ! -x "$ait" ]; then
         echo ">> fetching appimagetool ${APPIMAGETOOL_VERSION}"
         mkdir -p "$(dirname "$ait")"
         trap 'rm -f "$ait.part"' EXIT
-        curl -fsSL -o "$ait.part" "https://github.com/AppImage/appimagetool/releases/download/${APPIMAGETOOL_VERSION}/appimagetool-x86_64.AppImage"
-        {{ just }} _verify "$ait.part" "$APPIMAGETOOL_SHA256"
+        curl -fsSL -o "$ait.part" "https://github.com/AppImage/appimagetool/releases/download/${APPIMAGETOOL_VERSION}/appimagetool-${arch}.AppImage"
+        {{ just }} _verify "$ait.part" "$ait_sha"
         chmod +x "$ait.part"
         mv "$ait.part" "$ait"
     fi
@@ -276,81 +281,167 @@ appimage:
     DESK
 
     echo ">> packing the AppImage"
-    ARCH=x86_64 "$ait" --appimage-extract-and-run AppDir dist/opentrap-x86_64.appimage
+    ARCH="$arch" "$ait" --appimage-extract-and-run AppDir "dist/opentrap-$arch.appimage"
     echo
-    echo "Built dist/opentrap-x86_64.appimage"
-    echo "Run it with:  chmod +x dist/opentrap-x86_64.appimage && ./dist/opentrap-x86_64.appimage"
+    echo "Built dist/opentrap-$arch.appimage"
+    echo "Run it with:  chmod +x dist/opentrap-$arch.appimage && ./dist/opentrap-$arch.appimage"
 
-# Publish the tested AppImage in dist/ as a GitHub release or pre-release, after showing what goes out and asking
-[linux]
-publish kind notes:
+# Build the release AppImages of a pushed commit on GitHub Actions and download them into dist/<version>/
+appimage-ci commit="HEAD":
     #!/usr/bin/env bash
     set -euo pipefail
-    # A release is exactly one file, the AppImage, which carries the Java
-    # runtime and the scan engine; the jar is not published. The asset keeps
-    # a fixed name, so the permanent link
-    #   https://github.com/<owner>/<repo>/releases/latest/download/opentrap-x86_64.appimage
-    # always serves the newest release. The version is the release tag, and the
-    # tag points at the commit the version names.
+    # The release AppImages, x86_64 and aarch64, are built by the AppImages
+    # workflow (.github/workflows/appimage.yml) on GitHub's runners of each
+    # architecture, from the pushed commit. This uses the workflow's AppImages
+    # for the commit when they are there; otherwise it starts the workflow,
+    # waits for it, and then downloads them. Each download is checked against
+    # the sha256 the build recorded.
+    repo="$({{ just }} _github-repo)"
+    commit="$(git rev-parse --verify --quiet "$1^{commit}")" \
+        || { echo "$1 is not a commit in this checkout" >&2; exit 1; }
+    ver="$({{ just }} _version "$commit")"
+    out="dist/$ver"
+    arches=(x86_64 aarch64)
+
+    matches() {  # <AppImage>: it exists and matches the sha256 file beside it
+        [ -f "$1" ] && [ -f "$1.sha256" ] || return 1
+        [ "$(cut -d' ' -f1 "$1.sha256")" = "$({{ hasher }} "$1" | cut -d' ' -f1)" ]
+    }
+    complete=yes
+    for a in "${arches[@]}"; do matches "$out/opentrap-$a.appimage" || complete=no; done
+    if [ "$complete" = yes ]; then
+        echo "$out already holds the AppImages of $ver."
+        exit 0
+    fi
+
+    gh api "repos/$repo/commits/$commit" --silent 2>/dev/null \
+        || { echo "commit ${commit:0:7} is not on $repo yet; push it first" >&2; exit 1; }
+
+    # Artifacts are looked up by name, and any workflow run in the repository
+    # can upload one with any name, including a pull request's run from a
+    # fork. Only a successful manual run of the AppImages workflow, on the
+    # default branch of this repository and titled with this commit, counts:
+    # starting one needs write access, and on the default branch it runs the
+    # reviewed workflow file.
+    branch="$(gh api "repos/$repo" --jq .default_branch)"
+    trusted_run() {  # <run id>
+        [ "$(gh api "repos/$repo/actions/runs/$1" \
+            --jq '[.event, .path, .head_branch, .head_repository.full_name, .display_title, .conclusion] | join("|")')" \
+            = "workflow_dispatch|.github/workflows/appimage.yml|$branch|$repo|AppImages for $commit|success" ]
+    }
+    run_of() {  # <artifact name>: the newest trusted run that still has it, or nothing
+        local r
+        for r in $(gh api "repos/$repo/actions/artifacts?name=$1&per_page=100" \
+            --jq '[.artifacts[] | select(.expired | not)] | sort_by(.created_at) | reverse | .[].workflow_run.id'); do
+            if trusted_run "$r"; then
+                echo "$r"
+                return
+            fi
+            echo "   ignoring $1 from run $r: not a manual AppImages run on $branch for this commit" >&2
+        done
+    }
+    runs=()
+    built=yes
+    for a in "${arches[@]}"; do
+        r="$(run_of "appimage-$ver-$a")"
+        runs+=("$r")
+        [ -n "$r" ] || built=no
+    done
+
+    if [ "$built" = no ]; then
+        echo ">> $repo has no AppImages of $ver yet; starting the AppImages workflow for $commit"
+        # gh does not say which run it started. Runs are numbered upwards, so
+        # it is the first run named after this commit above the newest one now.
+        title="AppImages for $commit"
+        newest_run() {
+            gh run list --repo "$repo" --workflow appimage.yml --event workflow_dispatch --limit 50 \
+                --json databaseId,displayTitle \
+                --jq "[.[] | select(.displayTitle == \"$title\") | .databaseId] | max // 0"
+        }
+        before="$(newest_run)"
+        gh workflow run appimage.yml --repo "$repo" -f commit="$commit"
+        run=0
+        for _ in $(seq 1 30); do
+            run="$(newest_run)"
+            [ "$run" -gt "$before" ] && break
+            sleep 2
+        done
+        [ "$run" -gt "$before" ] \
+            || { echo "the workflow run did not show up; see https://github.com/$repo/actions/workflows/appimage.yml" >&2; exit 1; }
+        echo ">> waiting for https://github.com/$repo/actions/runs/$run"
+        gh run watch "$run" --repo "$repo" --exit-status --interval 30 >/dev/null \
+            || { echo "the AppImages workflow failed: https://github.com/$repo/actions/runs/$run" >&2; exit 1; }
+        trusted_run "$run" \
+            || { echo "run $run is not a successful manual AppImages run on $branch for this commit" >&2; exit 1; }
+        runs=()
+        for a in "${arches[@]}"; do runs+=("$run"); done
+    fi
+
+    stage="$(mktemp -d "${TMPDIR:-/tmp}/opentrap.XXXXXX")"
+    trap 'rm -rf "$stage"' EXIT
+    for i in "${!arches[@]}"; do
+        a="${arches[$i]}"
+        echo ">> downloading appimage-$ver-$a from run ${runs[$i]}"
+        gh run download "${runs[$i]}" --repo "$repo" --name "appimage-$ver-$a" --dir "$stage/$a"
+        matches "$stage/$a/opentrap-$a.appimage" \
+            || { echo "appimage-$ver-$a: the AppImage is missing or does not match the sha256 its build recorded" >&2; exit 1; }
+    done
+    mkdir -p "$out"
+    for a in "${arches[@]}"; do
+        chmod +x "$stage/$a/opentrap-$a.appimage"
+        mv -f "$stage/$a/opentrap-$a.appimage" "$stage/$a/opentrap-$a.appimage.sha256" "$out/"
+    done
+    echo "Downloaded the AppImages of $ver into $out:"
+    for a in "${arches[@]}"; do echo "  $out/opentrap-$a.appimage"; done
+
+# Publish the AppImages of a pushed commit as a GitHub release or pre-release, after showing what goes out and asking
+publish kind notes commit="HEAD":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # A release is the AppImages for x86_64 and aarch64, which carry the Java
+    # runtime and the scan engine; the jar is not published. They come from
+    # the AppImages workflow (just appimage-ci), never from a local build.
+    # Each keeps a fixed name, so the permanent links
+    #   https://github.com/<owner>/<repo>/releases/latest/download/opentrap-<arch>.appimage
+    # always serve the newest release. The version is the release tag, and
+    # the tag points at the commit the version names.
     #
     # kind is "release" or "prerelease", always given: a release becomes the
-    # one the permanent link serves, a pre-release is listed on GitHub but
-    # leaves that link where it was.
+    # one the permanent links serve, a pre-release is listed on GitHub but
+    # leaves those links where they were.
     kind="$1" notes="$2"
     case "$kind" in
         release) flags=(--latest) ;;
         prerelease) flags=(--prerelease --latest=false) ;;
         *) echo "the first argument must be release or prerelease, not '$kind'" >&2; exit 1 ;;
     esac
-    name="opentrap-x86_64.appimage"
-    app="$PWD/dist/$name"
-    [ -f "$app" ] || { echo "missing dist/$name; build it with 'just appimage'" >&2; exit 1; }
     [ -f "$notes" ] || { echo "missing notes file $notes" >&2; exit 1; }
-
-    # The release goes to the GitHub repository origin points at, so a fork
-    # and upstream both publish with this recipe unchanged.
-    url="$(git remote get-url origin)"
-    repo="$(printf '%s\n' "$url" | sed -E 's#^(git@github\.com:|ssh://git@github\.com/|https://github\.com/)##; s#\.git$##; s#/$##')"
-    [[ "$repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] \
-        || { echo "origin ($url) is not a GitHub repository" >&2; exit 1; }
+    repo="$({{ just }} _github-repo)"
     # The title uses the app's own name, the one in its title bar.
     appname="$(sed -nE 's/.*static final String NAME = "([^"]+)";.*/\1/p' src/opentrap/ui/Main.java)"
     [ -n "$appname" ] || { echo "cannot read the app name from src/opentrap/ui/Main.java" >&2; exit 1; }
+    commit="$(git rev-parse --verify --quiet "$3^{commit}")" \
+        || { echo "$3 is not a commit in this checkout" >&2; exit 1; }
+    ts="$({{ just }} _version "$commit")"
 
-    stage="$(mktemp -d "${TMPDIR:-/tmp}/opentrap.XXXXXX")"
-    trap 'rm -rf "$stage"' EXIT
-    # The version is the one the AppImage was built from, read from the jar
-    # inside it, not from the checkout, which may have moved on since.
-    (cd "$stage" && "$app" --appimage-extract 'usr/lib/app/*' >/dev/null)
-    jars=("$stage"/squashfs-root/usr/lib/app/opentrap_*.jar)
-    if [ "${#jars[@]}" -ne 1 ] || [ ! -f "${jars[0]}" ]; then
-        echo "the AppImage does not hold exactly one opentrap_<version>.jar; rebuild it with 'just appimage'" >&2
-        exit 1
-    fi
-    ts="${jars[0]##*/opentrap_}"
-    ts="${ts%.jar}"
-    rm -rf "$stage/squashfs-root"
-    [[ "$ts" =~ ^[0-9]{8}-([0-9a-f]{4,40})(-dirty)?$ ]] \
-        || { echo "the AppImage's jar has no release version ($ts); rebuild it with 'just appimage'" >&2; exit 1; }
-    short="${BASH_REMATCH[1]}" dirty="${BASH_REMATCH[2]}"
-    [ -z "$dirty" ] \
-        || { echo "$ts was built with uncommitted changes; commit them, then rebuild with 'just appimage'" >&2; exit 1; }
-    commit="$(git rev-parse --verify --quiet "$short^{commit}")" \
-        || { echo "commit $short of $ts is not in this checkout" >&2; exit 1; }
-    gh api "repos/$repo/commits/$commit" --silent 2>/dev/null \
-        || { echo "commit $short is not on $repo yet; push it first" >&2; exit 1; }
-    cp "$app" "$stage/$name"
-    local_sum="$({{ hasher }} "$stage/$name" | cut -d' ' -f1)"
+    # Builds on GitHub Actions unless dist/<version>/ already holds both.
+    {{ just }} appimage-ci "$commit"
+    names=(opentrap-x86_64.appimage opentrap-aarch64.appimage)
+    files=()
+    for n in "${names[@]}"; do files+=("dist/$ts/$n"); done
 
     # Nothing has gone out yet. Show everything the release will carry and
     # publish only on an explicit yes from the terminal.
     echo
     echo "Repository:  $repo"
     echo "Kind:        $kind"
-    echo "Tag:         $ts (created on commit $commit)"
+    echo "Tag:         $ts"
+    echo "Commit:      $commit $(git log -1 --format=%s "$commit")"
     echo "Title:       $appname $ts"
-    echo "Upload:      $name, $(du -h "$stage/$name" | cut -f1), from dist/$name"
-    echo "  sha256:    $local_sum"
+    for f in "${files[@]}"; do
+        echo "Upload:      ${f##*/}, $(du -h "$f" | cut -f1), from $f"
+        echo "  sha256:    $({{ hasher }} "$f" | cut -d' ' -f1)"
+    done
     echo "Notes:       $notes"
     echo "------------------------------------------------------------------------"
     cat "$notes"
@@ -360,28 +451,58 @@ publish kind notes:
     [ "$answer" = yes ] || { echo "not published" >&2; exit 1; }
 
     echo ">> publishing $appname $ts to $repo"
-    gh release create "$ts" "$stage/$name" \
+    gh release create "$ts" "${files[@]}" \
         --repo "$repo" --target "$commit" --title "$appname $ts" --notes-file "$notes" "${flags[@]}"
 
     echo ">> verifying"
-    remote_sum="$(gh release view "$ts" --repo "$repo" --json assets \
-        --jq ".assets[] | select(.name==\"$name\") | .digest" | sed 's/^sha256://')"
-    target="$(curl -sI "https://github.com/$repo/releases/latest/download/$name" \
-        | grep -i '^location' | grep -o 'releases/download/[^/]*' || true)"
-    # A release must have moved the permanent link to itself; a pre-release
-    # must have left it alone.
-    if [ "$kind" = release ]; then
-        link_ok="$([ "$target" = "releases/download/$ts" ] && echo yes || echo no)"
-    else
-        link_ok="$([ "$target" != "releases/download/$ts" ] && echo yes || echo no)"
-    fi
-    if [ "$local_sum" = "$remote_sum" ] && [ "$link_ok" = yes ]; then
-        echo "   ok  $name  (checksum matches, latest link -> ${target#releases/download/})"
-    else
-        echo "   FAIL $name  local=$local_sum remote=$remote_sum latest->$target" >&2
-        exit 1
-    fi
+    failed=no
+    for f in "${files[@]}"; do
+        n="${f##*/}"
+        local_sum="$({{ hasher }} "$f" | cut -d' ' -f1)"
+        remote_sum="$(gh release view "$ts" --repo "$repo" --json assets \
+            --jq ".assets[] | select(.name==\"$n\") | .digest" | sed 's/^sha256://')"
+        target="$(curl -sI "https://github.com/$repo/releases/latest/download/$n" \
+            | grep -i '^location' | grep -o 'releases/download/[^/]*' || true)"
+        # A release must have moved the permanent link to itself; a
+        # pre-release must have left it alone.
+        if [ "$kind" = release ]; then
+            link_ok="$([ "$target" = "releases/download/$ts" ] && echo yes || echo no)"
+        else
+            link_ok="$([ "$target" != "releases/download/$ts" ] && echo yes || echo no)"
+        fi
+        if [ "$local_sum" = "$remote_sum" ] && [ "$link_ok" = yes ]; then
+            echo "   ok  $n  (checksum matches, latest link -> ${target#releases/download/})"
+        else
+            echo "   FAIL $n  local=$local_sum remote=$remote_sum latest->$target" >&2
+            failed=yes
+        fi
+    done
+    [ "$failed" = no ] || exit 1
     echo "Published https://github.com/$repo/releases/tag/$ts"
+
+# Print the release version of a commit: its UTC date and the first 7 characters of its id
+_version commit:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # A fixed 7 characters rather than git's --short, which grows with the
+    # repository, so a shallow CI checkout and a full one name the same
+    # commit the same way, such as 20261127-787c007.
+    c="$(git rev-parse --verify --quiet "$1^{commit}")" \
+        || { echo "$1 is not a commit in this git checkout; the version is the commit date and id" >&2; exit 1; }
+    day="$(TZ=UTC git log -1 --format=%cd --date=format-local:%Y%m%d "$c")"
+    echo "$day-${c:0:7}"
+
+# Print the GitHub repository origin points at, as owner/repo
+_github-repo:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Releases and builds go to origin's repository, so a fork and upstream
+    # both use the recipes unchanged.
+    url="$(git remote get-url origin)"
+    repo="$(printf '%s\n' "$url" | sed -E 's#^(git@github\.com:|ssh://git@github\.com/|https://github\.com/)##; s#\.git$##; s#/$##')"
+    [[ "$repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] \
+        || { echo "origin ($url) is not a GitHub repository" >&2; exit 1; }
+    echo "$repo"
 
 # Remove build outputs
 clean:
@@ -394,13 +515,21 @@ jdk:
     set -euo pipefail
     # Temurin is built on an old glibc (2.17), so a runtime made from it
     # starts on mainstream Linux, not only on the machine that built it. The
-    # exact release and its sha256 are pinned in tools/versions.
-    [ "$(uname -m)" = x86_64 ] || { echo "The pinned JDK is for x86_64 Linux; this machine is $(uname -m). Set OPENTRAP_JDK to a JDK home instead." >&2; exit 1; }
+    # exact release and its sha256 for each architecture are pinned in
+    # tools/versions.
+    case "$(uname -m)" in
+        x86_64) arch=x64 sha="$JDK_LINUX_X64_SHA256" ;;
+        aarch64) arch=aarch64 sha="$JDK_LINUX_AARCH64_SHA256" ;;
+        *) echo "The pinned JDK is for x86_64 and aarch64 Linux; this machine is $(uname -m). Set OPENTRAP_JDK to a JDK home instead." >&2; exit 1 ;;
+    esac
     if [ -x jdk/bin/javac ]; then
-        # The JDK's own release file names its exact version, e.g. 27.0.1.1+4.
+        # The JDK's own release file names its exact version, e.g. 27.0.1.1+4,
+        # and its architecture, which matters when one checkout is shared by
+        # machines of both kinds.
         have="$(sed -n 's/^JAVA_RUNTIME_VERSION="\(.*\)"$/\1/p' jdk/release 2>/dev/null || true)"
-        if [ "$have" != "$JDK_VERSION" ]; then
-            echo "jdk/ holds ${have:-an unknown version}, but tools/versions pins ${JDK_VERSION}." >&2
+        have_arch="$(sed -n 's/^OS_ARCH="\(.*\)"$/\1/p' jdk/release 2>/dev/null || true)"
+        if [ "$have" != "$JDK_VERSION" ] || [ "$have_arch" != "$(uname -m)" ]; then
+            echo "jdk/ holds ${have:-an unknown version} for ${have_arch:-an unknown architecture}, but this machine needs ${JDK_VERSION} for $(uname -m)." >&2
             echo "Delete jdk/ and re-run to fetch the pinned JDK." >&2
             exit 1
         fi
@@ -411,12 +540,12 @@ jdk:
     # Temurin assets follow a fixed scheme: tag jdk-27.0.1.1+4 ("+" is %2B in
     # the URL), file OpenJDK27U-jdk_x64_linux_hotspot_27.0.1.1_4.tar.gz.
     major="${JDK_VERSION%%.*}"
-    url="https://github.com/adoptium/temurin${major}-binaries/releases/download/jdk-${JDK_VERSION//+/%2B}/OpenJDK${major}U-jdk_x64_linux_hotspot_${JDK_VERSION//+/_}.tar.gz"
-    echo ">> downloading Temurin JDK ${JDK_VERSION} (x64 linux)"
+    url="https://github.com/adoptium/temurin${major}-binaries/releases/download/jdk-${JDK_VERSION//+/%2B}/OpenJDK${major}U-jdk_${arch}_linux_hotspot_${JDK_VERSION//+/_}.tar.gz"
+    echo ">> downloading Temurin JDK ${JDK_VERSION} ($arch linux)"
     tmp="$(mktemp -d "${TMPDIR:-/tmp}/opentrap.XXXXXX")"
     trap 'rm -rf "$tmp"' EXIT
     curl -fsSL -o "$tmp/jdk.tar.gz" "$url"
-    {{ just }} _verify "$tmp/jdk.tar.gz" "$JDK_SHA256"
+    {{ just }} _verify "$tmp/jdk.tar.gz" "$sha"
     tar -xzf "$tmp/jdk.tar.gz" -C "$tmp"
     src="$(find "$tmp" -maxdepth 1 -type d -name 'jdk-*' | head -1)"
     [ -n "$src" ] || { echo "could not find the extracted JDK directory" >&2; exit 1; }
@@ -857,7 +986,7 @@ _engine-state:
 _check-jdk:
     #!/usr/bin/env bash
     if [ ! -x "$JAVA_HOME/bin/javac" ]; then
-        if [ "$(uname -s)" = Darwin ]; then hint="brew install --cask temurin"; else hint="just jdk (x86_64), or set OPENTRAP_JDK to a JDK home"; fi
+        if [ "$(uname -s)" = Darwin ]; then hint="brew install --cask temurin"; else hint="just jdk (x86_64 or aarch64), or set OPENTRAP_JDK to a JDK home"; fi
         echo "No JDK at ${JAVA_HOME:-(none found)}. Install one with: $hint" >&2
         exit 1
     fi
