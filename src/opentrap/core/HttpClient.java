@@ -294,9 +294,15 @@ public class HttpClient {
                     break;
                 }
             }
-            if (next.crossOrigin() && opt.session != null) {
-                // The credentials of the old origin were stripped; let session
-                // handling add whatever the jar holds for the new one.
+            if (opt.session != null) {
+                try { opt.session.onRedirect(opt.sessionTool, cur, req, one.response); }
+                catch (Exception e) {
+                    Debug.error("session rule " + opt.sessionTool
+                            + " onRedirect failed; following the redirect without learning from it", e);
+                }
+                // A cross-origin hop lost the old origin's credentials, and any
+                // hop may need what the jar just learned from the previous one;
+                // let session handling add what the jar holds for the target.
                 try { opt.session.beforeSend(opt.sessionTool, next.service(), next.request()); }
                 catch (Exception e) {
                     Debug.error("session rule " + opt.sessionTool
