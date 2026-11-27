@@ -12,7 +12,7 @@ lists what the recipes need. A clone has the source but not the large, fetched
 tools (they are gitignored). Fetch them once:
 
 ```
-just jdk         # Linux x64: portable Temurin JDK into jdk/ (required for a portable AppImage)
+just jdk         # Linux x86_64 or aarch64: portable Temurin JDK into jdk/ (required for a portable AppImage)
 just engine      # OWASP ZAP scan engine into engine/
 just browser     # optional, Linux x64: the testing browser into browser/
 ```
@@ -142,7 +142,7 @@ Verify portability after building: every binary in the AppImage should require n
 newer than `GLIBC_2.17`:
 
 ```
-dist/opentrap-x86_64.appimage --appimage-extract >/dev/null
+dist/opentrap-$(uname -m).appimage --appimage-extract >/dev/null
 find squashfs-root -type f \( -name '*.so*' -o -perm -u+x \) \
   -exec sh -c 'readelf -V "$1" 2>/dev/null | grep -oE "GLIBC_[0-9]+\.[0-9]+"' _ {} \; \
   | sort -V | tail -1
@@ -247,9 +247,9 @@ box, and it is the release tag.
 
 ## Known limitations and scope
 
-- **Linux x86_64 only.** The release is a single x86_64 Linux AppImage; there are no
-  Windows, macOS or ARM builds. The code is portable Java, but the packaging, the
-  bundled runtime and the AppImage target are x86_64 Linux.
+- **Linux x86_64 and aarch64 only.** The release is one Linux AppImage per
+  architecture; there are no Windows or macOS builds. The code is portable Java,
+  but the packaging and the bundled runtime are Linux, per architecture.
 - **The AppImage requires glibc 2.17 or newer** (see above), which covers
   mainstream distributions from roughly 2014 onward.
 - **The testing browser is a separate, optional download**, not part of the

@@ -8,12 +8,12 @@
 #   just run          launch the app (builds first if the jar is missing)
 #   just run 1.5      launch at a fixed interface scale; later arguments go to the app
 #   just release      build the self-contained release jar dist/opentrap_<date>-<commit>.jar
-#   just appimage     Linux x64: pack the release jar into dist/opentrap-x86_64.appimage
+#   just appimage     Linux x86_64 or aarch64: pack the release jar into dist/opentrap-<arch>.appimage
 #   just publish release notes.md   Linux: publish the tested AppImage to origin's GitHub repo (or: prerelease)
 #   just clean        remove build/, build-tests/, dist/ and AppDir/
 #
 #   just libs         fetch the jars pinned in tools/versions into lib/ (it is committed)
-#   just jdk          Linux x64: fetch the pinned portable JDK into jdk/
+#   just jdk          Linux x86_64 or aarch64: fetch the pinned portable JDK into jdk/
 #   just engine       fetch the pinned OWASP ZAP scan engine, with the latest add-ons, into engine/
 #   just browser      Linux x64: fetch the pinned Chromium and chromedriver into browser/
 #   just addon spiderAjax 23.33.0    add a ZAP add-on to engine/plugin/
@@ -191,7 +191,15 @@ release: _classes
 appimage:
     #!/usr/bin/env bash
     set -euo pipefail
-    [ "$(uname -m)" = x86_64 ] || { echo "The AppImage is built for x86_64 only; this machine is $(uname -m)." >&2; exit 1; }
+    # An AppImage holds native code (the Java runtime and the jpackage
+    # launcher), so it is built for the machine's own architecture, under
+    # the name AppImage uses for it: x86_64 or aarch64.
+    arch="$(uname -m)"
+    case "$arch" in
+        x86_64) ait_sha="$APPIMAGETOOL_X64_SHA256" ;;
+        aarch64) ait_sha="$APPIMAGETOOL_AARCH64_SHA256" ;;
+        *) echo "The AppImage is built for x86_64 and aarch64 only; this machine is $arch." >&2; exit 1 ;;
+    esac
     # The runtime inside must come from the pinned portable JDK (old glibc),
     # or the app only starts on machines as new as the build host. Use it for
     # the release build too, and for jpackage.
@@ -204,13 +212,13 @@ appimage:
     # appimagetool runs as part of this build, so it is fetched pinned to the
     # version and sha256 in tools/versions and cached per version under
     # ~/.cache/opentrap. An unverified download is never run.
-    ait="$HOME/.cache/opentrap/appimagetool-x86_64-${APPIMAGETOOL_VERSION}.AppImage"
+    ait="$HOME/.cache/opentrap/appimagetool-${arch}-${APPIMAGETOOL_VERSION}.AppImage"
     if [ ! -x "$ait" ]; then
         echo ">> fetching appimagetool ${APPIMAGETOOL_VERSION}"
         mkdir -p "$(dirname "$ait")"
         trap 'rm -f "$ait.part"' EXIT
-        curl -fsSL -o "$ait.part" "https://github.com/AppImage/appimagetool/releases/download/${APPIMAGETOOL_VERSION}/appimagetool-x86_64.AppImage"
-        {{ just }} _verify "$ait.part" "$APPIMAGETOOL_SHA256"
+        curl -fsSL -o "$ait.part" "https://github.com/AppImage/appimagetool/releases/download/${APPIMAGETOOL_VERSION}/appimagetool-${arch}.AppImage"
+        {{ just }} _verify "$ait.part" "$ait_sha"
         chmod +x "$ait.part"
         mv "$ait.part" "$ait"
     fi
@@ -276,10 +284,10 @@ appimage:
     DESK
 
     echo ">> packing the AppImage"
-    ARCH=x86_64 "$ait" --appimage-extract-and-run AppDir dist/opentrap-x86_64.appimage
+    ARCH="$arch" "$ait" --appimage-extract-and-run AppDir "dist/opentrap-$arch.appimage"
     echo
-    echo "Built dist/opentrap-x86_64.appimage"
-    echo "Run it with:  chmod +x dist/opentrap-x86_64.appimage && ./dist/opentrap-x86_64.appimage"
+    echo "Built dist/opentrap-$arch.appimage"
+    echo "Run it with:  chmod +x dist/opentrap-$arch.appimage && ./dist/opentrap-$arch.appimage"
 
 # Publish the tested AppImage in dist/ as a GitHub release or pre-release, after showing what goes out and asking
 [linux]
@@ -394,13 +402,21 @@ jdk:
     set -euo pipefail
     # Temurin is built on an old glibc (2.17), so a runtime made from it
     # starts on mainstream Linux, not only on the machine that built it. The
-    # exact release and its sha256 are pinned in tools/versions.
-    [ "$(uname -m)" = x86_64 ] || { echo "The pinned JDK is for x86_64 Linux; this machine is $(uname -m). Set OPENTRAP_JDK to a JDK home instead." >&2; exit 1; }
+    # exact release and its sha256 for each architecture are pinned in
+    # tools/versions.
+    case "$(uname -m)" in
+        x86_64) arch=x64 sha="$JDK_LINUX_X64_SHA256" ;;
+        aarch64) arch=aarch64 sha="$JDK_LINUX_AARCH64_SHA256" ;;
+        *) echo "The pinned JDK is for x86_64 and aarch64 Linux; this machine is $(uname -m). Set OPENTRAP_JDK to a JDK home instead." >&2; exit 1 ;;
+    esac
     if [ -x jdk/bin/javac ]; then
-        # The JDK's own release file names its exact version, e.g. 27.0.1.1+4.
+        # The JDK's own release file names its exact version, e.g. 27.0.1.1+4,
+        # and its architecture, which matters when one checkout is shared by
+        # machines of both kinds.
         have="$(sed -n 's/^JAVA_RUNTIME_VERSION="\(.*\)"$/\1/p' jdk/release 2>/dev/null || true)"
-        if [ "$have" != "$JDK_VERSION" ]; then
-            echo "jdk/ holds ${have:-an unknown version}, but tools/versions pins ${JDK_VERSION}." >&2
+        have_arch="$(sed -n 's/^OS_ARCH="\(.*\)"$/\1/p' jdk/release 2>/dev/null || true)"
+        if [ "$have" != "$JDK_VERSION" ] || [ "$have_arch" != "$(uname -m)" ]; then
+            echo "jdk/ holds ${have:-an unknown version} for ${have_arch:-an unknown architecture}, but this machine needs ${JDK_VERSION} for $(uname -m)." >&2
             echo "Delete jdk/ and re-run to fetch the pinned JDK." >&2
             exit 1
         fi
@@ -411,12 +427,12 @@ jdk:
     # Temurin assets follow a fixed scheme: tag jdk-27.0.1.1+4 ("+" is %2B in
     # the URL), file OpenJDK27U-jdk_x64_linux_hotspot_27.0.1.1_4.tar.gz.
     major="${JDK_VERSION%%.*}"
-    url="https://github.com/adoptium/temurin${major}-binaries/releases/download/jdk-${JDK_VERSION//+/%2B}/OpenJDK${major}U-jdk_x64_linux_hotspot_${JDK_VERSION//+/_}.tar.gz"
-    echo ">> downloading Temurin JDK ${JDK_VERSION} (x64 linux)"
+    url="https://github.com/adoptium/temurin${major}-binaries/releases/download/jdk-${JDK_VERSION//+/%2B}/OpenJDK${major}U-jdk_${arch}_linux_hotspot_${JDK_VERSION//+/_}.tar.gz"
+    echo ">> downloading Temurin JDK ${JDK_VERSION} ($arch linux)"
     tmp="$(mktemp -d "${TMPDIR:-/tmp}/opentrap.XXXXXX")"
     trap 'rm -rf "$tmp"' EXIT
     curl -fsSL -o "$tmp/jdk.tar.gz" "$url"
-    {{ just }} _verify "$tmp/jdk.tar.gz" "$JDK_SHA256"
+    {{ just }} _verify "$tmp/jdk.tar.gz" "$sha"
     tar -xzf "$tmp/jdk.tar.gz" -C "$tmp"
     src="$(find "$tmp" -maxdepth 1 -type d -name 'jdk-*' | head -1)"
     [ -n "$src" ] || { echo "could not find the extracted JDK directory" >&2; exit 1; }
@@ -857,7 +873,7 @@ _engine-state:
 _check-jdk:
     #!/usr/bin/env bash
     if [ ! -x "$JAVA_HOME/bin/javac" ]; then
-        if [ "$(uname -s)" = Darwin ]; then hint="brew install --cask temurin"; else hint="just jdk (x86_64), or set OPENTRAP_JDK to a JDK home"; fi
+        if [ "$(uname -s)" = Darwin ]; then hint="brew install --cask temurin"; else hint="just jdk (x86_64 or aarch64), or set OPENTRAP_JDK to a JDK home"; fi
         echo "No JDK at ${JAVA_HOME:-(none found)}. Install one with: $hint" >&2
         exit 1
     fi

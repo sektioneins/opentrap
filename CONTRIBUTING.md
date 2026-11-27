@@ -61,7 +61,7 @@ Requirements:
 
 - Java 27. The recipes compile with `--release 27` (`JAVA_RELEASE` in
   `tools/versions`); the AppImage ships Eclipse Temurin 27, and CI builds and
-  tests on it. Few distributions package Java 27 yet: on Linux x64 `just jdk`
+  tests on it. Few distributions package Java 27 yet: on Linux x86_64 or aarch64 `just jdk`
   installs the pinned Temurin into `jdk/`, which the recipes prefer. On macOS
   they use the Temurin 27 that `java_home` finds (`brew install --cask
   temurin`). `OPENTRAP_JDK` set to a JDK home overrides both.
