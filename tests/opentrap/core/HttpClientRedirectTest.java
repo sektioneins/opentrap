@@ -34,6 +34,13 @@ public final class HttpClientRedirectTest {
         catch (Exception e) { throw new IllegalStateException(e); }
     }
 
+    private static Macro loginMacro(HttpService svc) {
+        Macro m = new Macro("login");
+        m.items.add(new Macro.Item(svc, new HttpMessage(Bytes.bytes("POST /login HTTP/1.1\r\nHost: 127.0.0.1:"
+                + svc.port() + "\r\nContent-Length: 3\r\n\r\nu=1"))));
+        return m;
+    }
+
     private static HttpMessage post() {
         return new HttpMessage(Bytes.bytes("POST /login HTTP/1.1\r\nHost: a.test\r\n"
                 + "Cookie: sid=secret\r\nAuthorization: Basic dTpw\r\nProxy-Authorization: Basic cDpx\r\n"
@@ -118,6 +125,54 @@ public final class HttpClientRedirectTest {
                 Expect.isFalse(head.contains("\ncookie:"), "no Cookie");
                 Expect.isFalse(head.contains("\nauthorization:"), "no Authorization");
                 Expect.isFalse(seen.contains("user=u"), "no body");
+            } catch (Exception e) { throw new RuntimeException(e); }
+        });
+
+        Harness.test("a macro stores a redirect target's cookie under the target's host only", () -> {
+            try (ServerSocket b = new ServerSocket(0, 1, LOOPBACK);
+                 ServerSocket a = new ServerSocket(0, 1, LOOPBACK)) {
+                serve(b, "HTTP/1.1 200 OK\r\nSet-Cookie: z=1\r\nContent-Length: 2\r\n\r\nok");
+                serve(a, "HTTP/1.1 302 Found\r\nLocation: http://localhost:" + b.getLocalPort()
+                        + "/\r\nContent-Length: 0\r\n\r\n");
+                HttpService svcA = new HttpService("127.0.0.1", a.getLocalPort(), false);
+                CookieJar jar = new CookieJar();
+                loginMacro(svcA).run(jar, null);
+                List<opentrap.session.Cookie> all = jar.all();
+                Expect.equal(all.size(), 1, "one cookie: " + all);
+                Expect.equal(all.get(0).name, "z", "name");
+                Expect.equal(all.get(0).domain, "localhost", "domain");
+                Expect.isNull(jar.headerFor(svcA, new HttpMessage(Bytes.bytes("GET / HTTP/1.1\r\nHost: x\r\n\r\n")), null),
+                        "nothing for the original host");
+            } catch (Exception e) { throw new RuntimeException(e); }
+        });
+
+        Harness.test("a macro logs each redirect hop under the host that answered it", () -> {
+            try (ServerSocket b = new ServerSocket(0, 1, LOOPBACK);
+                 ServerSocket a = new ServerSocket(0, 1, LOOPBACK)) {
+                serve(b, "HTTP/1.1 200 OK\r\nSet-Cookie: z=1\r\nContent-Length: 2\r\n\r\nok");
+                serve(a, "HTTP/1.1 302 Found\r\nLocation: http://localhost:" + b.getLocalPort()
+                        + "/\r\nContent-Length: 0\r\n\r\n");
+                List<String> log = new ArrayList<>();
+                loginMacro(new HttpService("127.0.0.1", a.getLocalPort(), false)).run(new CookieJar(),
+                        (svc, req, resp) -> log.add(svc.host() + " " + req.method() + " " + req.path() + " " + resp.statusCode()));
+                Expect.equal(log, List.of("127.0.0.1 POST /login 302", "localhost GET / 200"), "recorded hops");
+            } catch (Exception e) { throw new RuntimeException(e); }
+        });
+
+        Harness.test("a macro step without a redirect stores its cookie and extracts from its response as before", () -> {
+            try (ServerSocket a = new ServerSocket(0, 1, LOOPBACK)) {
+                serve(a, "HTTP/1.1 200 OK\r\nSet-Cookie: sid=1\r\nContent-Length: 9\r\n\r\ntoken=abc");
+                Macro m = loginMacro(new HttpService("127.0.0.1", a.getLocalPort(), false));
+                m.extractions.add(new opentrap.session.Extraction("t", opentrap.session.Extraction.From.REGEX, "token=(\\w+)"));
+                CookieJar jar = new CookieJar();
+                List<String> log = new ArrayList<>();
+                java.util.Map<String, String> out = m.run(jar,
+                        (svc, req, resp) -> log.add(svc.host() + " " + req.method() + " " + req.path() + " " + resp.statusCode()));
+                Expect.equal(out, java.util.Map.of("t", "abc"), "extracted");
+                Expect.equal(jar.all().size(), 1, "one cookie");
+                Expect.equal(jar.all().get(0).name, "sid", "name");
+                Expect.equal(jar.all().get(0).domain, "127.0.0.1", "domain");
+                Expect.equal(log, List.of("127.0.0.1 POST /login 200"), "one entry");
             } catch (Exception e) { throw new RuntimeException(e); }
         });
 

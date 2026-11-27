@@ -3,6 +3,7 @@ package opentrap.session;
 import opentrap.core.HttpClient;
 import opentrap.core.HttpMessage;
 import opentrap.core.HttpService;
+import opentrap.core.SessionHook;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -51,31 +52,54 @@ public final class Macro implements Serializable {
     /**
      * Replay every item in order, feeding cookies into the jar between steps,
      * and return the values named by the extraction rules (last response wins on
-     * a name clash). A recorder, if given, logs each exchange.
+     * a name clash). Each redirect hop's cookies go to the jar under the host
+     * that answered. A recorder, if given, logs each hop as its own exchange.
      */
     public Map<String, String> run(CookieJar jar, Recorder recorder) {
         Map<String, String> out = new LinkedHashMap<>();
+        JarHook hook = new JarHook(jar, recorder);
         for (Item it : items) {
             HttpService svc = it.service();
             HttpMessage req = it.request();
-            String merged = jar.headerFor(svc, req, req.header("Cookie"));
-            if (merged != null && !merged.isEmpty()) req.setHeader("Cookie", merged);
 
             HttpClient.Options opt = new HttpClient.Options();
             opt.unpackGzip = true;
             opt.followRedirects = true;
             opt.updateContentLength = false;
+            opt.session = hook;
             HttpClient.Result r = new HttpClient().send(svc, req, opt);
             if (!r.ok()) continue;
 
-            jar.updateFrom(svc, r.response);
             for (Extraction ex : extractions) {
                 String v = ex.extract(r.response, jar);
                 if (v != null) out.put(ex.name, v);
             }
-            if (recorder != null) recorder.record(svc, req, r.response);
+            if (recorder != null) recorder.record(r.finalService, r.finalRequest, r.response);
         }
         return out;
+    }
+
+    /** Sends the jar's cookies on every hop and learns each response under the host that sent it. */
+    private static final class JarHook implements SessionHook {
+        private final CookieJar jar;
+        private final Recorder recorder;
+
+        JarHook(CookieJar jar, Recorder recorder) { this.jar = jar; this.recorder = recorder; }
+
+        @Override public void beforeSend(String tool, HttpService svc, HttpMessage req) {
+            String merged = jar.headerFor(svc, req, req.header("Cookie"));
+            if (merged != null && !merged.isEmpty()) req.setHeader("Cookie", merged);
+        }
+
+        @Override public void onRedirect(String tool, HttpService svc, HttpMessage req, HttpMessage resp) {
+            jar.updateFrom(svc, resp);
+            if (recorder != null) recorder.record(svc, req, resp);
+        }
+
+        @Override public boolean afterResponse(String tool, HttpService svc, HttpMessage req, HttpMessage resp) {
+            jar.updateFrom(svc, resp);
+            return false;
+        }
     }
 
     @Override public String toString() { return name == null || name.isEmpty() ? "(unnamed macro)" : name; }

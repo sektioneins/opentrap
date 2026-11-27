@@ -82,7 +82,8 @@ For everything else, the original project is the place to go:
   for a public suffix such as `co.uk`, and when two cookies share a name the
   most specific one is sent. Session handling keeps the cookies a redirect
   sets on the way, under the host that set them, and sends them on the next
-  hop, as a browser does. The CA key and the saved application logins are
+  hop, as a browser does, and a macro logs each hop of a redirect as its
+  own entry. The CA key and the saved application logins are
   written readable by their owner only from the start.
   Repeater and Intruder send over HTTP/2 and auto through the upstream proxy
   rules as they do over HTTP/1, a SOCKS rule refuses those modes instead of
