@@ -1,0 +1,125 @@
+# Build the release AppImages for x86_64 and aarch64 Linux from one commit.
+#
+# Started by hand for each release, usually through 'just appimage-ci' or
+# 'just publish', which pass the full id of a pushed commit. The workflow only
+# builds: it uploads each AppImage with its sha256 as a workflow artifact
+# named appimage-<version>-<arch>, and 'just publish' downloads them, shows
+# what goes out and creates the release from the maintainer's machine. It
+# never writes to the repository.
+#
+# An AppImage holds native code, so each is built on a runner of its own
+# architecture. The scan engine is fetched once and shared by both, so they
+# carry the same add-on versions even when ZAP publishes one mid-build.
+#
+# Actions are pinned by commit, because what this workflow builds is what
+# users download.
+
+name: AppImages
+run-name: AppImages for ${{ inputs.commit }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: Full 40-character id of the commit to build (pushed to this repository)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  engine:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Check the commit id
+        env:
+          COMMIT: ${{ inputs.commit }}
+        run: |
+          [[ "$COMMIT" =~ ^[0-9a-f]{40}$ ]] \
+            || { echo "::error::commit must be a full 40-character commit id"; exit 1; }
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.commit }}
+          persist-credentials: false
+
+      - uses: ./.github/actions/install-just
+
+      - name: Version
+        id: version
+        run: echo "version=$(just _version HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch the scan engine
+        run: just engine
+
+      # tar keeps the files exactly as 'just engine' left them, which the
+      # release build checks against engine/.pinned.
+      - name: Pack the engine
+        run: tar -cf "$RUNNER_TEMP/engine.tar" engine
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: engine
+          path: ${{ runner.temp }}/engine.tar
+          retention-days: 1
+          compression-level: 1
+          if-no-files-found: error
+
+  appimage:
+    needs: engine
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    env:
+      VERSION: ${{ needs.engine.outputs.version }}
+      TARGET_ARCH: ${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.commit }}
+          persist-credentials: false
+
+      - uses: ./.github/actions/install-just
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: engine
+          path: ${{ runner.temp }}
+
+      - name: Unpack the engine
+        run: tar -xf "$RUNNER_TEMP/engine.tar"
+
+      # Fetches the pinned JDK and appimagetool for this architecture, builds
+      # the release jar and packs dist/opentrap-<arch>.appimage.
+      - name: Build the AppImage
+        run: just appimage
+
+      # The build must be the commit's own version, not a -dirty one, and for
+      # the architecture its name says.
+      - name: Check and hash the AppImage
+        run: |
+          [ "$(uname -m)" = "$TARGET_ARCH" ] \
+            || { echo "::error::runner is $(uname -m), not $TARGET_ARCH"; exit 1; }
+          [ -f "dist/opentrap_${VERSION}.jar" ] \
+            || { echo "::error::the build is not version $VERSION"; ls dist; exit 1; }
+          cd dist
+          sha256sum "opentrap-$TARGET_ARCH.appimage" > "opentrap-$TARGET_ARCH.appimage.sha256"
+          cat "opentrap-$TARGET_ARCH.appimage.sha256"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: appimage-${{ env.VERSION }}-${{ matrix.arch }}
+          path: |
+            dist/opentrap-${{ matrix.arch }}.appimage
+            dist/opentrap-${{ matrix.arch }}.appimage.sha256
+          retention-days: 14
+          compression-level: 0
+          if-no-files-found: error
