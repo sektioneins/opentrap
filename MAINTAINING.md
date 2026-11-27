@@ -38,27 +38,91 @@ just test       # run the test suite
 
 ## Release (the AppImage is the only published artefact)
 
+A release is one file on GitHub, `opentrap-x86_64.appimage`, which carries the
+Java runtime and the scan engine. The jar is not published.
+
+### Versions
+
+The version is `<date>-<commit>`: the UTC date of the commit and its short id,
+such as `20261127-787c007`. `just release` names the jar
+`opentrap_<version>.jar` and stamps the version into its manifest, so the app
+shows it in the title bar and the About box, and it becomes the release tag.
+Rebuilding a commit gives it the same version. A tree with uncommitted changes,
+or with untracked files under `src/`, builds as `<date>-<commit>-dirty`, which
+is fine for a local test but cannot be published.
+
+### What you need
+
+- A Linux x86_64 machine. `just appimage` and `just publish` exist only there.
+- `just`, `git`, `curl`, `zip` and the GitHub CLI `gh`.
+- `gh auth login` done once, with write access to the repository `origin`
+  points at. Check with `gh auth status`.
+- A clean checkout of the commit to release, pushed to `origin`.
+
+### Steps
+
 ```
-just appimage    # builds the release jar, then the AppImage -> dist/opentrap-x86_64.appimage
+git status                    # nothing to commit: a dirty tree builds a -dirty version
+git push origin main          # publish refuses a commit that is not on GitHub
+just engine                   # the pinned scan engine; the release build checks it
+just appimage                 # portable JDK, release jar, then dist/opentrap-x86_64.appimage
+./dist/opentrap-x86_64.appimage   # test it by hand, ideally also on an older distribution
+just publish release notes.md # or: just publish prerelease notes.md
 ```
 
-Test the AppImage by hand, then publish:
+The first argument is required and says what kind of release it is. A
+`release` becomes the newest release, the one the permanent link serves. A
+`prerelease` is listed on GitHub as a pre-release and leaves the permanent link
+on the last release, so it suits a build for testers.
 
-```
-just publish <timestamp> <notes.md>
-```
+`notes.md` is the release text, in Markdown: what changed since the last
+release. Keep it outside the repository or do not commit it.
 
-- `<timestamp>` is the build **embedded in the AppImage**. `just appimage`
-  runs `just release`, which stamps a fresh `opentrap_<timestamp>.jar`, so the
-  timestamp to publish is the jar inside the AppImage, not an earlier one left in
-  `dist/`. Find it with:
-  `./dist/opentrap-x86_64.appimage --appimage-extract 'usr/lib/app/*'` then
-  `ls squashfs-root/usr/lib/app/`.
-- `just publish` creates the GitHub release, uploads the AppImage under the fixed
-  name `opentrap-x86_64.appimage`, marks it latest, and verifies that the
-  permanent link
-  `https://github.com/opentrap/opentrap/releases/latest/download/opentrap-x86_64.appimage`
-  resolves to the new tag.
+`just appimage` fetches the portable JDK (`just jdk`) and the pinned
+`appimagetool` itself, and builds the runtime from that JDK (see the glibc
+section below). It warns, and the release falls back to a system ZAP at run
+time, if `engine/` is missing; it refuses an `engine/` that `just engine` did
+not install, or that has changed since.
+
+### What `just publish` does
+
+1. It unpacks the jar from `dist/opentrap-x86_64.appimage` and takes the
+   version from its name. It publishes what was built, even if the checkout has
+   moved on since.
+2. It stops if the version ends in `-dirty`, if the commit is not in the local
+   checkout, or if it is not on GitHub yet.
+3. Before anything goes out, it shows the repository, the kind, the tag and the
+   commit it will be created on, the title, the file it uploads with its size
+   and sha256, and the notes in full. It publishes only when you type `yes`,
+   and it needs a terminal for that: run without one, it stops.
+4. It creates the release on the GitHub repository `origin` points at: the
+   fork in this checkout, upstream in an upstream checkout, with no edits to
+   the recipe. The tag is the version and is created on that commit. The title
+   is the app's name from `opentrap.ui.Main.NAME` and the version, for example
+   `OpenTRAP-S1 20261127-787c007`. A `release` is marked latest; a
+   `prerelease` is marked as a pre-release and not latest.
+5. It checks that GitHub's sha256 of the upload matches the local file, and
+   where the permanent link
+   `https://github.com/<owner>/<repo>/releases/latest/download/opentrap-x86_64.appimage`
+   leads: to the new tag for a `release`, still to the previous release for a
+   `prerelease`.
+
+### When something goes wrong
+
+- *The AppImage does not hold exactly one jar, or has no release version*:
+  `dist/` holds an AppImage from an older build. Run `just appimage` again.
+- *Built with uncommitted changes*: commit, then run `just appimage` again.
+- *Not on GitHub yet*: push the commit, then run `just publish` again. There is
+  no need to rebuild.
+- *A release with that tag already exists*: `gh release create` does not
+  overwrite. Each commit is released once; to publish again, make a new commit.
+  To replace a broken release of the same commit, delete it first:
+  `gh release delete <version> --repo <owner>/<repo> --cleanup-tag`.
+- *The verification fails* (`FAIL` with the two sums and the latest link): the
+  release exists but is not what was built, or the permanent link is not where
+  it should be. Look at it on GitHub, delete it as above, and publish again.
+- *To turn a pre-release into a release*, run
+  `gh release edit <version> --repo <owner>/<repo> --prerelease=false --latest`.
 
 ## Critical: AppImage portability (glibc)
 
@@ -177,7 +241,7 @@ startup, so both launchers (`AppRun` written by `just appimage`, and
 has not set it already. The in-app scale relaunch inherits the environment.
 
 **The build identifier is the jar manifest version.** `just release` stamps
-`Implementation-Version` with the UTC build timestamp; `opentrap.ui.Main.VERSION`
+`Implementation-Version` with the commit date and short id; `opentrap.ui.Main.VERSION`
 reads it back (a dev build reports `dev`). It appears in the title bar and About
 box, and it is the release tag.
 
