@@ -69,7 +69,9 @@ Requirements:
   `tools/versions`), from your package manager or `brew install just`.
 - bash. Recipes run under the first `bash` on PATH; on macOS put Homebrew's
   bash ahead of the system bash 3.2.
-- curl, unzip and zip for the fetch and release recipes.
+- curl, unzip and zip for the fetch and release recipes, and xmllint for
+  `just engine` and `just addons` (`libxml2-utils` on Debian and Ubuntu; macOS
+  has it).
 
 BouncyCastle and a Brotli decoder are vendored under `lib/` (`just libs`
 fetches the pinned jars again); the ZAP scan engine and the Chromium browser

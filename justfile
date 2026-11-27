@@ -754,6 +754,9 @@ addons action="check" *ids:
         check|update) ;;
         *) echo "Usage: just addons [check|update] [add-on id ...]" >&2; exit 1 ;;
     esac
+    # The add-on list is read with xmllint, whose errors are discarded below
+    # because a missing element is one too, so check for it first.
+    command -v xmllint >/dev/null || { echo "xmllint is needed to read ZAP's add-on list: install libxml2-utils (Debian, Ubuntu) or libxml2" >&2; exit 1; }
     dir=engine/plugin
     [ -d "$dir" ] || { echo "No engine in engine/. Fetch it first: just engine" >&2; exit 1; }
     jarf="$(ls engine/zap-*.jar 2>/dev/null | head -1)"
