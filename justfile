@@ -7,9 +7,9 @@
 #   just test-nosandbox   only the cases that need a display, the rest of just test
 #   just run          launch the app (builds first if the jar is missing)
 #   just run 1.5      launch at a fixed interface scale; later arguments go to the app
-#   just release      build the self-contained release jar dist/opentrap_<timestamp>.jar
+#   just release      build the self-contained release jar dist/opentrap_<date>-<commit>.jar
 #   just appimage     Linux x64: pack the release jar into dist/opentrap-x86_64.appimage
-#   just publish 20261019-085441 notes.md   Linux: publish a tested AppImage to GitHub
+#   just publish release notes.md   Linux: publish the tested AppImage to origin's GitHub repo (or: prerelease)
 #   just clean        remove build/, build-tests/, dist/ and AppDir/
 #
 #   just libs         fetch the jars pinned in tools/versions into lib/ (it is committed)
@@ -136,11 +136,23 @@ release: _classes
     set -euo pipefail
     # Unlike the lean dev jar, this one carries the trimmed ZAP engine as a
     # resource. On first run the app extracts it once to ~/.opentrap/engine
-    # and runs it headless, so the one jar is all a user needs. The UTC
-    # timestamp names the file and is the jar's Implementation-Version, which
-    # the app shows in its title. The testing browser is not embedded.
-    ts="$(date -u +%Y%m%d-%H%M%S)"
-    echo "Release build $ts (UTC)"
+    # and runs it headless, so the one jar is all a user needs. The version
+    # names the file and is the jar's Implementation-Version, which the app
+    # shows in its title. The testing browser is not embedded.
+    #
+    # The version is the commit's UTC date and its short id, such as
+    # 20261127-787c007, so a commit always builds under the same name and the
+    # name says which source it is. A build from a tree with uncommitted
+    # changes, or with untracked sources that would be compiled in, gets
+    # "-dirty" appended, and 'just publish' refuses it.
+    sha="$(git rev-parse --short HEAD 2>/dev/null)" \
+        || { echo "just release needs a git checkout: the version is the commit date and id" >&2; exit 1; }
+    day="$(TZ=UTC git log -1 --format=%cd --date=format-local:%Y%m%d HEAD)"
+    ts="$day-$sha"
+    if [ -n "$(git status --porcelain --untracked-files=no)$(git ls-files --others --exclude-standard -- src)" ]; then
+        ts="$ts-dirty"
+    fi
+    echo "Release build $ts"
     if ls engine/zap-*.jar >/dev/null 2>&1; then
         # Ship only the engine 'just engine' last installed, for the current
         # ZAP pins: nothing added, removed or updated since (such as by
@@ -269,47 +281,102 @@ appimage:
     echo "Built dist/opentrap-x86_64.appimage"
     echo "Run it with:  chmod +x dist/opentrap-x86_64.appimage && ./dist/opentrap-x86_64.appimage"
 
-# Publish the tested AppImage in dist/ as a GitHub release; the timestamp names the jar it was built from
+# Publish the tested AppImage in dist/ as a GitHub release or pre-release, after showing what goes out and asking
 [linux]
-publish timestamp notes:
+publish kind notes:
     #!/usr/bin/env bash
     set -euo pipefail
     # A release is exactly one file, the AppImage, which carries the Java
     # runtime and the scan engine; the jar is not published. The asset keeps
     # a fixed name, so the permanent link
-    #   https://github.com/opentrap/opentrap/releases/latest/download/opentrap-x86_64.appimage
-    # always serves the newest release. The version is the release tag.
-    ts="$1" notes="$2"
-    repo="opentrap/opentrap"
+    #   https://github.com/<owner>/<repo>/releases/latest/download/opentrap-x86_64.appimage
+    # always serves the newest release. The version is the release tag, and the
+    # tag points at the commit the version names.
+    #
+    # kind is "release" or "prerelease", always given: a release becomes the
+    # one the permanent link serves, a pre-release is listed on GitHub but
+    # leaves that link where it was.
+    kind="$1" notes="$2"
+    case "$kind" in
+        release) flags=(--latest) ;;
+        prerelease) flags=(--prerelease --latest=false) ;;
+        *) echo "the first argument must be release or prerelease, not '$kind'" >&2; exit 1 ;;
+    esac
     name="opentrap-x86_64.appimage"
     app="$PWD/dist/$name"
-    [ -f "dist/opentrap_${ts}.jar" ] || { echo "missing dist/opentrap_${ts}.jar" >&2; exit 1; }
-    [ -f "$app" ] || { echo "missing dist/$name" >&2; exit 1; }
+    [ -f "$app" ] || { echo "missing dist/$name; build it with 'just appimage'" >&2; exit 1; }
     [ -f "$notes" ] || { echo "missing notes file $notes" >&2; exit 1; }
+
+    # The release goes to the GitHub repository origin points at, so a fork
+    # and upstream both publish with this recipe unchanged.
+    url="$(git remote get-url origin)"
+    repo="$(printf '%s\n' "$url" | sed -E 's#^(git@github\.com:|ssh://git@github\.com/|https://github\.com/)##; s#\.git$##; s#/$##')"
+    [[ "$repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] \
+        || { echo "origin ($url) is not a GitHub repository" >&2; exit 1; }
+    # The title uses the app's own name, the one in its title bar.
+    appname="$(sed -nE 's/.*static final String NAME = "([^"]+)";.*/\1/p' src/opentrap/ui/Main.java)"
+    [ -n "$appname" ] || { echo "cannot read the app name from src/opentrap/ui/Main.java" >&2; exit 1; }
 
     stage="$(mktemp -d "${TMPDIR:-/tmp}/opentrap.XXXXXX")"
     trap 'rm -rf "$stage"' EXIT
-    # The AppImage must have been built from this jar.
-    (cd "$stage" && "$app" --appimage-extract >/dev/null)
-    if [ ! -f "$stage/squashfs-root/usr/lib/app/opentrap_${ts}.jar" ]; then
-        echo "the AppImage does not contain opentrap_${ts}.jar; rebuild it with 'just appimage'" >&2
+    # The version is the one the AppImage was built from, read from the jar
+    # inside it, not from the checkout, which may have moved on since.
+    (cd "$stage" && "$app" --appimage-extract 'usr/lib/app/*' >/dev/null)
+    jars=("$stage"/squashfs-root/usr/lib/app/opentrap_*.jar)
+    if [ "${#jars[@]}" -ne 1 ] || [ ! -f "${jars[0]}" ]; then
+        echo "the AppImage does not hold exactly one opentrap_<version>.jar; rebuild it with 'just appimage'" >&2
         exit 1
     fi
+    ts="${jars[0]##*/opentrap_}"
+    ts="${ts%.jar}"
     rm -rf "$stage/squashfs-root"
+    [[ "$ts" =~ ^[0-9]{8}-([0-9a-f]{4,40})(-dirty)?$ ]] \
+        || { echo "the AppImage's jar has no release version ($ts); rebuild it with 'just appimage'" >&2; exit 1; }
+    short="${BASH_REMATCH[1]}" dirty="${BASH_REMATCH[2]}"
+    [ -z "$dirty" ] \
+        || { echo "$ts was built with uncommitted changes; commit them, then rebuild with 'just appimage'" >&2; exit 1; }
+    commit="$(git rev-parse --verify --quiet "$short^{commit}")" \
+        || { echo "commit $short of $ts is not in this checkout" >&2; exit 1; }
+    gh api "repos/$repo/commits/$commit" --silent 2>/dev/null \
+        || { echo "commit $short is not on $repo yet; push it first" >&2; exit 1; }
     cp "$app" "$stage/$name"
+    local_sum="$({{ hasher }} "$stage/$name" | cut -d' ' -f1)"
 
-    echo ">> publishing $ts"
+    # Nothing has gone out yet. Show everything the release will carry and
+    # publish only on an explicit yes from the terminal.
+    echo
+    echo "Repository:  $repo"
+    echo "Kind:        $kind"
+    echo "Tag:         $ts (created on commit $commit)"
+    echo "Title:       $appname $ts"
+    echo "Upload:      $name, $(du -h "$stage/$name" | cut -f1), from dist/$name"
+    echo "  sha256:    $local_sum"
+    echo "Notes:       $notes"
+    echo "------------------------------------------------------------------------"
+    cat "$notes"
+    echo "------------------------------------------------------------------------"
+    [ -t 0 ] || { echo "not publishing: confirmation needs a terminal" >&2; exit 1; }
+    read -r -p "Publish this $kind? Type yes to go ahead: " answer
+    [ "$answer" = yes ] || { echo "not published" >&2; exit 1; }
+
+    echo ">> publishing $appname $ts to $repo"
     gh release create "$ts" "$stage/$name" \
-        --repo "$repo" --title "OpenTRAP $ts" --notes-file "$notes" --latest
+        --repo "$repo" --target "$commit" --title "$appname $ts" --notes-file "$notes" "${flags[@]}"
 
     echo ">> verifying"
-    local_sum="$({{ hasher }} "$stage/$name" | cut -d' ' -f1)"
     remote_sum="$(gh release view "$ts" --repo "$repo" --json assets \
         --jq ".assets[] | select(.name==\"$name\") | .digest" | sed 's/^sha256://')"
     target="$(curl -sI "https://github.com/$repo/releases/latest/download/$name" \
         | grep -i '^location' | grep -o 'releases/download/[^/]*' || true)"
-    if [ "$local_sum" = "$remote_sum" ] && [ "$target" = "releases/download/$ts" ]; then
-        echo "   ok  $name  (checksum matches, latest link -> $ts)"
+    # A release must have moved the permanent link to itself; a pre-release
+    # must have left it alone.
+    if [ "$kind" = release ]; then
+        link_ok="$([ "$target" = "releases/download/$ts" ] && echo yes || echo no)"
+    else
+        link_ok="$([ "$target" != "releases/download/$ts" ] && echo yes || echo no)"
+    fi
+    if [ "$local_sum" = "$remote_sum" ] && [ "$link_ok" = yes ]; then
+        echo "   ok  $name  (checksum matches, latest link -> ${target#releases/download/})"
     else
         echo "   FAIL $name  local=$local_sum remote=$remote_sum latest->$target" >&2
         exit 1

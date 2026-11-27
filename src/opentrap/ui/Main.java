@@ -11,10 +11,10 @@ import java.util.Arrays;
 
 public class Main {
     /**
-     * The build identifier, a UTC timestamp (YYYYMMDD-HHMMSS) stamped into the jar
-     * manifest by the release recipe (just release), so every build is uniquely and sortably identified
-     * and the running app reports exactly which one it is. A dev build has none,
-     * and reports "dev".
+     * The build identifier, the UTC date and short id of the commit it was built from
+     * (YYYYMMDD-abc1234, with "-dirty" for a tree with uncommitted changes), stamped into the
+     * jar manifest by the release recipe (just release), so the running app reports exactly
+     * which source it is. A dev build has none, and reports "dev".
      */
     public static final String VERSION = buildVersion();
     /** The app's visible name: window titles, the menu, the About box, the dock. */
